@@ -1,0 +1,197 @@
+import { GioInitOptions } from '../interface.uts'
+
+export const now = function () : number {
+  return Date.now()
+}
+
+export const guid = function () : string {
+  return `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
+}
+
+export const normalizeServerUrl = function (serverUrl : string) : string {
+  if (serverUrl.endsWith('/')) {
+    return serverUrl.slice(0, serverUrl.length - 1)
+  }
+  return serverUrl
+}
+
+export const buildCollectUrl = function (options : GioInitOptions) : string {
+  return `${normalizeServerUrl(options.serverUrl)}/v3/projects/${options.projectId}/collect`
+}
+
+export type GioSystemContext = {
+  deviceBrand : string
+  deviceModel : string
+  deviceType : string
+  language : string
+  networkState : string
+  operatingSystem : string
+  platform : string
+  platformVersion : string
+  screenHeight : number
+  screenWidth : number
+}
+
+export const getStorageKey = function (prefix : string, name : string) : string {
+  return `${prefix}:${name}`
+}
+
+export const readStorageString = function (key : string) : string {
+  const value = uni.getStorageSync(key)
+  if (value == null) {
+    return ''
+  }
+  return `${value}`
+}
+
+export const readStorageNumber = function (key : string) : number {
+  const value = uni.getStorageSync(key)
+  if (value == null || `${value}`.length == 0) {
+    return 0
+  }
+  return Number(value)
+}
+
+export const writeStorageString = function (key : string, value : string) {
+  uni.setStorageSync(key, value)
+}
+
+export const writeStorageNumber = function (key : string, value : number) {
+  uni.setStorageSync(key, value)
+}
+
+export const isBlank = function (value : string | null) : boolean {
+  return value == null || value.length == 0
+}
+
+const EVENT_NAME_REG = /^[a-zA-Z_][0-9a-zA-Z_]{0,100}$/
+
+export const isValidEventName = function (eventName : string | null) : boolean {
+  if (isBlank(eventName)) {
+    return false
+  }
+  return (eventName as string).match(EVENT_NAME_REG) != null
+}
+
+export const isValidIdentifyId = function (value : string | number | null) : boolean {
+  if (value == null) {
+    return false
+  }
+  if (typeof value === 'number') {
+    return value > 0
+  }
+  const text = `${value}`
+  return text.length > 0 && text != '-' && text != 'null' && text != 'undefined'
+}
+
+export const normalizeTrackProperties = function (properties : UTSJSONObject | null) : UTSJSONObject | null {
+  if (properties == null) {
+    return null
+  }
+
+  const normalized = {} as UTSJSONObject
+  const raw = properties as UTSJSONObject
+  const keys = Object.keys(raw)
+
+  for (let i = 0; i < keys.length; i++) {
+    const rawKey = keys[i]
+    if (rawKey == '&&sendTo') {
+      continue
+    }
+
+    const value = raw[rawKey]
+    if (value == null) {
+      continue
+    }
+
+    const key = `${rawKey}`.slice(0, 100)
+
+    if (Array.isArray(value)) {
+      const arrayValue = value as Array<any>
+      const parts = [] as Array<string>
+      const maxLength = arrayValue.length > 100 ? 100 : arrayValue.length
+      for (let j = 0; j < maxLength; j++) {
+        const item = arrayValue[j]
+        if (item == null) {
+          continue
+        }
+        parts.push(`${item}`)
+      }
+      normalized[key] = parts.join('||').slice(0, 1000)
+      continue
+    }
+
+    if (typeof value === 'object' || typeof value === 'function') {
+      continue
+    }
+
+    normalized[key] = `${value}`.slice(0, 1000)
+  }
+
+  return Object.keys(normalized).length > 0 ? normalized : null
+}
+
+export const platformName = function () : string {
+  const system = uni.getSystemInfoSync()
+  if (system.uniPlatform != null && `${system.uniPlatform}`.length > 0) {
+    return `${system.uniPlatform}`
+  }
+  if (system.platform != null && `${system.platform}`.length > 0) {
+    return `${system.platform}`
+  }
+  return 'unknown'
+}
+
+export const getSystemContext = function () : GioSystemContext {
+  const system = uni.getSystemInfoSync()
+  let platform = 'unknown'
+  if (system.uniPlatform != null && `${system.uniPlatform}`.length > 0) {
+    platform = `${system.uniPlatform}`
+  } else if (system.platform != null && `${system.platform}`.length > 0) {
+    platform = `${system.platform}`
+  }
+
+  let operatingSystem = platform
+  const lowerPlatform = platform.toLowerCase()
+  if (lowerPlatform.indexOf('android') >= 0) {
+    operatingSystem = 'uni-app-x-Android'
+  } else if (lowerPlatform.indexOf('ios') >= 0) {
+    operatingSystem = 'uni-app-x-iOS'
+  } else if (
+    lowerPlatform.indexOf('harmony') >= 0 ||
+    lowerPlatform.indexOf('ohos') >= 0
+  ) {
+    operatingSystem = 'uni-app-x-HarmonyOS'
+  }
+
+  let platformVersion = operatingSystem
+  if (system.osVersion != null && `${system.osVersion}`.length > 0) {
+    platformVersion = `${operatingSystem} ${system.osVersion}`
+  } else if (system.version != null && `${system.version}`.length > 0) {
+    platformVersion = `${operatingSystem} ${system.version}`
+  }
+
+  return {
+    deviceBrand: system.brand != null ? `${system.brand}` : '',
+    deviceModel: system.model != null ? `${system.model}` : '',
+    deviceType: operatingSystem,
+    language: system.language != null ? `${system.language}` : '',
+    networkState: system.networkType != null ? `${system.networkType}` : '',
+    operatingSystem: operatingSystem,
+    platform: platform,
+    platformVersion: platformVersion,
+    screenHeight: Number(system.screenHeight != null ? system.screenHeight : 0),
+    screenWidth: Number(system.screenWidth != null ? system.screenWidth : 0)
+  } as GioSystemContext
+}
+
+export const debugLog = function (enabled : boolean, message : string, data : any | null = null) {
+  if (!enabled) {
+    return
+  }
+  if (data == null) {
+    console.log(`[gio-uniappx] ${message}`)
+    return
+  }
+  console.log(`[gio-uniappx] ${message}`, data)
+}

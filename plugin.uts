@@ -1,0 +1,36 @@
+import { GioInitOptions } from './utssdk/interface.uts'
+import { normalizeInitOptions } from './utssdk/common/config.uts'
+import { GioTracker } from './utssdk/common/core/tracker.uts'
+
+const tracker = GioTracker.getInstance()
+
+const lifecycle = defineMixin({
+  // @ts-ignore
+  onLoad(options) {
+    // @ts-ignore
+    tracker.onPageLoad(this, options)
+  },
+  // @ts-ignore
+  onShow() {
+    // @ts-ignore
+    tracker.onShow(this)
+  },
+  // @ts-ignore
+  onHide() {
+    // @ts-ignore
+    tracker.onHide(this)
+  },
+  // @ts-ignore
+  onUnload() {
+    // @ts-ignore
+    tracker.onPageUnload(this)
+  }
+})
+
+export const gioUniappxAutotracker = definePlugin({
+  install(app : VueApp, options : UTSJSONObject) {
+    const initOptions = normalizeInitOptions(options)
+    tracker.init(initOptions)
+    app.mixin(lifecycle)
+  }
+})

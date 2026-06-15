@@ -1,0 +1,88 @@
+<template>
+	<view class="page">
+		<view class="section">
+			<text class="section-title">路由 / referralPage / query</text>
+			<view class="kv-row">
+				<text class="kv-key">from</text>
+				<text class="kv-val">{{ from }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">source</text>
+				<text class="kv-val">{{ source }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">step</text>
+				<text class="kv-val">{{ step }}</text>
+			</view>
+			<text class="hint">这个页的作用是制造不同 query 和路由来源，帮助你在 `PAGE` 事件里确认 `query` 与 `referralPage`。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">操作</text>
+			<view class="btn-row">
+				<button class="btn" @click="goSelfNext">带新 query 再进一次 route</button>
+				<button class="btn" @click="goCustom">去自定义事件页</button>
+				<button class="btn ghost" @click="goBack">navigateBack</button>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+
+const from = ref('(none)')
+const source = ref('(none)')
+const step = ref('(none)')
+
+function readQueryValue(query: UTSJSONObject, key: string): string {
+	const value = query[key]
+	if (value == null) {
+		return '(none)'
+	}
+	return String(value)
+}
+
+onLoad((query: UTSJSONObject | null) => {
+	if (query == null) {
+		return
+	}
+	from.value = readQueryValue(query, 'from')
+	source.value = readQueryValue(query, 'source')
+	step.value = readQueryValue(query, 'step')
+})
+
+function goSelfNext() {
+	let currentStep = Number.parseInt(step.value)
+	if (!Number.isFinite(currentStep)) {
+		currentStep = 0
+	}
+	const nextStep = currentStep + 1
+	uni.navigateTo({
+		url: '/pages/route/route?from=route&source=self&step=' + nextStep,
+	})
+}
+
+function goCustom() {
+	uni.switchTab({
+		url: '/pages/custom-event/custom-event',
+	})
+}
+
+function goBack() {
+	uni.navigateBack({})
+}
+</script>
+
+<style>
+.page { padding: 20rpx; }
+.section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+.kv-row { flex-direction: row; justify-content: space-between; padding: 6rpx 0; }
+.kv-key { font-size: 24rpx; color: #999; }
+.kv-val { font-size: 24rpx; color: #333; flex: 1; text-align: right; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx 24rpx; border-radius: 8rpx; margin: 6rpx; }
+.btn.ghost { background: #fff; color: #1677ff; border: 1rpx solid #1677ff; }
+</style>

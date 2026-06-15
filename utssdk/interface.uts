@@ -1,0 +1,88 @@
+export type GioReportSuccess = {
+  errMsg : string
+}
+
+export type GioReportErrorCode =
+  62000 |
+  62001 |
+  62002 |
+  62003
+
+export type GioReportError = {
+  errCode : GioReportErrorCode
+  errMsg : string
+  message : string
+  name : string
+}
+
+export type GioReportFail = GioReportError
+export type GioReportSuccessCallback = (res : GioReportSuccess) => void
+export type GioReportFailCallback = (err : GioReportFail) => void
+export type GioReportCompleteCallback = (res : any) => void
+
+export type GioHeaderMap = UTSJSONObject
+
+export type GioInitOptions = {
+  projectId : string
+  dataSourceId : string
+  appId : string
+  serverUrl : string
+  appVersion : string | null
+  debug : boolean | null
+  forceLogin : boolean | null
+  autoTrackLifecycle : boolean | null
+  sessionTimeoutMs : number | null
+  requestTimeoutMs : number | null
+  maxQueueSize : number | null
+  storagePrefix : string | null
+  header : GioHeaderMap | null
+}
+
+export type GioContext = {
+  deviceId : string
+  sessionId : string
+  userId : string | null
+  userKey : string | null
+}
+
+export type GioPageContext = {
+  path : string
+  query : string | null
+  title : string | null
+  referralPage : string | null
+  duration : number | null
+}
+
+export type GioTrackEvent = {
+  appChannel : string
+  appVersion : string
+  dataSourceId : string
+  deviceBrand : string
+  deviceId : string
+  deviceModel : string
+  deviceType : string
+  domain : string
+  eventName : string | null
+  eventSequenceId : number | null
+  eventType : string
+  language : string
+  latitude : number | null
+  longitude : number | null
+  networkState : string
+  operatingSystem : string
+  path : string | null
+  platform : string
+  platformVersion : string
+  query : string | null
+  referralPage : string | null
+  screenHeight : number
+  screenWidth : number
+  sdkVersion : string
+  sessionId : string
+  timestamp : number
+  timezoneOffset : number
+  title : string
+  userId : string | null
+  userKey : string | null
+  attributes : UTSJSONObject | null
+}

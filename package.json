@@ -1,0 +1,83 @@
+{
+  "id": "gio-uniappx-autotracker",
+  "displayName": "GrowingIO uni-app x Autotracker Lite",
+  "version": "0.1.0",
+  "description": "A minimal uni-app x cross-platform tracking SDK with init, track, user identity management, session management, and reporting.",
+  "keywords": [
+    "growingio",
+    "analytics",
+    "tracking",
+    "uni-app-x",
+    "uts"
+  ],
+  "repository": "https://github.com/growingio/gio-uniappx-autotracker",
+  "private": true,
+  "scripts": {
+    "clean": "rm -rf dist",
+    "build": "node ./scripts/build.mjs",
+    "verify:bundle": "node ./scripts/verify-bundle.mjs",
+    "dev:demo-web": "node ./scripts/dev-demo.mjs web",
+    "dev:demo-mp": "node ./scripts/dev-demo.mjs mp-weixin",
+    "dev:demo-android": "node ./scripts/dev-demo.mjs app-android",
+    "dev:demo-ios": "node ./scripts/dev-demo.mjs app-ios",
+    "dev:demo-harmony": "node ./scripts/dev-demo.mjs app-harmony",
+    "demo:open": "open -a HBuilderX ./demos/growingio-showcase",
+    "demo:debug": "node ./scripts/demo-debug.mjs",
+    "install-to-demo": "node ./scripts/install-to-demo.mjs",
+    "release": "node ./scripts/build.mjs && node ./scripts/verify-bundle.mjs && node ./scripts/release-pack.mjs"
+  },
+  "engines": {
+    "HBuilderX": "^4.33",
+    "uni-app-x": "^4.62"
+  },
+  "dcloudext": {
+    "type": "uts",
+    "sale": {
+      "regular": {
+        "price": "0.00"
+      },
+      "sourcecode": {
+        "price": "0.00"
+      }
+    },
+    "contact": {
+      "qq": ""
+    },
+    "declaration": {
+      "ads": "none",
+      "data": "collects basic app lifecycle events, custom events, and user identity fields",
+      "permissions": "network, local storage"
+    }
+  },
+  "uni_modules": {
+    "dependencies": [],
+    "encrypt": [],
+    "platforms": {
+      "client": {
+        "uni-app-x": {
+          "web": {
+            "safari": "√",
+            "chrome": "√"
+          },
+          "app": {
+            "android": {
+              "minVersion": "21",
+              "extVersion": ""
+            },
+            "ios": {
+              "minVersion": "12",
+              "extVersion": ""
+            },
+            "harmony": {
+              "minVersion": "",
+              "extVersion": "1.0.15"
+            }
+          },
+          "mp": {
+            "weixin": {}
+          }
+        }
+      }
+    }
+  }
+}

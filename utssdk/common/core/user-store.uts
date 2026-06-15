@@ -1,0 +1,143 @@
+import { GioContext, GioInitOptions } from '../../interface.uts'
+import {
+  getStorageKey,
+  guid,
+  now,
+  readStorageNumber,
+  readStorageString,
+  writeStorageNumber,
+  writeStorageString
+} from '../utils.uts'
+
+export class GioUserStore {
+  private prefix : string = ''
+  private deviceId : string = ''
+
+  hydrate(options : GioInitOptions) {
+    this.prefix = options.storagePrefix as string
+    this.deviceId = readStorageString(getStorageKey(this.prefix, 'deviceId'))
+
+    if (this.deviceId.length == 0) {
+      this.deviceId = guid()
+      writeStorageString(getStorageKey(this.prefix, 'deviceId'), this.deviceId)
+    }
+  }
+
+  private getSessionIdKey() : string {
+    return getStorageKey(this.prefix, 'sessionId')
+  }
+
+  private getDeviceIdKey() : string {
+    return getStorageKey(this.prefix, 'deviceId')
+  }
+
+  private getSessionExpiresAtKey() : string {
+    return getStorageKey(this.prefix, 'sessionExpiresAt')
+  }
+
+  private getUserIdKey() : string {
+    return getStorageKey(this.prefix, 'userId')
+  }
+
+  private getUserKeyKey() : string {
+    return getStorageKey(this.prefix, 'userKey')
+  }
+
+  private getEventSequenceIdKey() : string {
+    return getStorageKey(this.prefix, 'eventSequenceId')
+  }
+
+  private readStoredSessionId() : string {
+    return readStorageString(this.getSessionIdKey())
+  }
+
+  private readStoredDeviceId() : string {
+    return readStorageString(this.getDeviceIdKey())
+  }
+
+  private readStoredSessionExpiresAt() : number {
+    return readStorageNumber(this.getSessionExpiresAtKey())
+  }
+
+  private readStoredUserId() : string {
+    return readStorageString(this.getUserIdKey())
+  }
+
+  private readStoredUserKey() : string {
+    return readStorageString(this.getUserKeyKey())
+  }
+
+  private readStoredEventSequenceId() : number {
+    return readStorageNumber(this.getEventSequenceIdKey())
+  }
+
+  private persistSession(sessionId : string, sessionExpiresAt : number) {
+    writeStorageString(this.getSessionIdKey(), sessionId)
+    writeStorageNumber(this.getSessionExpiresAtKey(), sessionExpiresAt)
+  }
+
+  private persistUser(userId : string, userKey : string) {
+    writeStorageString(this.getUserIdKey(), userId)
+    writeStorageString(this.getUserKeyKey(), userKey)
+  }
+
+  ensureSession(sessionTimeoutMs : number) : boolean {
+    const ts = now()
+    let sessionId = this.readStoredSessionId()
+    const sessionExpiresAt = this.readStoredSessionExpiresAt()
+    const expired = sessionId.length == 0 || sessionExpiresAt <= ts
+    if (expired) {
+      sessionId = guid()
+    }
+    this.persistSession(sessionId, ts + sessionTimeoutMs)
+    return expired
+  }
+
+  touchSession(sessionTimeoutMs : number) {
+    let sessionId = this.readStoredSessionId()
+    if (sessionId.length == 0) {
+      sessionId = guid()
+    }
+    this.persistSession(sessionId, now() + sessionTimeoutMs)
+  }
+
+  setUserId(userId : string) {
+    this.persistUser(userId, this.readStoredUserKey())
+  }
+
+  setDeviceId(deviceId : string) {
+    this.deviceId = deviceId
+    writeStorageString(this.getDeviceIdKey(), deviceId)
+  }
+
+  clearUserId() {
+    this.persistUser('', this.readStoredUserKey())
+  }
+
+  setUserKey(userKey : string) {
+    this.persistUser(this.readStoredUserId(), userKey)
+  }
+
+  renewSession(sessionTimeoutMs : number) {
+    this.persistSession(guid(), now() + sessionTimeoutMs)
+  }
+
+  getNextEventSequenceId() : number {
+    const current = this.readStoredEventSequenceId()
+    writeStorageNumber(this.getEventSequenceIdKey(), current + 1)
+    return current
+  }
+
+  getContext() : GioContext {
+    const deviceId = this.readStoredDeviceId()
+    const sessionId = this.readStoredSessionId()
+    const userId = this.readStoredUserId()
+    const userKey = this.readStoredUserKey()
+    return {
+      deviceId: deviceId.length > 0 ? deviceId : this.deviceId,
+      sessionId: sessionId,
+      userId: userId.length > 0 ? userId : null,
+      userKey: userKey.length > 0 ? userKey : null
+    }
+  }
+}

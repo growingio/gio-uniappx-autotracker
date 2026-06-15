@@ -1,0 +1,101 @@
+<template>
+	<view class="page">
+		<view class="section">
+			<text class="h2">自定义事件 · track</text>
+			<text class="desc">这个页面参考了 develop showcase 的结构，但只保留当前最小 SDK 已支持的典型场景。</text>
+			<button class="btn" @click="onSimpleTrack">发一个简单事件</button>
+			<button class="btn" @click="onBusinessTrack">发一个业务事件</button>
+			<button class="btn" @click="onLongTextTrack">发一个长文本事件</button>
+			<button class="btn warn" @click="onEmptyNameTrack">发一个空事件名</button>
+		</view>
+
+		<view class="section">
+			<text class="h2">推荐观察点</text>
+			<text class="hint">1. 进入本页时，应先看到自动 `PAGE`。</text>
+			<text class="hint">2. 点按钮后，`track()` 会带上当前页的 `path` 和 `title`。</text>
+			<text class="hint">3. 从本页跳去路由页，再回来时，后续 `PAGE` 应带 `referralPage`。</text>
+			<view class="btn-row">
+				<button class="btn ghost" @click="goRoute">去路由页</button>
+				<button class="btn subtle" @click="onFlush">flush</button>
+			</view>
+		</view>
+
+		<view class="result">
+			<text class="label">最新动作：</text>
+			<text class="val">{{ lastAction }}</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { flush, track } from '@/uni_modules/gio-uniappx-autotracker'
+
+const lastAction = ref('(none)')
+
+function note(msg: string) {
+	lastAction.value = msg
+}
+
+function onSimpleTrack() {
+	track('custom_simple_click', {
+		from: 'custom-event',
+		level: 'basic',
+		tick: Date.now(),
+	} as UTSJSONObject)
+	note('custom_simple_click')
+}
+
+function onBusinessTrack() {
+	track('purchase_submit', {
+		orderId: 'ORDER-' + Date.now(),
+		amount: 199,
+		currency: 'CNY',
+		channel: 'demo',
+	} as UTSJSONObject)
+	note('purchase_submit')
+}
+
+function onLongTextTrack() {
+	const text = 'LONG_TEXT_'.repeat(30)
+	track('custom_long_text', {
+		body: text,
+		length: text.length,
+	} as UTSJSONObject)
+	note('custom_long_text')
+}
+
+function onEmptyNameTrack() {
+	track('', {
+		from: 'invalid-demo',
+	} as UTSJSONObject)
+	note('empty event name submitted')
+}
+
+function onFlush() {
+	flush()
+	note('flush')
+}
+
+function goRoute() {
+	uni.navigateTo({
+		url: '/pages/route/route?from=custom-event&source=track-demo',
+	})
+}
+</script>
+
+<style>
+.page { padding: 20rpx; }
+.section { background: #fff; padding: 20rpx; margin-bottom: 20rpx; border-radius: 10rpx; }
+.h2 { font-size: 30rpx; font-weight: bold; }
+.desc { font-size: 24rpx; color: #666; margin: 8rpx 0 12rpx; }
+.btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
+.btn.warn { background: #fa8c16; }
+.btn.ghost { background: #fff; color: #1677ff; border: 1rpx solid #1677ff; }
+.btn.subtle { background: #13a67a; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }
+.label { font-size: 24rpx; color: #999; }
+.val { font-size: 26rpx; color: #333; margin-top: 8rpx; }
+.hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+</style>

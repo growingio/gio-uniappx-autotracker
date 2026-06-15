@@ -1,0 +1,127 @@
+<template>
+	<view class="page">
+		<text class="h2">VISIT / PAGE / APP_CLOSED 诊断</text>
+		<text class="desc">
+			这个页沿用了 develop 里的“生命周期诊断”思路，但改成了当前最小 SDK 最关键的三类事件验证。
+		</text>
+
+		<view class="section">
+			<text class="section-title">操作建议</text>
+			<text class="step">1. 首次进入应用，先看请求里是否有 `VISIT`。</text>
+			<text class="step">2. 切到这个页和别的页之间来回切，看每次是否有 `PAGE`。</text>
+			<text class="step">3. 把应用切到后台，再回来，看是否补发了 `APP_CLOSED` 和新的 `PAGE`。</text>
+			<text class="step">4. 从这里跳去路由页，再返回，重点观察 `referralPage`。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">页面生命周期轨迹</text>
+			<view v-for="(rec, i) in records" :key="i" class="record">
+				<view class="record-head">
+					<text class="record-hook">{{ rec.hook }}</text>
+					<text class="record-time">{{ rec.time }}</text>
+				</view>
+				<text class="record-detail">path={{ rec.path }}</text>
+				<text v-if="rec.extra != null && rec.extra.length > 0" class="record-extra">{{ rec.extra }}</text>
+			</view>
+			<text v-if="records.length === 0" class="empty">(等待生命周期触发...)</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">手动操作</text>
+			<view class="btn-row">
+				<button class="btn" @click="goRoute">navigateTo /route</button>
+				<button class="btn" @click="goCustom">switchTab /custom-event</button>
+				<button class="btn ghost" @click="onClearTrace">清空轨迹</button>
+			</view>
+		</view>
+	</view>
+</template>
+
+<script lang="uts">
+type LifecycleRecord = {
+	hook: string
+	time: string
+	path: string
+	extra: string | null
+}
+
+export default {
+	data() {
+		return {
+			records: [] as LifecycleRecord[],
+		}
+	},
+	methods: {
+		log(hook: string, extra: string | null = null) {
+			const time = new Date().toISOString().slice(11, 23)
+			let path = ''
+			try {
+				const page = this as any
+				if (page.route != null && page.route.length > 0) {
+					path = page.route
+				} else if (page.__route__ != null && page.__route__.length > 0) {
+					path = page.__route__
+				} else if (page.$page != null && page.$page.route != null && page.$page.route.length > 0) {
+					path = page.$page.route as string
+				} else {
+					path = '-'
+				}
+			} catch (_e) {
+				path = '-'
+			}
+			;(this.records as LifecycleRecord[]).unshift({
+				hook,
+				time,
+				path,
+				extra,
+			})
+			const extraText = extra != null ? extra : ''
+			console.log(`[lifecycle] ${hook} (${path}) ${extraText}`)
+		},
+		goRoute() {
+			uni.navigateTo({ url: '/pages/route/route?from=lifecycle&step=1' })
+		},
+		goCustom() {
+			uni.switchTab({ url: '/pages/custom-event/custom-event' })
+		},
+		onClearTrace() {
+			this.records = []
+		},
+	},
+	onLoad(options: any) {
+		const safeOptions = options != null ? options : {} as UTSJSONObject
+		;(this as any).log('onLoad', 'options=' + JSON.stringify(safeOptions))
+	},
+	onShow() {
+		;(this as any).log('onShow')
+	},
+	onReady() {
+		;(this as any).log('onReady')
+	},
+	onHide() {
+		;(this as any).log('onHide')
+	},
+	onUnload() {
+		;(this as any).log('onUnload')
+	},
+}
+</script>
+
+<style>
+.page { padding: 20rpx; }
+.h2 { font-size: 32rpx; font-weight: bold; }
+.desc { font-size: 24rpx; color: #666; margin: 10rpx 0 20rpx; }
+.section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.step { font-size: 24rpx; color: #555; line-height: 1.6; padding: 2rpx 0; }
+.record { padding: 10rpx; border-bottom: 1rpx solid #f0f0f0; background: #fafafa; margin-bottom: 4rpx; border-radius: 4rpx; }
+.record-head { flex-direction: row; justify-content: space-between; }
+.record-hook { font-size: 26rpx; font-weight: bold; color: #1677ff; font-family: monospace; }
+.record-time { font-size: 22rpx; color: #999; font-family: monospace; }
+.record-detail { font-size: 22rpx; color: #555; font-family: monospace; margin-top: 4rpx; }
+.record-extra { font-size: 22rpx; color: #888; font-family: monospace; margin-top: 2rpx; }
+.empty { font-size: 24rpx; color: #aaa; text-align: center; padding: 20rpx 0; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx 24rpx; border-radius: 8rpx; margin: 6rpx; }
+.btn.ghost { background: #fff; color: #1677ff; border: 1rpx solid #1677ff; }
+</style>

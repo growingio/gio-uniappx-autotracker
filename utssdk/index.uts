@@ -1,0 +1,35 @@
+import { GioInitOptions } from './interface.uts'
+import { GioTracker } from './common/core/tracker.uts'
+
+const tracker = GioTracker.getInstance()
+
+export const init = function (options : GioInitOptions) : boolean {
+  return tracker.init(options)
+}
+
+export const track = function (eventName : string, properties : UTSJSONObject | null = null) : boolean {
+  return tracker.track(eventName, properties)
+}
+
+export const setUserId = function (userId : string, userKey : string | null = null) : boolean {
+  return tracker.setUserId(userId, userKey)
+}
+
+export const identify = function (assignmentId : string | number) : boolean {
+  return tracker.identify(assignmentId)
+}
+
+export const clearUserId = function () : boolean {
+  return tracker.clearUserId()
+}
+
+export const setUserKey = function (userKey : string) : boolean {
+  return tracker.setUserKey(userKey)
+}
+
+export const flush = function () : boolean {
+  return tracker.flush()
+}
+
+export { GioTracker } from './common/core/tracker.uts'
+export { GioInitOptions, GioTrackEvent, GioContext, GioPageContext } from './interface.uts'

@@ -1,0 +1,137 @@
+<template>
+	<view class="page">
+		<view class="section">
+			<text class="section-title">当前状态</text>
+			<view class="kv-row">
+				<text class="kv-key">deviceId</text>
+				<text class="kv-val">{{ deviceId }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">sessionId</text>
+				<text class="kv-val">{{ sessionId }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">userId</text>
+				<text class="kv-val">{{ currentUserId }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">userKey</text>
+				<text class="kv-val">{{ currentUserKey }}</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="section-title">设置身份</text>
+			<text class="field-label">userId</text>
+			<input class="input" v-model="userIdInput" placeholder="userId" />
+			<text class="field-label">userKey</text>
+			<input class="input" v-model="userKeyInput" placeholder="userKey" />
+			<text class="field-label">identify / assignmentId</text>
+			<input class="input" v-model="identifyInput" placeholder="identify assignmentId" />
+			<view class="btn-row">
+				<button class="btn" @click="onSetUserId">setUserId(userId)</button>
+				<button class="btn" @click="onSetUserIdWithKey">setUserId(userId, userKey)</button>
+				<button class="btn subtle" @click="onIdentify">identify(assignmentId)</button>
+				<button class="btn subtle" @click="onSetUserKey">setUserKey(userKey)</button>
+				<button class="btn ghost" @click="refreshState">刷新状态</button>
+				<button class="btn danger" @click="onClearUserId">clearUserId</button>
+			</view>
+			<text class="hint">`identify` 只有在初始化开启 `forceLogin: true` 时才会生效；生效后会把积压事件统一补发。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">验证建议</text>
+			<text class="hint">1. 先设置 `userId` 或 `userKey`。</text>
+			<text class="hint">2. 再去“自定义事件”页发一条 `track()`。</text>
+			<text class="hint">3. 在请求体里确认后续事件是否带上了新的 `userId/userKey`。</text>
+		</view>
+
+		<view class="result">
+			<text class="label">最新动作：</text>
+			<text class="val">{{ lastAction }}</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+import { onMounted, ref } from 'vue'
+import { GioTracker, clearUserId, identify, setUserId, setUserKey } from '@/uni_modules/gio-uniappx-autotracker'
+
+const deviceId = ref('')
+const sessionId = ref('')
+const currentUserId = ref('')
+const currentUserKey = ref('')
+const userIdInput = ref('demo_user_001')
+const userKeyInput = ref('mobile')
+const identifyInput = ref('demo_openid_001')
+const lastAction = ref('(none)')
+
+function refreshState() {
+	const context = GioTracker.getInstance().getContext()
+	if (context == null) {
+		deviceId.value = '(unknown)'
+		sessionId.value = '(unknown)'
+		currentUserId.value = '(empty)'
+		currentUserKey.value = '(empty)'
+		return
+	}
+	deviceId.value = context.deviceId
+	sessionId.value = context.sessionId
+	currentUserId.value = context.userId != null ? context.userId : '(empty)'
+	currentUserKey.value = context.userKey != null ? context.userKey : '(empty)'
+}
+
+function note(msg: string) {
+	lastAction.value = msg
+	refreshState()
+}
+
+function onSetUserId() {
+	setUserId(userIdInput.value)
+	note('setUserId(' + userIdInput.value + ')')
+}
+
+function onSetUserIdWithKey() {
+	setUserId(userIdInput.value, userKeyInput.value)
+	note('setUserId(' + userIdInput.value + ', ' + userKeyInput.value + ')')
+}
+
+function onIdentify() {
+	identify(identifyInput.value)
+	note('identify(' + identifyInput.value + ')')
+}
+
+function onSetUserKey() {
+	setUserKey(userKeyInput.value)
+	note('setUserKey(' + userKeyInput.value + ')')
+}
+
+function onClearUserId() {
+	clearUserId()
+	note('clearUserId()')
+}
+
+onMounted(() => {
+	refreshState()
+})
+</script>
+
+<style>
+.page { padding: 20rpx; }
+.section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.input { border: 1rpx solid #ddd; padding: 14rpx; border-radius: 6rpx; margin-bottom: 12rpx; font-size: 26rpx; }
+.field-label { font-size: 22rpx; color: #667085; margin: 10rpx 2rpx 6rpx; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.btn { background: #1677ff; color: #fff; font-size: 24rpx; padding: 16rpx; border-radius: 8rpx; margin: 6rpx; }
+.btn.subtle { background: #13a67a; }
+.btn.ghost { background: #eef5ff; color: #1677ff; }
+.btn.danger { background: #ef4444; }
+.hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+.kv-row { flex-direction: row; justify-content: space-between; padding: 6rpx 0; }
+.kv-key { font-size: 24rpx; color: #999; }
+.kv-val { font-size: 24rpx; color: #333; flex: 1; text-align: right; }
+.result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }
+.label { font-size: 24rpx; color: #999; }
+.val { font-size: 26rpx; color: #333; margin-top: 8rpx; }
+</style>

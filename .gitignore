@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.DS_Store
+demos/growingio-showcase/unpackage/
+demos/growingio-showcase/uni_modules/

@@ -1,0 +1,493 @@
+import {
+  GioContext,
+  GioInitOptions,
+  GioPageContext,
+  GioTrackEvent
+} from '../../interface.uts'
+import {
+  DEFAULT_MAX_QUEUE_SIZE,
+  DEFAULT_SESSION_TIMEOUT_MS,
+  GioConfig,
+  SDK_VERSION
+} from '../config.uts'
+import {
+  debugLog,
+  getSystemContext,
+  isBlank,
+  isValidIdentifyId,
+  isValidEventName,
+  normalizeTrackProperties,
+  now
+} from '../utils.uts'
+import { GioUploader } from './uploader.uts'
+import { GioUserStore } from './user-store.uts'
+
+export class GioTracker {
+  static instance : GioTracker | null = null
+
+  static getInstance() : GioTracker {
+    if (GioTracker.instance == null) {
+      GioTracker.instance = new GioTracker()
+    }
+    return GioTracker.instance as GioTracker
+  }
+
+  private initialized : boolean = false
+  private options : GioInitOptions | null = null
+  private userStore : GioUserStore = new GioUserStore()
+  private uploader : GioUploader = new GioUploader()
+  private currentPagePath : string = ''
+  private currentPageQuery : string = ''
+  private currentPageTitle : string = ''
+  private currentPageShowAt : number = 0
+  private referralPage : string = ''
+  private pendingVisit : boolean = false
+
+  private constructor() {}
+
+  init(options : GioInitOptions) : boolean {
+    if (
+      isBlank(options.projectId) ||
+      isBlank(options.dataSourceId) ||
+      isBlank(options.appId) ||
+      isBlank(options.serverUrl)
+    ) {
+      return false
+    }
+
+    GioConfig.setOptions(options)
+    this.options = GioConfig.getOptions() as GioInitOptions
+    this.userStore.hydrate(this.options as GioInitOptions)
+    this.uploader.configure(this.options as GioInitOptions)
+    this.initialized = true
+    debugLog(
+      (this.options as GioInitOptions).debug as boolean,
+      'sdk initialized',
+      this.options
+    )
+    this.initializeSessionState()
+    return true
+  }
+
+  private ensureReady() : boolean {
+    return this.initialized && this.options != null
+  }
+
+  private getSessionTimeoutMs() : number {
+    const options = this.options as GioInitOptions
+    return options.sessionTimeoutMs != null
+      ? options.sessionTimeoutMs
+      : DEFAULT_SESSION_TIMEOUT_MS
+  }
+
+  private getMaxQueueSize() : number {
+    const options = this.options as GioInitOptions
+    return options.maxQueueSize != null
+      ? options.maxQueueSize
+      : DEFAULT_MAX_QUEUE_SIZE
+  }
+
+  private initializeSessionState() {
+    if (!this.ensureReady()) {
+      return
+    }
+    const options = this.options as GioInitOptions
+    const created = this.userStore.ensureSession(this.getSessionTimeoutMs())
+    if (created) {
+      if (options.autoTrackLifecycle == true) {
+        this.pendingVisit = true
+      } else {
+        this.pushInternalEvent(
+          'visit',
+          'VISIT',
+          null,
+          this.buildCurrentPageContext(null)
+        )
+        this.flush()
+      }
+    }
+  }
+
+  private stringifyQuery(value : any | null) : string {
+    if (value == null) {
+      return ''
+    }
+    if (typeof value === 'string') {
+      return value
+    }
+    return JSON.stringify(value)
+  }
+
+  private getPagePath(page : any | null) : string {
+    if (page == null) {
+      return ''
+    }
+    if (page.route != null && `${page.route}`.length > 0) {
+      return `${page.route}`
+    }
+    if (page.__route__ != null && `${page.__route__}`.length > 0) {
+      return `${page.__route__}`
+    }
+    if (page.$page != null) {
+      const route = page.$page.route
+      if (route != null && `${route}`.length > 0) {
+        return `${route}`
+      }
+      const fullPath = page.$page.fullPath
+      if (fullPath != null && `${fullPath}`.length > 0) {
+        return `${fullPath}`
+      }
+    }
+    return ''
+  }
+
+  private getPageTitle(page : any | null) : string {
+    if (page == null) {
+      return ''
+    }
+    if (
+      page.navigationBarTitleText != null &&
+      `${page.navigationBarTitleText}`.length > 0
+    ) {
+      return `${page.navigationBarTitleText}`
+    }
+    if (page.title != null && `${page.title}`.length > 0) {
+      return `${page.title}`
+    }
+    if (page.$page != null && page.$page.meta != null) {
+      const title = page.$page.meta.navigationBarTitleText
+      if (title != null && `${title}`.length > 0) {
+        return `${title}`
+      }
+    }
+    return ''
+  }
+
+  private isPageTarget(target : any | null) : boolean {
+    return this.getPagePath(target).length > 0
+  }
+
+  private buildCurrentPageContext(duration : number | null) : GioPageContext | null {
+    if (this.currentPagePath.length == 0) {
+      return null
+    }
+    return {
+      path: this.currentPagePath,
+      query: this.currentPageQuery.length > 0 ? this.currentPageQuery : null,
+      title: this.currentPageTitle.length > 0 ? this.currentPageTitle : null,
+      referralPage: this.referralPage.length > 0 ? this.referralPage : null,
+      duration: duration
+    } as GioPageContext
+  }
+
+  private updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
+    const nextPath = this.getPagePath(page)
+    const nextTitle = this.getPageTitle(page)
+    if (nextPath.length == 0 && this.currentPagePath.length == 0) {
+      return null
+    }
+    if (
+      nextPath.length > 0 &&
+      this.currentPagePath.length > 0 &&
+      nextPath != this.currentPagePath
+    ) {
+      this.referralPage = this.currentPagePath
+    }
+    if (nextPath.length > 0) {
+      this.currentPagePath = nextPath
+    }
+    if (nextTitle.length > 0) {
+      this.currentPageTitle = nextTitle
+    }
+    if (options != null) {
+      this.currentPageQuery = this.stringifyQuery(options)
+    }
+    this.currentPageShowAt = now()
+    return this.buildCurrentPageContext(null)
+  }
+
+  private maybeEmitVisit(pageContext : GioPageContext | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const created = this.userStore.ensureSession(this.getSessionTimeoutMs())
+    if (created || this.pendingVisit) {
+      this.pendingVisit = false
+      this.pushInternalEvent('visit', 'VISIT', null, pageContext)
+    }
+  }
+
+  private buildAttributes(
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null
+  ) : UTSJSONObject | null {
+    let attributes : UTSJSONObject | null = properties
+    if (eventType == 'APP_CLOSED' && pageContext != null && pageContext.duration != null) {
+      attributes = {
+        duration: pageContext.duration
+      } as UTSJSONObject
+    }
+    return attributes
+  }
+
+  private buildEvent(
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null
+  ) : GioTrackEvent {
+    const options = this.options as GioInitOptions
+    const context = this.userStore.getContext()
+    const systemContext = getSystemContext()
+    let path : string | null = null
+    let query : string | null = null
+    let title : string | null = null
+    let referralPage : string | null = null
+    if (pageContext != null) {
+      path = pageContext.path
+      query = pageContext.query
+      title = pageContext.title
+      referralPage = pageContext.referralPage
+    }
+    let eventName : string | null = null
+    if (eventType == 'CUSTOM') {
+      eventName = name
+    }
+    let eventSequenceId : number | null = null
+    if (eventType != 'APP_CLOSED') {
+      eventSequenceId = this.userStore.getNextEventSequenceId()
+    }
+    const attributes = this.buildAttributes(eventType, properties, pageContext)
+    const event : GioTrackEvent = {
+      appChannel: 'scn:NA',
+      appVersion: options.appVersion as string,
+      dataSourceId: options.dataSourceId,
+      deviceBrand: systemContext.deviceBrand,
+      deviceId: context.deviceId,
+      deviceModel: systemContext.deviceModel,
+      deviceType: systemContext.deviceType,
+      domain: options.appId,
+      eventName: eventName,
+      eventSequenceId: eventSequenceId,
+      eventType: eventType,
+      language: systemContext.language,
+      latitude: null,
+      longitude: null,
+      networkState: systemContext.networkState,
+      operatingSystem: systemContext.operatingSystem,
+      path: path,
+      platform: systemContext.platform,
+      platformVersion: systemContext.platformVersion,
+      query: query,
+      referralPage: referralPage,
+      screenHeight: systemContext.screenHeight,
+      screenWidth: systemContext.screenWidth,
+      sdkVersion: SDK_VERSION,
+      sessionId: context.sessionId,
+      timestamp: now(),
+      timezoneOffset: new Date().getTimezoneOffset(),
+      title: title != null ? title : '',
+      userId: context.userId,
+      userKey: context.userKey,
+      attributes: attributes
+    }
+    return event
+  }
+
+  private pushInternalEvent(
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null
+  ) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const event = this.buildEvent(name, eventType, properties, pageContext)
+    this.uploader.enqueue(event, this.getMaxQueueSize())
+  }
+
+  track(
+    eventName : string,
+    properties : UTSJSONObject | null = null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (!isValidEventName(eventName)) {
+      console.error('事件名格式不正确，只能包含数字、字母和下划线，且不能以数字开头，字符总长度不能超过100!')
+      return false
+    }
+
+    const pageContext = this.buildCurrentPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    const event = this.buildEvent(
+      eventName,
+      'CUSTOM',
+      normalizeTrackProperties(properties),
+      pageContext
+    )
+    this.uploader.enqueue(event, this.getMaxQueueSize())
+    this.uploader.flush(null, null)
+    return true
+  }
+
+  setUserId(userId : string, userKey : string | null = null) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (isBlank(userId)) {
+      return false
+    }
+    const previousUserId = this.userStore.getContext().userId
+    this.userStore.setUserId(userId)
+    this.userStore.setUserKey(userKey != null ? userKey : '')
+    if (previousUserId != null && previousUserId != userId) {
+      this.userStore.renewSession(this.getSessionTimeoutMs())
+      this.pendingVisit = true
+    }
+    return true
+  }
+
+  identify(assignmentId : string | number) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const options = this.options as GioInitOptions
+    if (options.forceLogin != true) {
+      console.error('identify 仅在 forceLogin 开启时允许调用')
+      return false
+    }
+    if (!isValidIdentifyId(assignmentId)) {
+      console.error('identify 参数不合法')
+      return false
+    }
+    const deviceId = `${assignmentId}`.slice(0, 1000)
+    this.userStore.setDeviceId(deviceId)
+    options.forceLogin = false
+    this.uploader.setForceLogin(false)
+    this.uploader.releaseHoarding(deviceId, this.getMaxQueueSize())
+    this.uploader.flush(null, null)
+    return true
+  }
+
+  clearUserId() : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    this.userStore.clearUserId()
+    this.userStore.setUserKey('')
+    return true
+  }
+
+  setUserKey(userKey : string) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    this.userStore.setUserKey(userKey)
+    return true
+  }
+
+  flush() : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    return this.uploader.flush(null, null)
+  }
+
+  onPageLoad(page : any, options : any | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.updateCurrentPage(page, options)
+  }
+
+  onShow(target : any | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    if (this.isPageTarget(target)) {
+      this.onPageShow(target)
+      return
+    }
+    this.onAppShow()
+  }
+
+  onHide(target : any | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    if (this.isPageTarget(target)) {
+      return
+    }
+    this.onAppHide()
+  }
+
+  onPageShow(page : any) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const options = this.options as GioInitOptions
+    if (options.autoTrackLifecycle != true) {
+      return
+    }
+    const pageContext = this.updateCurrentPage(page, null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent('page', 'PAGE', null, pageContext)
+    this.flush()
+  }
+
+  onPageUnload(page : any) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const pagePath = this.getPagePath(page)
+    if (pagePath.length > 0 && pagePath == this.currentPagePath) {
+      this.currentPageShowAt = 0
+    }
+  }
+
+  onAppShow() {
+    if (!this.ensureReady()) {
+      return
+    }
+    const options = this.options as GioInitOptions
+    if (options.autoTrackLifecycle != true) {
+      return
+    }
+    if (this.currentPagePath.length == 0) {
+      return
+    }
+    this.maybeEmitVisit(this.buildCurrentPageContext(null))
+  }
+
+  onAppHide() {
+    if (!this.ensureReady()) {
+      return
+    }
+    const options = this.options as GioInitOptions
+    if (options.autoTrackLifecycle != true) {
+      return
+    }
+    this.userStore.touchSession(this.getSessionTimeoutMs())
+    let duration : number | null = null
+    if (this.currentPageShowAt > 0) {
+      duration = now() - this.currentPageShowAt
+    }
+    this.pushInternalEvent(
+      'close',
+      'APP_CLOSED',
+      null,
+      this.buildCurrentPageContext(duration)
+    )
+    this.flush()
+  }
+
+  getContext() : GioContext | null {
+    if (!this.ensureReady()) {
+      return null
+    }
+    return this.userStore.getContext()
+  }
+}

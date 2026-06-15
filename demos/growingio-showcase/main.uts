@@ -1,0 +1,27 @@
+import { createSSRApp } from 'vue'
+import App from './App.uvue'
+import { gioUniappxAutotracker } from '@/uni_modules/gio-uniappx-autotracker'
+
+export function createApp() {
+	const app = createSSRApp(App)
+
+	app.use(gioUniappxAutotracker, {
+		projectId: 'demo-project-id',
+		dataSourceId: 'demo-data-source-id',
+		appId: 'demo-app-id',
+		serverUrl: 'https://napi.growingio.com',
+		appVersion: '1.0.0',
+		debug: true,
+		forceLogin: false,
+		autoTrackLifecycle: true,
+		sessionTimeoutMs: 30 * 60 * 1000,
+		requestTimeoutMs: null,
+		maxQueueSize: null,
+		storagePrefix: null,
+		header: null,
+	})
+
+	return {
+		app,
+	}
+}
