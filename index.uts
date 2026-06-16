@@ -1,1 +1,2 @@
+export { gioUniappxAutotracker } from './plugin.uts'
 export * from './utssdk/index.uts'

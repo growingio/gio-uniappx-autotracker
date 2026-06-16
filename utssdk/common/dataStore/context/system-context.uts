@@ -1,0 +1,234 @@
+import { GioSystemContext, debugLog } from '../../utils.uts'
+
+type GioSystemReadyCallback = () => void
+
+function readTextField(source : any | null, keys : Array<string>) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as UTSJSONObject
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    const value = raw[key]
+    if (value != null && `${value}`.length > 0) {
+      return `${value}`
+    }
+  }
+  return ''
+}
+
+function readNumberField(source : any | null, keys : Array<string>) : number {
+  if (source == null) {
+    return 0
+  }
+  const raw = source as UTSJSONObject
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    const value = raw[key]
+    if (value != null && `${value}`.length > 0) {
+      return Number(value)
+    }
+  }
+  return 0
+}
+
+function mapOperatingSystem(rawValue : string) : string {
+  if (rawValue.length == 0) {
+    return 'unknown'
+  }
+  const lowerValue = rawValue.toLowerCase()
+  if (lowerValue.indexOf('android') >= 0) {
+    return 'uni-app-x-Android'
+  }
+  if (lowerValue.indexOf('ios') >= 0) {
+    return 'uni-app-x-iOS'
+  }
+  if (
+    lowerValue.indexOf('harmony') >= 0 ||
+    lowerValue.indexOf('ohos') >= 0
+  ) {
+    return 'uni-app-x-HarmonyOS'
+  }
+  return rawValue
+}
+
+function buildSystemContext(
+  systemInfo : any | null,
+  networkState : string
+) : GioSystemContext {
+  const platform = readTextField(
+    systemInfo,
+    ['uniPlatform', 'platform', 'osName']
+  )
+  const operatingSystem = mapOperatingSystem(
+    readTextField(systemInfo, ['osName', 'platform', 'uniPlatform'])
+  )
+  const version = readTextField(systemInfo, ['osVersion', 'version'])
+  let platformVersion = operatingSystem
+  if (version.length > 0) {
+    platformVersion = `${operatingSystem} ${version}`
+  }
+
+  return {
+    deviceBrand: readTextField(systemInfo, ['deviceBrand', 'brand']),
+    deviceModel: readTextField(systemInfo, ['deviceModel', 'model']),
+    deviceType: operatingSystem,
+    language: readTextField(systemInfo, ['appLanguage', 'language']),
+    networkState: networkState,
+    operatingSystem: operatingSystem,
+    platform: platform.length > 0 ? platform : 'unknown',
+    platformVersion: platformVersion,
+    screenHeight: readNumberField(systemInfo, ['screenHeight']),
+    screenWidth: readNumberField(systemInfo, ['screenWidth'])
+  } as GioSystemContext
+}
+
+export class GioSystemContextManager {
+  private debugEnabled : boolean = false
+  private systemInfo : any | null = null
+  private networkState : string = ''
+  private context : GioSystemContext = buildSystemContext(null, '')
+  private initialized : boolean = false
+  private listenerBound : boolean = false
+  private systemReady : boolean = false
+  private networkReady : boolean = false
+  private readyCallbacks : Array<GioSystemReadyCallback> = []
+
+  initialize(debugEnabled : boolean) {
+    this.debugEnabled = debugEnabled
+    if (this.initialized) {
+      return
+    }
+    this.initialized = true
+    this.loadSystemInfo()
+    this.loadNetworkType()
+    this.bindNetworkListener()
+  }
+
+  getContext() : GioSystemContext {
+    return this.context
+  }
+
+  isReady() : boolean {
+    return this.systemReady && this.networkReady
+  }
+
+  ensureReady(callback : GioSystemReadyCallback | null = null) {
+    if (this.isReady()) {
+      if (callback != null) {
+        callback()
+      }
+      return
+    }
+    if (callback != null) {
+      this.readyCallbacks.push(callback)
+    }
+  }
+
+  private updateContext() {
+    this.context = buildSystemContext(this.systemInfo, this.networkState)
+  }
+
+  private flushReadyCallbacks() {
+    if (!this.systemReady || !this.networkReady) {
+      return
+    }
+    while (this.readyCallbacks.length > 0) {
+      const callback = this.readyCallbacks.shift()
+      if (callback != null) {
+        callback()
+      }
+    }
+  }
+
+  private markSystemReady() {
+    this.systemReady = true
+    this.updateContext()
+    this.flushReadyCallbacks()
+  }
+
+  private markNetworkReady() {
+    this.networkReady = true
+    this.updateContext()
+    this.flushReadyCallbacks()
+  }
+
+  private loadSystemInfo() {
+    try {
+      const runtimeUni = uni as any
+      const getSystemInfo = runtimeUni.getSystemInfo
+      if (typeof getSystemInfo === 'function') {
+        getSystemInfo({
+          success: (res) => {
+            this.systemInfo = res
+            this.markSystemReady()
+          },
+          fail: (_) => {
+            debugLog(this.debugEnabled, 'getSystemInfo failed')
+            this.markSystemReady()
+          }
+        })
+        return
+      }
+      const getSystemInfoSync = runtimeUni.getSystemInfoSync
+      if (typeof getSystemInfoSync === 'function') {
+        this.systemInfo = getSystemInfoSync()
+      }
+    } catch (_error) {
+      debugLog(this.debugEnabled, 'getSystemInfo threw synchronously')
+    }
+    this.markSystemReady()
+  }
+
+  private loadNetworkType() {
+    try {
+      const runtimeUni = uni as any
+      const getNetworkType = runtimeUni.getNetworkType
+      if (typeof getNetworkType === 'function') {
+        getNetworkType({
+          success: (res) => {
+            const raw = res as UTSJSONObject
+            const networkType = raw['networkType']
+            this.networkState = networkType != null ? `${networkType}` : ''
+            this.markNetworkReady()
+          },
+          fail: (_) => {
+            debugLog(this.debugEnabled, 'getNetworkType failed')
+            this.markNetworkReady()
+          }
+        })
+        return
+      }
+    } catch (_error) {
+      debugLog(this.debugEnabled, 'getNetworkType threw synchronously')
+    }
+    this.markNetworkReady()
+  }
+
+  private bindNetworkListener() {
+    if (this.listenerBound) {
+      return
+    }
+    try {
+      const runtimeUni = uni as any
+      const onNetworkStatusChange = runtimeUni.onNetworkStatusChange
+      if (typeof onNetworkStatusChange !== 'function') {
+        return
+      }
+      this.listenerBound = true
+      onNetworkStatusChange((res) => {
+        const raw = res as UTSJSONObject
+        const networkType = raw['networkType']
+        if (networkType != null) {
+          this.networkState = `${networkType}`
+          this.updateContext()
+        }
+        if (!this.networkReady) {
+          this.markNetworkReady()
+        }
+      })
+    } catch (_error) {
+      debugLog(this.debugEnabled, 'onNetworkStatusChange threw synchronously')
+    }
+  }
+}

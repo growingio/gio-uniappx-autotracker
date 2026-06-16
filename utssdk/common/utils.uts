@@ -1,11 +1,36 @@
-import { GioInitOptions } from '../interface.uts'
-
 export const now = function () : number {
   return Date.now()
 }
 
 export const guid = function () : string {
-  return `${Date.now()}-${Math.random().toString(16).slice(2, 10)}`
+  const template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+  let result = ''
+  for (let i = 0; i < template.length; i++) {
+    const char = template.charAt(i)
+    if (char == 'x' || char == 'y') {
+      const random = Math.floor(Math.random() * 16)
+      const value = char == 'x' ? random : ((random & 0x3) | 0x8)
+      result += value.toString(16)
+      continue
+    }
+    result += char
+  }
+  return result
+}
+
+export const hashCode = function (value : string, abs : boolean = false) : number {
+  let hash = 0
+  if (value.length == 0) {
+    return hash
+  }
+  let index = 0
+  while (index < value.length) {
+    const charCode = value.charCodeAt(index)
+    hash = (hash << 5) - hash + charCode
+    hash = hash & hash
+    index++
+  }
+  return abs ? Math.abs(hash) : hash
 }
 
 export const normalizeServerUrl = function (serverUrl : string) : string {
@@ -15,7 +40,7 @@ export const normalizeServerUrl = function (serverUrl : string) : string {
   return serverUrl
 }
 
-export const buildCollectUrl = function (options : GioInitOptions) : string {
+export const buildCollectUrl = function (options : UTSJSONObject) : string {
   return `${normalizeServerUrl(options.serverUrl)}/v3/projects/${options.projectId}/collect`
 }
 
@@ -32,20 +57,83 @@ export type GioSystemContext = {
   screenWidth : number
 }
 
+const GIO_ENCRYPTED_SUFFIX = '_gioenc'
+const GIO_ENCRYPTED_PREFIX = 'gioenc-'
+
 export const getStorageKey = function (prefix : string, name : string) : string {
   return `${prefix}:${name}`
 }
 
+function isEncryptedStorageKey(key : string) : boolean {
+  return key.endsWith(GIO_ENCRYPTED_SUFFIX)
+}
+
+function getActualStorageKey(key : string) : string {
+  if (!isEncryptedStorageKey(key)) {
+    return key
+  }
+  return key.slice(0, key.length - GIO_ENCRYPTED_SUFFIX.length)
+}
+
+function isEncryptionSpecialChar(value : string) : boolean {
+  return (
+    value == 'A' ||
+    value == 'a' ||
+    value == 'Z' ||
+    value == 'z' ||
+    value == '@' ||
+    value == '{'
+  )
+}
+
+function xorStorageChar(value : string) : string {
+  if (value.length == 0) {
+    return ''
+  }
+  if (value >= '0' && value <= '9') {
+    return `${Number(value) ^ 1}`
+  }
+  return String.fromCharCode(value.charCodeAt(0) ^ 1)
+}
+
+function bitEncryptStorageValue(value : string) : string {
+  let result = ''
+  for (let i = 0; i < value.length; i++) {
+    const item = value.charAt(i)
+    result += isEncryptionSpecialChar(item) ? item : xorStorageChar(item)
+  }
+  return result
+}
+
+function encodeStorageString(key : string, value : string) : string {
+  if (!isEncryptedStorageKey(key) || value.length == 0) {
+    return value
+  }
+  return `${GIO_ENCRYPTED_PREFIX}${bitEncryptStorageValue(value)}`
+}
+
+function decodeStorageString(value : string) : string {
+  if (!value.startsWith(GIO_ENCRYPTED_PREFIX)) {
+    return value
+  }
+  return bitEncryptStorageValue(value.slice(GIO_ENCRYPTED_PREFIX.length))
+}
+
 export const readStorageString = function (key : string) : string {
-  const value = uni.getStorageSync(key)
+  const actualKey = getActualStorageKey(key)
+  let value = uni.getStorageSync(actualKey)
+  if (value == null && actualKey != key) {
+    value = uni.getStorageSync(key)
+  }
   if (value == null) {
     return ''
   }
-  return `${value}`
+  const text = `${value}`
+  return isEncryptedStorageKey(key) ? decodeStorageString(text) : text
 }
 
 export const readStorageNumber = function (key : string) : number {
-  const value = uni.getStorageSync(key)
+  const value = uni.getStorageSync(getActualStorageKey(key))
   if (value == null || `${value}`.length == 0) {
     return 0
   }
@@ -53,11 +141,42 @@ export const readStorageNumber = function (key : string) : number {
 }
 
 export const writeStorageString = function (key : string, value : string) {
-  uni.setStorageSync(key, value)
+  uni.setStorageSync(getActualStorageKey(key), encodeStorageString(key, value))
 }
 
 export const writeStorageNumber = function (key : string, value : number) {
-  uni.setStorageSync(key, value)
+  uni.setStorageSync(getActualStorageKey(key), value)
+}
+
+export const readStorageJson = function (key : string) : UTSJSONObject | null {
+  const actualKey = getActualStorageKey(key)
+  let value = uni.getStorageSync(actualKey)
+  if (value == null && actualKey != key) {
+    value = uni.getStorageSync(key)
+  }
+  if (value == null) {
+    return null
+  }
+  if (typeof value === 'string') {
+    const text = `${value}`
+    if (text.length == 0) {
+      return null
+    }
+    try {
+      return JSON.parse(text) as UTSJSONObject
+    } catch (_error) {
+      return null
+    }
+  }
+  return value as UTSJSONObject
+}
+
+export const writeStorageJson = function (key : string, value : UTSJSONObject) {
+  uni.setStorageSync(getActualStorageKey(key), JSON.stringify(value))
+}
+
+export const removeStorage = function (key : string) {
+  uni.removeStorageSync(getActualStorageKey(key))
 }
 
 export const isBlank = function (value : string | null) : boolean {
@@ -132,18 +251,27 @@ export const normalizeTrackProperties = function (properties : UTSJSONObject | n
 }
 
 export const platformName = function () : string {
-  const system = uni.getSystemInfoSync()
-  if (system.uniPlatform != null && `${system.uniPlatform}`.length > 0) {
-    return `${system.uniPlatform}`
-  }
-  if (system.platform != null && `${system.platform}`.length > 0) {
-    return `${system.platform}`
+  try {
+    const system = uni.getSystemInfoSync()
+    if (system.uniPlatform != null && `${system.uniPlatform}`.length > 0) {
+      return `${system.uniPlatform}`
+    }
+    if (system.platform != null && `${system.platform}`.length > 0) {
+      return `${system.platform}`
+    }
+  } catch (_error) {
+    return 'unknown'
   }
   return 'unknown'
 }
 
 export const getSystemContext = function () : GioSystemContext {
-  const system = uni.getSystemInfoSync()
+  let system : any = null
+  try {
+    system = uni.getSystemInfoSync()
+  } catch (_error) {
+    system = {} as UTSJSONObject
+  }
   let platform = 'unknown'
   if (system.uniPlatform != null && `${system.uniPlatform}`.length > 0) {
     platform = `${system.uniPlatform}`
@@ -185,13 +313,71 @@ export const getSystemContext = function () : GioSystemContext {
   } as GioSystemContext
 }
 
+export const consoleText = function (
+  message : any,
+  type : string | null = null
+) {
+  const styles = {
+    info: 'color: #3B82F6;',
+    error: 'color: #EF4444;',
+    warn: 'color: #F59E0B;',
+    success: 'color: #10B981;'
+  } as UTSJSONObject
+  let style = ''
+  if (type != null && styles[type] != null) {
+    style = `${styles[type]}`
+  }
+  console.log(`%c [GrowingIO]：${message}`, style)
+}
+
+function stringifyDebugData(data : any) : string {
+  try {
+    return JSON.stringify(data, null, 2)
+  } catch (_error) {
+    return `${data}`
+  }
+}
+
+function formatDebugTimestamp() : string {
+  return new Date().toISOString()
+}
+
+function buildDebugMessage(message : string) : string {
+  return `[GrowingIO Debug][${formatDebugTimestamp()}] ${message}`
+}
+
+function padDatePart(value : number, size : number = 2) : string {
+  let text = `${value}`
+  while (text.length < size) {
+    text = `0${text}`
+  }
+  return text
+}
+
+export const formatBeijingTimestamp = function (ts : number = Date.now()) : string {
+  const beijingMs = ts + 480 * 60 * 1000
+  const beijingDate = new Date(beijingMs)
+  return `${beijingDate.getUTCFullYear()}-${padDatePart(beijingDate.getUTCMonth() + 1)}-${padDatePart(beijingDate.getUTCDate())} ${padDatePart(beijingDate.getUTCHours())}:${padDatePart(beijingDate.getUTCMinutes())}:${padDatePart(beijingDate.getUTCSeconds())}.${padDatePart(beijingDate.getUTCMilliseconds(), 3)} GMT+8`
+}
+
 export const debugLog = function (enabled : boolean, message : string, data : any | null = null) {
   if (!enabled) {
     return
   }
   if (data == null) {
-    console.log(`[gio-uniappx] ${message}`)
+    console.log(buildDebugMessage(message))
     return
   }
-  console.log(`[gio-uniappx] ${message}`, data)
+  console.log(buildDebugMessage(`${message}\n${stringifyDebugData(data)}`))
+}
+
+export const niceCallback = function (callback : Function | null, value : any | null = null) {
+  if (callback == null) {
+    return
+  }
+  try {
+    callback(value)
+  } catch (error) {
+    consoleText(`回调执行失败！${error}`, 'error')
+  }
 }

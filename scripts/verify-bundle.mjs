@@ -23,7 +23,12 @@ const REQUIRED_FILES = [
   'utssdk/common/utils.uts',
   'utssdk/common/core/tracker.uts',
   'utssdk/common/core/uploader.uts',
-  'utssdk/common/core/user-store.uts',
+  'utssdk/common/userStore/index.uts',
+  'utssdk/common/dataStore/index.uts',
+  'utssdk/common/dataStore/context/system-context.uts',
+  'utssdk/common/dataStore/eventBuilder/index.uts',
+  'utssdk/common/dataStore/page/page-store.uts',
+  'utssdk/common/dataStore/page/web-page-store.uts',
   'utssdk/web/index.uts',
   'utssdk/web/package.json',
   'utssdk/mp-weixin/index.uts',
@@ -34,6 +39,8 @@ const REQUIRED_FILES = [
   'utssdk/app-ios/config.json',
   'utssdk/app-harmony/index.uts',
   'utssdk/app-harmony/config.json',
+  'utssdk/common/miniprogram.uts',
+  'utssdk/common/route.uts',
 ];
 
 function fail(message) {

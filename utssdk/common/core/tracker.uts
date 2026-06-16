@@ -1,26 +1,34 @@
 import {
+  GioABTestCallback,
+  GioABTestPluginOptions,
   GioContext,
   GioInitOptions,
+  GioPluginItem,
   GioPageContext,
   GioTrackEvent
 } from '../../interface.uts'
 import {
   DEFAULT_MAX_QUEUE_SIZE,
-  DEFAULT_SESSION_TIMEOUT_MS,
-  GioConfig,
-  SDK_VERSION
+  GioConfig
 } from '../config.uts'
 import {
-  debugLog,
-  getSystemContext,
+  consoleText,
+  formatBeijingTimestamp,
   isBlank,
   isValidIdentifyId,
   isValidEventName,
   normalizeTrackProperties,
-  now
+  now,
+  platformName
 } from '../utils.uts'
+import {
+  isMpWeixinPlatform,
+  resolveMiniProgramScene
+} from '../miniprogram.uts'
+import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
+import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
-import { GioUserStore } from './user-store.uts'
+import { GioUserStore } from '../userStore/index.uts'
 
 export class GioTracker {
   static instance : GioTracker | null = null
@@ -36,16 +44,30 @@ export class GioTracker {
   private options : GioInitOptions | null = null
   private userStore : GioUserStore = new GioUserStore()
   private uploader : GioUploader = new GioUploader()
-  private currentPagePath : string = ''
-  private currentPageQuery : string = ''
-  private currentPageTitle : string = ''
-  private currentPageShowAt : number = 0
-  private referralPage : string = ''
+  private dataStore : GioDataStore = new GioDataStore()
   private pendingVisit : boolean = false
+  private abTestPlugin : GioABTestPlugin | null = null
+  private pendingFirstPageContexts : Array<GioPageContext | null> = []
+  private firstPageDispatchWaiting : boolean = false
+  private mpWeixinEnabled : boolean = false
+  private miniProgramScene : string = ''
 
   private constructor() {}
 
+  private getInitStartMessage() : string {
+    return platformName() == 'web'
+      ? 'Gio Web SDK 初始化中...'
+      : 'Gio uni-app-x SDK 初始化中...'
+  }
+
+  private getInitCompleteMessage() : string {
+    return platformName() == 'web'
+      ? 'Gio Web SDK 初始化完成！Web模式'
+      : 'Gio uni-app-x SDK 初始化完成！'
+  }
+
   init(options : GioInitOptions) : boolean {
+    consoleText(this.getInitStartMessage(), 'info')
     if (
       isBlank(options.projectId) ||
       isBlank(options.dataSourceId) ||
@@ -57,15 +79,28 @@ export class GioTracker {
 
     GioConfig.setOptions(options)
     this.options = GioConfig.getOptions() as GioInitOptions
+    this.mpWeixinEnabled = isMpWeixinPlatform()
     this.userStore.hydrate(this.options as GioInitOptions)
-    this.uploader.configure(this.options as GioInitOptions)
-    this.initialized = true
-    debugLog(
-      (this.options as GioInitOptions).debug as boolean,
-      'sdk initialized',
-      this.options
+    this.uploader.configure(
+      this.options as GioInitOptions,
+      (events : Array<UTSJSONObject>) => {
+        this.handleFlushSuccess(events)
+      }
     )
+    this.dataStore.initialize(
+      this.options as GioInitOptions,
+      this.userStore
+    )
+    this.refreshMiniProgramScene()
+    this.initialized = true
     this.initializeSessionState()
+    consoleText(this.getInitCompleteMessage(), 'success')
+    if ((this.options as GioInitOptions).forceLogin == true) {
+      consoleText(
+        'forceLogin已开启，请调用 identify 方法设置 openId 以继续上报!',
+        'info'
+      )
+    }
     return true
   }
 
@@ -73,146 +108,98 @@ export class GioTracker {
     return this.initialized && this.options != null
   }
 
-  private getSessionTimeoutMs() : number {
+  private isDebugEnabled() : boolean {
+    return this.options != null && (this.options as GioInitOptions).debug == true
+  }
+
+  private isWebPlatform() : boolean {
+    return platformName() == 'web'
+  }
+
+  getOptions() : GioInitOptions | null {
+    return this.options
+  }
+
+  private getSessionExpiresMs() : number {
     const options = this.options as GioInitOptions
-    return options.sessionTimeoutMs != null
-      ? options.sessionTimeoutMs
-      : DEFAULT_SESSION_TIMEOUT_MS
+    const sessionExpires = options.sessionExpires != null
+      ? options.sessionExpires
+      : 0
+    return sessionExpires * 60 * 1000
   }
 
   private getMaxQueueSize() : number {
-    const options = this.options as GioInitOptions
-    return options.maxQueueSize != null
-      ? options.maxQueueSize
-      : DEFAULT_MAX_QUEUE_SIZE
+    return DEFAULT_MAX_QUEUE_SIZE
   }
 
   private initializeSessionState() {
     if (!this.ensureReady()) {
       return
     }
-    const options = this.options as GioInitOptions
-    const created = this.userStore.ensureSession(this.getSessionTimeoutMs())
+    const created = this.userStore.ensureSession(this.getSessionExpiresMs())
     if (created) {
-      if (options.autoTrackLifecycle == true) {
-        this.pendingVisit = true
-      } else {
-        this.pushInternalEvent(
-          'visit',
-          'VISIT',
-          null,
-          this.buildCurrentPageContext(null)
-        )
-        this.flush()
-      }
+      this.pendingVisit = true
     }
-  }
-
-  private stringifyQuery(value : any | null) : string {
-    if (value == null) {
-      return ''
-    }
-    if (typeof value === 'string') {
-      return value
-    }
-    return JSON.stringify(value)
-  }
-
-  private getPagePath(page : any | null) : string {
-    if (page == null) {
-      return ''
-    }
-    if (page.route != null && `${page.route}`.length > 0) {
-      return `${page.route}`
-    }
-    if (page.__route__ != null && `${page.__route__}`.length > 0) {
-      return `${page.__route__}`
-    }
-    if (page.$page != null) {
-      const route = page.$page.route
-      if (route != null && `${route}`.length > 0) {
-        return `${route}`
-      }
-      const fullPath = page.$page.fullPath
-      if (fullPath != null && `${fullPath}`.length > 0) {
-        return `${fullPath}`
-      }
-    }
-    return ''
-  }
-
-  private getPageTitle(page : any | null) : string {
-    if (page == null) {
-      return ''
-    }
-    if (
-      page.navigationBarTitleText != null &&
-      `${page.navigationBarTitleText}`.length > 0
-    ) {
-      return `${page.navigationBarTitleText}`
-    }
-    if (page.title != null && `${page.title}`.length > 0) {
-      return `${page.title}`
-    }
-    if (page.$page != null && page.$page.meta != null) {
-      const title = page.$page.meta.navigationBarTitleText
-      if (title != null && `${title}`.length > 0) {
-        return `${title}`
-      }
-    }
-    return ''
   }
 
   private isPageTarget(target : any | null) : boolean {
-    return this.getPagePath(target).length > 0
+    return this.dataStore.buildPageContextFromTarget(target, null) != null
   }
 
   private buildCurrentPageContext(duration : number | null) : GioPageContext | null {
-    if (this.currentPagePath.length == 0) {
-      return null
+    return this.dataStore.buildCurrentPageContext(duration)
+  }
+
+  private buildPageContextFromTarget(
+    page : any | null,
+    options : any | null,
+    duration : number | null = null
+  ) : GioPageContext | null {
+    return this.dataStore.buildPageContextFromTarget(page, options, duration)
+  }
+
+  private stringifyLifecyclePageContext(pageContext : GioPageContext | null) : string {
+    if (pageContext == null) {
+      return 'path=- query= title= referralPage='
     }
-    return {
-      path: this.currentPagePath,
-      query: this.currentPageQuery.length > 0 ? this.currentPageQuery : null,
-      title: this.currentPageTitle.length > 0 ? this.currentPageTitle : null,
-      referralPage: this.referralPage.length > 0 ? this.referralPage : null,
-      duration: duration
-    } as GioPageContext
+    const query = pageContext.query != null ? pageContext.query : ''
+    const title = pageContext.title != null ? pageContext.title : ''
+    const referralPage = pageContext.referralPage != null ? pageContext.referralPage : ''
+    return `path=${pageContext.path} query=${query} title=${title} referralPage=${referralPage}`
+  }
+
+  private logLifecycle(
+    scope : string,
+    hook : string,
+    pageContext : GioPageContext | null,
+    extra : string | null = null
+  ) {
+    if (!this.isDebugEnabled()) {
+      return
+    }
+    let message = `lifecycle ${scope}.${hook} ${this.stringifyLifecyclePageContext(pageContext)}`
+    if (extra != null && extra.length > 0) {
+      message += ` ${extra}`
+    }
+    console.log(`[GrowingIO Lifecycle][${formatBeijingTimestamp()}] ${message}`)
+  }
+
+  private handleFlushSuccess(events : Array<UTSJSONObject>) {
+    this.dataStore.handleFlushSuccess(events)
   }
 
   private updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
-    const nextPath = this.getPagePath(page)
-    const nextTitle = this.getPageTitle(page)
-    if (nextPath.length == 0 && this.currentPagePath.length == 0) {
-      return null
-    }
-    if (
-      nextPath.length > 0 &&
-      this.currentPagePath.length > 0 &&
-      nextPath != this.currentPagePath
-    ) {
-      this.referralPage = this.currentPagePath
-    }
-    if (nextPath.length > 0) {
-      this.currentPagePath = nextPath
-    }
-    if (nextTitle.length > 0) {
-      this.currentPageTitle = nextTitle
-    }
-    if (options != null) {
-      this.currentPageQuery = this.stringifyQuery(options)
-    }
-    this.currentPageShowAt = now()
-    return this.buildCurrentPageContext(null)
+    return this.dataStore.updateCurrentPage(page, options)
   }
 
   private maybeEmitVisit(pageContext : GioPageContext | null) {
     if (!this.ensureReady()) {
       return
     }
-    const created = this.userStore.ensureSession(this.getSessionTimeoutMs())
+    const created = this.userStore.ensureSession(this.getSessionExpiresMs())
     if (created || this.pendingVisit) {
       this.pendingVisit = false
+      this.dataStore.maybeStoreOriginalSource(pageContext)
       this.pushInternalEvent('visit', 'VISIT', null, pageContext)
     }
   }
@@ -237,75 +224,85 @@ export class GioTracker {
     properties : UTSJSONObject | null,
     pageContext : GioPageContext | null
   ) : GioTrackEvent {
-    const options = this.options as GioInitOptions
-    const context = this.userStore.getContext()
-    const systemContext = getSystemContext()
-    let path : string | null = null
-    let query : string | null = null
-    let title : string | null = null
-    let referralPage : string | null = null
-    if (pageContext != null) {
-      path = pageContext.path
-      query = pageContext.query
-      title = pageContext.title
-      referralPage = pageContext.referralPage
-    }
-    let eventName : string | null = null
-    if (eventType == 'CUSTOM') {
-      eventName = name
-    }
-    let eventSequenceId : number | null = null
-    if (eventType != 'APP_CLOSED') {
-      eventSequenceId = this.userStore.getNextEventSequenceId()
-    }
     const attributes = this.buildAttributes(eventType, properties, pageContext)
-    const event : GioTrackEvent = {
-      appChannel: 'scn:NA',
-      appVersion: options.appVersion as string,
-      dataSourceId: options.dataSourceId,
-      deviceBrand: systemContext.deviceBrand,
-      deviceId: context.deviceId,
-      deviceModel: systemContext.deviceModel,
-      deviceType: systemContext.deviceType,
-      domain: options.appId,
-      eventName: eventName,
-      eventSequenceId: eventSequenceId,
-      eventType: eventType,
-      language: systemContext.language,
-      latitude: null,
-      longitude: null,
-      networkState: systemContext.networkState,
-      operatingSystem: systemContext.operatingSystem,
-      path: path,
-      platform: systemContext.platform,
-      platformVersion: systemContext.platformVersion,
-      query: query,
-      referralPage: referralPage,
-      screenHeight: systemContext.screenHeight,
-      screenWidth: systemContext.screenWidth,
-      sdkVersion: SDK_VERSION,
-      sessionId: context.sessionId,
-      timestamp: now(),
-      timezoneOffset: new Date().getTimezoneOffset(),
-      title: title != null ? title : '',
-      userId: context.userId,
-      userKey: context.userKey,
-      attributes: attributes
+    return this.dataStore.buildEvent(
+      name,
+      eventType,
+      attributes,
+      pageContext,
+      this.buildAppChannel()
+    )
+  }
+
+  private buildAppChannel() : string {
+    if (!this.mpWeixinEnabled) {
+      return 'scn:NA'
     }
-    return event
+    const scene = this.miniProgramScene.length > 0
+      ? this.miniProgramScene
+      : resolveMiniProgramScene()
+    if (scene.length == 0) {
+      return 'scn:NA'
+    }
+    return `scn:${scene}`
+  }
+
+  private refreshMiniProgramScene() {
+    if (!this.mpWeixinEnabled) {
+      return
+    }
+    const scene = resolveMiniProgramScene()
+    if (scene.length > 0) {
+      this.miniProgramScene = scene
+    }
   }
 
   private pushInternalEvent(
     name : string,
     eventType : string,
     properties : UTSJSONObject | null,
-    pageContext : GioPageContext | null
+    pageContext : GioPageContext | null,
+    flushAfter : boolean = false
   ) {
     if (!this.ensureReady()) {
       return
     }
-    const event = this.buildEvent(name, eventType, properties, pageContext)
-    this.uploader.enqueue(event, this.getMaxQueueSize())
+    // 所有事件都必须等异步系统上下文 ready 后才能真正构建；
+    // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
+    this.dataStore.ensureSystemReady(() => {
+      const event = this.buildEvent(name, eventType, properties, pageContext)
+      this.uploader.enqueue(event, this.getMaxQueueSize())
+      if (flushAfter) {
+        this.uploader.flush(null, null)
+      }
+    })
+  }
+
+  private emitPageEvent(pageContext : GioPageContext | null) {
+    this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
+  }
+
+  private dispatchFirstPageWhenReady(pageContext : GioPageContext | null) {
+    if (this.dataStore.isSystemReady()) {
+      this.maybeEmitVisit(pageContext)
+      this.emitPageEvent(pageContext)
+      return
+    }
+    this.pendingFirstPageContexts.push(pageContext)
+    if (this.firstPageDispatchWaiting) {
+      return
+    }
+    this.firstPageDispatchWaiting = true
+    this.dataStore.ensureSystemReady(() => {
+      this.firstPageDispatchWaiting = false
+      const pendingPageContexts = this.pendingFirstPageContexts.slice()
+      this.pendingFirstPageContexts = []
+      for (let i = 0; i < pendingPageContexts.length; i++) {
+        const pendingPageContext = pendingPageContexts[i]
+        this.maybeEmitVisit(pendingPageContext)
+        this.emitPageEvent(pendingPageContext)
+      }
+    })
   }
 
   track(
@@ -316,20 +313,101 @@ export class GioTracker {
       return false
     }
     if (!isValidEventName(eventName)) {
-      console.error('事件名格式不正确，只能包含数字、字母和下划线，且不能以数字开头，字符总长度不能超过100!')
+      consoleText(
+        '事件名格式不正确，只能包含数字、字母和下划线，且不能以数字开头，字符总长度不能超过100!',
+        'error'
+      )
       return false
     }
 
     const pageContext = this.buildCurrentPageContext(null)
     this.maybeEmitVisit(pageContext)
-    const event = this.buildEvent(
+    this.pushInternalEvent(
       eventName,
       'CUSTOM',
       normalizeTrackProperties(properties),
-      pageContext
+      pageContext,
+      true
     )
-    this.uploader.enqueue(event, this.getMaxQueueSize())
-    this.uploader.flush(null, null)
+    return true
+  }
+
+  trackPluginEvent(
+    eventName : string,
+    properties : UTSJSONObject | null = null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const pageContext = this.buildCurrentPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      eventName,
+      'CUSTOM',
+      normalizeTrackProperties(properties),
+      pageContext,
+      true
+    )
+    return true
+  }
+
+  private resolveABTestOptions(
+    rawOptions : UTSJSONObject | null
+  ) : GioABTestPluginOptions {
+    if (rawOptions == null) {
+      return {
+        abServerUrl: null,
+        requestInterval: null,
+        requestTimeout: null
+      } as GioABTestPluginOptions
+    }
+    const abServerUrlValue = rawOptions['abServerUrl']
+    const requestIntervalValue = rawOptions['requestInterval']
+    const requestTimeoutValue = rawOptions['requestTimeout']
+    return {
+      abServerUrl: abServerUrlValue != null ? `${abServerUrlValue}` : null,
+      requestInterval: typeof requestIntervalValue === 'number'
+        ? requestIntervalValue
+        : null,
+      requestTimeout: typeof requestTimeoutValue === 'number'
+        ? requestTimeoutValue
+        : null
+    } as GioABTestPluginOptions
+  }
+
+  registerPlugins(plugins : Array<GioPluginItem>) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    let installed = false
+    for (let i = 0; i < plugins.length; i++) {
+      const plugin = plugins[i]
+      if (plugin.name == 'gioABTest') {
+        this.abTestPlugin = new GioABTestPlugin(
+          this,
+          this.resolveABTestOptions(plugin.options)
+        )
+        installed = true
+      }
+    }
+    return installed
+  }
+
+  getABTest(
+    layerId : string | number,
+    callback : GioABTestCallback | null = null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (this.abTestPlugin == null) {
+      consoleText('获取ABTest数据错误! 请集成ABTest插件后重试!', 'error')
+      if (callback != null) {
+        callback({} as UTSJSONObject)
+      }
+      return false
+    }
+    this.abTestPlugin.getABTest(layerId, callback)
     return true
   }
 
@@ -344,7 +422,7 @@ export class GioTracker {
     this.userStore.setUserId(userId)
     this.userStore.setUserKey(userKey != null ? userKey : '')
     if (previousUserId != null && previousUserId != userId) {
-      this.userStore.renewSession(this.getSessionTimeoutMs())
+      this.userStore.renewSession(this.getSessionExpiresMs())
       this.pendingVisit = true
     }
     return true
@@ -356,11 +434,11 @@ export class GioTracker {
     }
     const options = this.options as GioInitOptions
     if (options.forceLogin != true) {
-      console.error('identify 仅在 forceLogin 开启时允许调用')
+      consoleText('identify 仅在 forceLogin 开启时允许调用', 'error')
       return false
     }
     if (!isValidIdentifyId(assignmentId)) {
-      console.error('identify 参数不合法')
+      consoleText('identify 参数不合法', 'error')
       return false
     }
     const deviceId = `${assignmentId}`.slice(0, 1000)
@@ -369,6 +447,29 @@ export class GioTracker {
     this.uploader.setForceLogin(false)
     this.uploader.releaseHoarding(deviceId, this.getMaxQueueSize())
     this.uploader.flush(null, null)
+    return true
+  }
+
+  setUserAttributes(
+    userAttributes : UTSJSONObject | null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const normalized = normalizeTrackProperties(userAttributes)
+    if (normalized == null) {
+      consoleText('setUserAttributes 参数不合法，必须传入非空对象', 'error')
+      return false
+    }
+    const pageContext = this.buildCurrentPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      'setUserAttributes',
+      'LOGIN_USER_ATTRIBUTES',
+      normalized,
+      pageContext,
+      true
+    )
     return true
   }
 
@@ -389,18 +490,18 @@ export class GioTracker {
     return true
   }
 
-  flush() : boolean {
-    if (!this.ensureReady()) {
-      return false
-    }
-    return this.uploader.flush(null, null)
+  private flushPendingEvents() {
+    this.dataStore.ensureSystemReady(() => {
+      this.uploader.flush(null, null)
+    })
   }
 
   onPageLoad(page : any, options : any | null) {
     if (!this.ensureReady()) {
       return
     }
-    this.updateCurrentPage(page, options)
+    const pageContext = this.updateCurrentPage(page, options)
+    this.logLifecycle('page', 'onLoad', pageContext)
   }
 
   onShow(target : any | null) {
@@ -419,69 +520,88 @@ export class GioTracker {
       return
     }
     if (this.isPageTarget(target)) {
+      this.onPageHide(target)
       return
     }
     this.onAppHide()
+  }
+
+  onPageHide(page : any) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const pageContext = this.buildPageContextFromTarget(page, null)
+    this.logLifecycle(
+      'page',
+      'onHide',
+      pageContext != null ? pageContext : this.buildCurrentPageContext(null)
+    )
   }
 
   onPageShow(page : any) {
     if (!this.ensureReady()) {
       return
     }
-    const options = this.options as GioInitOptions
-    if (options.autoTrackLifecycle != true) {
-      return
-    }
     const pageContext = this.updateCurrentPage(page, null)
-    this.maybeEmitVisit(pageContext)
-    this.pushInternalEvent('page', 'PAGE', null, pageContext)
-    this.flush()
+    this.logLifecycle('page', 'onShow', pageContext)
+    this.dispatchFirstPageWhenReady(pageContext)
   }
 
   onPageUnload(page : any) {
     if (!this.ensureReady()) {
       return
     }
-    const pagePath = this.getPagePath(page)
-    if (pagePath.length > 0 && pagePath == this.currentPagePath) {
-      this.currentPageShowAt = 0
-    }
+    const pageContext = this.buildPageContextFromTarget(page, null)
+    this.logLifecycle(
+      'page',
+      'onUnload',
+      pageContext != null ? pageContext : this.buildCurrentPageContext(null)
+    )
+    const pagePath = pageContext != null ? pageContext.path : ''
+    this.dataStore.resetCurrentPageShowAt(pagePath)
   }
 
   onAppShow() {
     if (!this.ensureReady()) {
       return
     }
-    const options = this.options as GioInitOptions
-    if (options.autoTrackLifecycle != true) {
+    this.refreshMiniProgramScene()
+    this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))
+    if (!this.dataStore.hasCurrentPage()) {
       return
     }
-    if (this.currentPagePath.length == 0) {
-      return
-    }
+    this.dataStore.maybeStoreOriginalSource(this.buildCurrentPageContext(null))
     this.maybeEmitVisit(this.buildCurrentPageContext(null))
+    this.flushPendingEvents()
   }
 
   onAppHide() {
     if (!this.ensureReady()) {
       return
     }
-    const options = this.options as GioInitOptions
-    if (options.autoTrackLifecycle != true) {
+    let duration : number | null = null
+    const currentPageShowAt = this.dataStore.getCurrentPageShowAt()
+    if (currentPageShowAt > 0) {
+      duration = now() - currentPageShowAt
+    }
+    const pageContext = this.buildCurrentPageContext(duration)
+    this.logLifecycle(
+      'app',
+      'onHide',
+      pageContext,
+      duration != null ? `duration=${duration}` : null
+    )
+    if (this.isWebPlatform()) {
       return
     }
-    this.userStore.touchSession(this.getSessionTimeoutMs())
-    let duration : number | null = null
-    if (this.currentPageShowAt > 0) {
-      duration = now() - this.currentPageShowAt
-    }
+    this.userStore.touchSession(this.getSessionExpiresMs())
     this.pushInternalEvent(
       'close',
       'APP_CLOSED',
       null,
-      this.buildCurrentPageContext(duration)
+      pageContext,
+      true
     )
-    this.flush()
   }
 
   getContext() : GioContext | null {

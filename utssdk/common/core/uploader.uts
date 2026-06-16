@@ -1,19 +1,32 @@
-import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
+import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
 import { buildCollectUrl, debugLog } from '../utils.uts'
 
 export class GioUploader {
-  private options : GioInitOptions | null = null
-  private pending : Array<GioTrackEvent> = []
-  private hoarding : Array<GioTrackEvent> = []
+  private options : UTSJSONObject | null = null
+  private pending : Array<UTSJSONObject> = []
+  private hoarding : Array<UTSJSONObject> = []
   private inflight : boolean = false
   private forceLogin : boolean = false
+  private onFlushSuccess : ((events : Array<UTSJSONObject>) => void) | null = null
 
-  configure(options : GioInitOptions) {
+  configure(
+    options : UTSJSONObject,
+    onFlushSuccess : ((events : Array<UTSJSONObject>) => void) | null = null
+  ) {
     this.options = options
     this.forceLogin = options.forceLogin == true
+    this.onFlushSuccess = onFlushSuccess
   }
 
-  enqueue(event : GioTrackEvent, maxQueueSize : number) {
+  private shouldPreserveEmptyString(
+    event : UTSJSONObject,
+    key : string
+  ) : boolean {
+    const eventType = event['eventType']
+    return eventType == 'VISIT' && (key == 'query' || key == 'title')
+  }
+
+  enqueue(event : UTSJSONObject, maxQueueSize : number) {
     const queue = this.forceLogin ? this.hoarding : this.pending
     queue.push(event)
     if (queue.length > maxQueueSize) {
@@ -45,8 +58,8 @@ export class GioUploader {
     this.hoarding = []
   }
 
-  private sanitizeEvent(event : GioTrackEvent) : GioTrackEvent {
-    const sanitized = {} as GioTrackEvent
+  private sanitizeEvent(event : UTSJSONObject) : UTSJSONObject {
+    const sanitized = {} as UTSJSONObject
     const raw = event as UTSJSONObject
     const target = sanitized as UTSJSONObject
     const keys = Object.keys(raw)
@@ -57,6 +70,9 @@ export class GioUploader {
         continue
       }
       if (typeof value === 'string' && value.length == 0) {
+        if (this.shouldPreserveEmptyString(raw, key)) {
+          target[key] = value
+        }
         continue
       }
       target[key] = value
@@ -64,19 +80,9 @@ export class GioUploader {
     return sanitized
   }
 
-  private buildRequestHeader(options : GioInitOptions) : UTSJSONObject {
+  private buildRequestHeader() : UTSJSONObject {
     const header = {} as UTSJSONObject
     header['content-type'] = 'application/json;charset=UTF-8'
-    const customHeader = options.header
-    if (customHeader == null) {
-      return header
-    }
-    const customHeaderObject = customHeader as UTSJSONObject
-    const keys = Object.keys(customHeaderObject)
-    for (let i = 0; i < keys.length; i++) {
-      const key = keys[i]
-      header[key] = customHeaderObject[key]
-    }
     return header
   }
 
@@ -89,29 +95,38 @@ export class GioUploader {
     }
 
     const batch = this.pending.slice()
-    const requestData = [] as Array<GioTrackEvent>
+    const requestData = [] as Array<UTSJSONObject>
     for (let i = 0; i < batch.length; i++) {
       requestData.push(this.sanitizeEvent(batch[i]))
     }
-    const options = this.options as GioInitOptions
+    const options = this.options as UTSJSONObject
     const sendAt = Date.now()
 
     this.inflight = true
-    debugLog(options.debug as boolean, 'flush events', requestData)
+    debugLog(options.debug as boolean, 'request payload', requestData)
 
     uni.request({
       url: `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`,
       method: 'POST',
-      timeout: options.requestTimeoutMs as number,
-      header: this.buildRequestHeader(options),
+      dataType: 'text',
+      timeout: DEFAULT_REQUEST_TIMEOUT_MS,
+      header: this.buildRequestHeader(),
       data: requestData,
       success: (res) => {
         const statusCode = Number(res.statusCode)
         if (statusCode == 200 || statusCode == 204) {
+          if (this.onFlushSuccess != null) {
+            this.onFlushSuccess(batch)
+          }
           this.pending.splice(0, batch.length)
           if (success != null) {
             success()
           }
+          this.inflight = false
+          if (this.pending.length > 0) {
+            this.flush(null, null)
+          }
+          return
         } else {
           if (fail != null) {
             fail()

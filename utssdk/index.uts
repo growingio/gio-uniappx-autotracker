@@ -1,9 +1,10 @@
-import { GioInitOptions } from './interface.uts'
 import { GioTracker } from './common/core/tracker.uts'
 
 const tracker = GioTracker.getInstance()
 
-export const init = function (options : GioInitOptions) : boolean {
+export { gioUniappxAutotracker } from '../plugin.uts'
+
+export const init = function (options : UTSJSONObject) : boolean {
   return tracker.init(options)
 }
 
@@ -13,6 +14,10 @@ export const track = function (eventName : string, properties : UTSJSONObject | 
 
 export const setUserId = function (userId : string, userKey : string | null = null) : boolean {
   return tracker.setUserId(userId, userKey)
+}
+
+export const setUserAttributes = function (userAttributes : UTSJSONObject | null) : boolean {
+  return tracker.setUserAttributes(userAttributes)
 }
 
 export const identify = function (assignmentId : string | number) : boolean {
@@ -27,9 +32,13 @@ export const setUserKey = function (userKey : string) : boolean {
   return tracker.setUserKey(userKey)
 }
 
-export const flush = function () : boolean {
-  return tracker.flush()
+export const registerPlugins = function (plugins : Array<any>) : boolean {
+  return tracker.registerPlugins(plugins)
 }
 
-export { GioTracker } from './common/core/tracker.uts'
-export { GioInitOptions, GioTrackEvent, GioContext, GioPageContext } from './interface.uts'
+export const getABTest = function (
+  layerId : string | number,
+  callback : ((result : any) => void) | null = null
+) : boolean {
+  return tracker.getABTest(layerId, callback)
+}

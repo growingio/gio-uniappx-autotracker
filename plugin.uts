@@ -1,4 +1,3 @@
-import { GioInitOptions } from './utssdk/interface.uts'
 import { normalizeInitOptions } from './utssdk/common/config.uts'
 import { GioTracker } from './utssdk/common/core/tracker.uts'
 

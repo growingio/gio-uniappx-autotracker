@@ -1,0 +1,141 @@
+import { GioPageContext } from '../../../interface.uts'
+import { platformName } from '../../utils.uts'
+
+function normalizeQueryString(queryText : string) : string {
+  if (queryText.length == 0) {
+    return ''
+  }
+  let normalizedQuery = queryText
+  if (normalizedQuery.startsWith('?') || normalizedQuery.startsWith('&')) {
+    normalizedQuery = normalizedQuery.slice(1)
+  }
+  const hashIndex = normalizedQuery.indexOf('#')
+  if (hashIndex >= 0) {
+    normalizedQuery = normalizedQuery.slice(0, hashIndex)
+  }
+  if (normalizedQuery.length == 0) {
+    return ''
+  }
+  const segments = normalizedQuery.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    let key = segment
+    let value = ''
+    const equalIndex = segment.indexOf('=')
+    if (equalIndex >= 0) {
+      key = segment.slice(0, equalIndex)
+      value = segment.slice(equalIndex + 1)
+    }
+    if (key.length == 0) {
+      continue
+    }
+    parts.push(`${key}=${value}`)
+  }
+  if (parts.length == 0) {
+    return ''
+  }
+  return parts.join('&')
+}
+
+function mergeQueryString(baseQuery : string, appendedQuery : string) : string {
+  if (baseQuery.length == 0) {
+    return appendedQuery
+  }
+  if (appendedQuery.length == 0) {
+    return baseQuery
+  }
+  return `${baseQuery}&${appendedQuery}`
+}
+
+export class GioWebPageStore {
+  private isWebPlatform() : boolean {
+    return platformName() == 'web'
+  }
+
+  readDocumentReferrer() : string {
+    if (!this.isWebPlatform()) {
+      return ''
+    }
+    try {
+      const runtimeGlobal = globalThis as any
+      const runtimeDocument = runtimeGlobal.document
+      if (
+        runtimeDocument != null &&
+        runtimeDocument.referrer != null &&
+        `${runtimeDocument.referrer}`.length > 0
+      ) {
+        return `${runtimeDocument.referrer}`
+      }
+    } catch (_error) {}
+    return ''
+  }
+
+  buildBrowserPageContext(
+    logicalPageContext : GioPageContext | null
+  ) : GioPageContext | null {
+    if (!this.isWebPlatform()) {
+      return logicalPageContext
+    }
+    let path = ''
+    let query = ''
+    let title = ''
+    try {
+      const runtimeGlobal = globalThis as any
+      const runtimeLocation = runtimeGlobal.location
+      const runtimeDocument = runtimeGlobal.document
+      if (runtimeLocation != null) {
+        const pathname = runtimeLocation.pathname != null
+          ? `${runtimeLocation.pathname}`
+          : ''
+        const search = runtimeLocation.search != null
+          ? `${runtimeLocation.search}`
+          : ''
+        const hash = runtimeLocation.hash != null
+          ? `${runtimeLocation.hash}`
+          : ''
+        path = pathname
+        query = normalizeQueryString(search)
+        if (hash.length > 0) {
+          const hashQueryIndex = hash.indexOf('?')
+          if (hashQueryIndex >= 0) {
+            path += hash.slice(0, hashQueryIndex)
+            query = mergeQueryString(
+              query,
+              normalizeQueryString(hash.slice(hashQueryIndex + 1))
+            )
+          } else {
+            path += hash
+          }
+        }
+      }
+      if (
+        runtimeDocument != null &&
+        runtimeDocument.title != null
+      ) {
+        title = `${runtimeDocument.title}`
+      }
+    } catch (_error) {}
+    if (path.length == 0 && logicalPageContext != null) {
+      path = logicalPageContext.path
+    }
+    if (path.length == 0) {
+      return null
+    }
+    const referralPage = this.readDocumentReferrer()
+    return {
+      path: path,
+      query: query,
+      title: title,
+      referralPage: referralPage.length > 0
+        ? referralPage
+        : (logicalPageContext != null && logicalPageContext.referralPage != null
+          ? logicalPageContext.referralPage
+          : ''),
+      duration: logicalPageContext != null ? logicalPageContext.duration : null
+    } as GioPageContext
+  }
+}

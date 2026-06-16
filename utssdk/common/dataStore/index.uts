@@ -1,0 +1,235 @@
+import {
+  GioInitOptions,
+  GioOriginalSource,
+  GioPageContext,
+  GioTrackEvent
+} from '../../interface.uts'
+import {
+  platformName,
+  readStorageJson,
+  readStorageString,
+  removeStorage,
+  writeStorageJson,
+  writeStorageString
+} from '../utils.uts'
+import { GioUserStore } from '../userStore/index.uts'
+import { GioSystemContextManager } from './context/system-context.uts'
+import { GioEventBuilder } from './eventBuilder/index.uts'
+import { GioPageStore } from './page/page-store.uts'
+import { GioWebPageStore } from './page/web-page-store.uts'
+
+const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
+const SENT_SIGN_SUFFIX = '_gdp_session_id_sent'
+
+export class GioDataStore {
+  private options : GioInitOptions | null = null
+  private projectId : string = ''
+  private userStore : GioUserStore | null = null
+  private systemContext : GioSystemContextManager = new GioSystemContextManager()
+  private pageStore : GioPageStore = new GioPageStore()
+  private webPageStore : GioWebPageStore = new GioWebPageStore()
+  private eventBuilder : GioEventBuilder = new GioEventBuilder()
+
+  initialize(options : GioInitOptions, userStore : GioUserStore) {
+    this.options = options
+    this.projectId = options.projectId
+    this.userStore = userStore
+    this.eventBuilder.configure(userStore, this.webPageStore)
+    this.systemContext.initialize(options.debug == true)
+  }
+
+  isSystemReady() : boolean {
+    return this.systemContext.isReady()
+  }
+
+  ensureSystemReady(callback : (() => void) | null = null) {
+    this.systemContext.ensureReady(callback)
+  }
+
+  buildCurrentPageContext(duration : number | null) : GioPageContext | null {
+    return this.pageStore.buildCurrentPageContext(duration)
+  }
+
+  buildPageContextFromTarget(
+    page : any | null,
+    options : any | null,
+    duration : number | null = null
+  ) : GioPageContext | null {
+    return this.pageStore.buildPageContextFromTarget(page, options, duration)
+  }
+
+  updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
+    const pageContext = this.pageStore.updateCurrentPage(page, options)
+    this.maybeStoreOriginalSource(pageContext)
+    return pageContext
+  }
+
+  hasCurrentPage() : boolean {
+    return this.pageStore.hasCurrentPage()
+  }
+
+  getCurrentPagePath() : string {
+    return this.pageStore.getCurrentPagePath()
+  }
+
+  getCurrentPageShowAt() : number {
+    return this.pageStore.getCurrentPageShowAt()
+  }
+
+  resetCurrentPageShowAt(path : string) {
+    this.pageStore.resetCurrentPageShowAt(path)
+  }
+
+  maybeStoreOriginalSource(pageContext : GioPageContext | null) {
+    if (!this.shouldUseOriginalSource() || pageContext == null) {
+      return
+    }
+    const userStore = this.userStore as GioUserStore
+    const currentSessionId = userStore.getContext().sessionId
+    if (currentSessionId.length == 0) {
+      return
+    }
+    const sentVisitSessionId = this.getVisitSentSessionId()
+    if (sentVisitSessionId == currentSessionId) {
+      return
+    }
+    const storedOriginalSource = this.getOriginalSource()
+    if (
+      storedOriginalSource != null &&
+      storedOriginalSource.sessionId == currentSessionId
+    ) {
+      return
+    }
+    const preferredPageContext = this.resolvePreferredPageContext(pageContext)
+    if (preferredPageContext == null) {
+      return
+    }
+    this.setOriginalSource({
+      sessionId: currentSessionId,
+      path: preferredPageContext.path,
+      query: preferredPageContext.query != null ? preferredPageContext.query : '',
+      title: preferredPageContext.title != null ? preferredPageContext.title : '',
+      referralPage: preferredPageContext.referralPage != null
+        ? preferredPageContext.referralPage
+        : ''
+    } as GioOriginalSource)
+  }
+
+  buildEvent(
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null,
+    appChannel : string | null
+  ) : GioTrackEvent {
+    return this.eventBuilder.buildEvent(
+      this.options as GioInitOptions,
+      this.systemContext.getContext(),
+      name,
+      eventType,
+      properties,
+      pageContext,
+      appChannel,
+      eventType == 'VISIT' ? this.getCurrentOriginalSource() : null
+    )
+  }
+
+  handleFlushSuccess(events : Array<UTSJSONObject>) {
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i]
+      if (event['eventType'] != 'VISIT') {
+        continue
+      }
+      const sessionId = event['sessionId'] != null ? `${event['sessionId']}` : ''
+      if (sessionId.length == 0) {
+        continue
+      }
+      this.markVisitSent(sessionId)
+      const originalSource = this.getOriginalSource()
+      if (originalSource != null && originalSource.sessionId == sessionId) {
+        this.clearOriginalSource()
+      }
+    }
+  }
+
+  private isWebPlatform() : boolean {
+    return platformName() == 'web'
+  }
+
+  private shouldUseOriginalSource() : boolean {
+    if (this.options == null || this.options.originalSource != true) {
+      return false
+    }
+    const platform = platformName()
+    return platform == 'web' || platform.startsWith('mp-')
+  }
+
+  private buildProjectStorageKey(suffix : string) : string {
+    return `${this.projectId}${suffix}`
+  }
+
+  private getOriginalSourceKey() : string {
+    return this.buildProjectStorageKey(ORIGINAL_SOURCE_SUFFIX)
+  }
+
+  private getSentSignKey() : string {
+    return this.buildProjectStorageKey(SENT_SIGN_SUFFIX)
+  }
+
+  private getVisitSentSessionId() : string {
+    return readStorageString(this.getSentSignKey())
+  }
+
+  private markVisitSent(sessionId : string) {
+    writeStorageString(this.getSentSignKey(), sessionId)
+  }
+
+  private getOriginalSource() : GioOriginalSource | null {
+    const storedValue = readStorageJson(this.getOriginalSourceKey())
+    if (storedValue == null) {
+      return null
+    }
+    return {
+      sessionId: storedValue['sessionId'] != null ? `${storedValue['sessionId']}` : '',
+      path: storedValue['path'] != null ? `${storedValue['path']}` : '',
+      query: storedValue['query'] != null ? `${storedValue['query']}` : '',
+      title: storedValue['title'] != null ? `${storedValue['title']}` : '',
+      referralPage: storedValue['referralPage'] != null
+        ? `${storedValue['referralPage']}`
+        : ''
+    } as GioOriginalSource
+  }
+
+  private setOriginalSource(originalSource : GioOriginalSource) {
+    writeStorageJson(this.getOriginalSourceKey(), originalSource as UTSJSONObject)
+  }
+
+  private clearOriginalSource() {
+    removeStorage(this.getOriginalSourceKey())
+  }
+
+  private getCurrentOriginalSource() : GioOriginalSource | null {
+    if (!this.shouldUseOriginalSource()) {
+      return null
+    }
+    const userStore = this.userStore as GioUserStore
+    const currentSessionId = userStore.getContext().sessionId
+    const originalSource = this.getOriginalSource()
+    if (originalSource == null || originalSource.sessionId != currentSessionId) {
+      return null
+    }
+    return originalSource
+  }
+
+  private resolvePreferredPageContext(
+    pageContext : GioPageContext | null
+  ) : GioPageContext | null {
+    if (pageContext == null) {
+      return null
+    }
+    if (!this.isWebPlatform()) {
+      return pageContext
+    }
+    return this.webPageStore.buildBrowserPageContext(pageContext)
+  }
+}

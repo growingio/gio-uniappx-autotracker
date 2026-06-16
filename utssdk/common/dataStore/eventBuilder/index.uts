@@ -1,0 +1,119 @@
+import {
+  GioInitOptions,
+  GioOriginalSource,
+  GioPageContext,
+  GioTrackEvent
+} from '../../../interface.uts'
+import { SDK_VERSION } from '../../config.uts'
+import { GioSystemContext, now, platformName } from '../../utils.uts'
+import { GioWebPageStore } from '../page/web-page-store.uts'
+import { GioUserStore } from '../../userStore/index.uts'
+
+export class GioEventBuilder {
+  private userStore : GioUserStore | null = null
+  private webPageStore : GioWebPageStore | null = null
+
+  configure(userStore : GioUserStore, webPageStore : GioWebPageStore) {
+    this.userStore = userStore
+    this.webPageStore = webPageStore
+  }
+
+  private isWebPlatform() : boolean {
+    return platformName() == 'web'
+  }
+
+  private resolvePageContext(
+    eventType : string,
+    pageContext : GioPageContext | null,
+    originalSource : GioOriginalSource | null
+  ) : GioPageContext | null {
+    let resolvedPageContext = pageContext
+    if (this.isWebPlatform() && this.webPageStore != null) {
+      resolvedPageContext = this.webPageStore.buildBrowserPageContext(pageContext)
+    }
+    if (eventType == 'VISIT' && originalSource != null) {
+      resolvedPageContext = {
+        path: originalSource.path,
+        query: originalSource.query,
+        title: originalSource.title,
+        referralPage: originalSource.referralPage,
+        duration: pageContext != null ? pageContext.duration : null
+      } as GioPageContext
+    }
+    return resolvedPageContext
+  }
+
+  buildEvent(
+    options : GioInitOptions,
+    systemContext : GioSystemContext,
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null,
+    appChannel : string | null,
+    originalSource : GioOriginalSource | null
+  ) : GioTrackEvent {
+    const userStore = this.userStore as GioUserStore
+    const context = userStore.getContext()
+    const resolvedPageContext = this.resolvePageContext(
+      eventType,
+      pageContext,
+      originalSource
+    )
+    let path : string | null = null
+    let query : string | null = null
+    let title : string | null = null
+    let referralPage : string | null = null
+    if (resolvedPageContext != null) {
+      path = resolvedPageContext.path
+      query = resolvedPageContext.query
+      title = resolvedPageContext.title
+      referralPage = resolvedPageContext.referralPage
+    }
+    let eventName : string | null = null
+    if (eventType == 'CUSTOM') {
+      eventName = name
+    }
+    let eventSequenceId : number | null = null
+    if (
+      eventType != 'APP_CLOSED' &&
+      eventType != 'LOGIN_USER_ATTRIBUTES'
+    ) {
+      eventSequenceId = userStore.getNextEventSequenceId()
+    }
+    const isWebPlatform = this.isWebPlatform()
+    return {
+      appChannel: isWebPlatform ? null : appChannel,
+      appVersion: options.appVersion as string,
+      dataSourceId: options.dataSourceId,
+      deviceBrand: systemContext.deviceBrand,
+      deviceId: context.deviceId,
+      deviceModel: isWebPlatform ? null : systemContext.deviceModel,
+      deviceType: isWebPlatform ? null : systemContext.deviceType,
+      domain: options.appId,
+      eventName: eventName,
+      eventSequenceId: eventSequenceId,
+      eventType: eventType,
+      language: systemContext.language,
+      latitude: null,
+      longitude: null,
+      networkState: isWebPlatform ? null : systemContext.networkState,
+      operatingSystem: isWebPlatform ? null : systemContext.operatingSystem,
+      path: path,
+      platform: systemContext.platform,
+      platformVersion: systemContext.platformVersion,
+      query: query,
+      referralPage: referralPage,
+      screenHeight: systemContext.screenHeight,
+      screenWidth: systemContext.screenWidth,
+      sdkVersion: SDK_VERSION,
+      sessionId: context.sessionId,
+      timestamp: now(),
+      timezoneOffset: new Date().getTimezoneOffset(),
+      title: title != null ? title : '',
+      userId: context.userId,
+      userKey: context.userKey,
+      attributes: properties
+    } as GioTrackEvent
+  }
+}

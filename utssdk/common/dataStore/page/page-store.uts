@@ -1,0 +1,97 @@
+import { GioPageContext } from '../../../interface.uts'
+import {
+  buildRouteSignature,
+  resolvePageRoute
+} from '../../route.uts'
+import { now } from '../../utils.uts'
+
+export class GioPageStore {
+  private currentPagePath : string = ''
+  private currentPageQuery : string = ''
+  private currentPageTitle : string = ''
+  private currentPageShowAt : number = 0
+  private referralPage : string = ''
+
+  buildCurrentPageContext(duration : number | null) : GioPageContext | null {
+    if (this.currentPagePath.length == 0) {
+      return null
+    }
+    return {
+      path: this.currentPagePath,
+      query: this.currentPageQuery.length > 0 ? this.currentPageQuery : null,
+      title: this.currentPageTitle.length > 0 ? this.currentPageTitle : null,
+      referralPage: this.referralPage.length > 0 ? this.referralPage : null,
+      duration: duration
+    } as GioPageContext
+  }
+
+  buildPageContextFromTarget(
+    page : any | null,
+    options : any | null,
+    duration : number | null = null
+  ) : GioPageContext | null {
+    const routeInfo = resolvePageRoute(page, options)
+    if (routeInfo.path.length == 0) {
+      return null
+    }
+    return {
+      path: routeInfo.path,
+      query: routeInfo.query.length > 0 ? routeInfo.query : null,
+      title: routeInfo.title.length > 0 ? routeInfo.title : null,
+      referralPage: this.referralPage.length > 0 ? this.referralPage : null,
+      duration: duration
+    } as GioPageContext
+  }
+
+  updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
+    const routeInfo = resolvePageRoute(page, options)
+    const nextPath = routeInfo.path
+    const nextQuery = routeInfo.query
+    const nextTitle = routeInfo.title
+    if (nextPath.length == 0 && this.currentPagePath.length == 0) {
+      return null
+    }
+    const currentSignature = buildRouteSignature(
+      this.currentPagePath,
+      this.currentPageQuery
+    )
+    const nextSignature = routeInfo.signature
+    const routeChanged = nextPath.length > 0 && nextSignature != currentSignature
+    if (
+      nextPath.length > 0 &&
+      this.currentPagePath.length > 0 &&
+      routeChanged
+    ) {
+      this.referralPage = this.currentPagePath
+    }
+    if (nextPath.length > 0) {
+      this.currentPagePath = nextPath
+    }
+    this.currentPageQuery = nextQuery
+    if (routeChanged) {
+      this.currentPageTitle = nextTitle
+    } else if (nextTitle.length > 0) {
+      this.currentPageTitle = nextTitle
+    }
+    this.currentPageShowAt = now()
+    return this.buildCurrentPageContext(null)
+  }
+
+  hasCurrentPage() : boolean {
+    return this.currentPagePath.length > 0
+  }
+
+  getCurrentPagePath() : string {
+    return this.currentPagePath
+  }
+
+  getCurrentPageShowAt() : number {
+    return this.currentPageShowAt
+  }
+
+  resetCurrentPageShowAt(path : string) {
+    if (path.length > 0 && path == this.currentPagePath) {
+      this.currentPageShowAt = 0
+    }
+  }
+}

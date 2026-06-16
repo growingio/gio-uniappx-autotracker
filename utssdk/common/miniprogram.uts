@@ -1,0 +1,58 @@
+import { platformName } from './utils.uts'
+
+function readSceneFromQuery(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as UTSJSONObject
+  const shoppingListScene = raw['wxShoppingListScene']
+  if (shoppingListScene == null) {
+    return ''
+  }
+  return `${shoppingListScene}`
+}
+
+function readSceneFromOptions(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as UTSJSONObject
+  const queryScene = readSceneFromQuery(raw['query'])
+  if (queryScene.length > 0) {
+    return queryScene
+  }
+  const scene = raw['scene']
+  if (scene == null) {
+    return ''
+  }
+  return `${scene}`
+}
+
+function getEnterOptionsSync() : any | null {
+  if (platformName() != 'mp-weixin') {
+    return null
+  }
+  const runtimeUni = uni as any
+  const getEnterOptions = runtimeUni.getEnterOptionsSync
+  if (typeof getEnterOptions === 'function') {
+    return getEnterOptions()
+  }
+  const getLaunchOptions = runtimeUni.getLaunchOptionsSync
+  if (typeof getLaunchOptions === 'function') {
+    return getLaunchOptions()
+  }
+  return null
+}
+
+export function isMpWeixinPlatform() : boolean {
+  return platformName() == 'mp-weixin'
+}
+
+export function resolveMiniProgramScene() : string {
+  const enterOptions = getEnterOptionsSync()
+  const sceneFromEnterOptions = readSceneFromOptions(enterOptions)
+  if (sceneFromEnterOptions.length > 0) {
+    return sceneFromEnterOptions
+  }
+  return ''
+}

@@ -20,8 +20,6 @@ export type GioReportSuccessCallback = (res : GioReportSuccess) => void
 export type GioReportFailCallback = (err : GioReportFail) => void
 export type GioReportCompleteCallback = (res : any) => void
 
-export type GioHeaderMap = UTSJSONObject
-
 export type GioInitOptions = {
   projectId : string
   dataSourceId : string
@@ -30,13 +28,32 @@ export type GioInitOptions = {
   appVersion : string | null
   debug : boolean | null
   forceLogin : boolean | null
-  autoTrackLifecycle : boolean | null
-  sessionTimeoutMs : number | null
-  requestTimeoutMs : number | null
-  maxQueueSize : number | null
-  storagePrefix : string | null
-  header : GioHeaderMap | null
+  originalSource : boolean | null
+  sessionExpires : number | null
 }
+
+export type GioPluginItem = {
+  name : string
+  options : UTSJSONObject | null
+}
+
+export type GioABTestPluginOptions = {
+  abServerUrl : string | null
+  requestInterval : number | null
+  requestTimeout : number | null
+}
+
+export type GioABTestResult = {
+  layerId : string
+  strategyId : string
+  experimentId : string
+  layerName : string | null
+  experimentName : string | null
+  strategyName : string | null
+  variables : UTSJSONObject | null
+}
+
+export type GioABTestCallback = (result : GioABTestResult | UTSJSONObject) => void
 
 export type GioContext = {
   deviceId : string
@@ -53,14 +70,22 @@ export type GioPageContext = {
   duration : number | null
 }
 
+export type GioOriginalSource = {
+  sessionId : string
+  path : string
+  query : string
+  title : string
+  referralPage : string
+}
+
 export type GioTrackEvent = {
-  appChannel : string
+  appChannel : string | null
   appVersion : string
   dataSourceId : string
   deviceBrand : string
   deviceId : string
-  deviceModel : string
-  deviceType : string
+  deviceModel : string | null
+  deviceType : string | null
   domain : string
   eventName : string | null
   eventSequenceId : number | null
@@ -68,8 +93,8 @@ export type GioTrackEvent = {
   language : string
   latitude : number | null
   longitude : number | null
-  networkState : string
-  operatingSystem : string
+  networkState : string | null
+  operatingSystem : string | null
   path : string | null
   platform : string
   platformVersion : string

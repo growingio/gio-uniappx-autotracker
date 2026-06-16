@@ -1,0 +1,300 @@
+import {
+  GioABTestCallback,
+  GioABTestPluginOptions,
+  GioABTestResult
+} from '../../interface.uts'
+import {
+  consoleText,
+  hashCode,
+  niceCallback,
+  now,
+  readStorageNumber,
+  removeStorage
+} from '../utils.uts'
+
+const ABTEST_DEFAULT_SERVER_URL = 'https://ab.growingio.com'
+const ABTEST_DEFAULT_REQUEST_INTERVAL = 5
+const ABTEST_DEFAULT_REQUEST_TIMEOUT = 1000
+const ABTEST_MAX_REQUEST_INTERVAL = 60 * 24
+const ABTEST_MAX_REQUEST_TIMEOUT = 5000
+const ABTEST_MIN_REQUEST_TIMEOUT = 100
+const ABTEST_SIGN_SUFFIX = '_gdp_abt_sign'
+const ABTEST_DATA_SUFFIX = '_gdp_abtd'
+const ABTEST_DATA_EXPIRE_SUFFIX = '_gdp_abtd_expire'
+
+function isEmptyLayerId(layerId : string | number) : boolean {
+  if (typeof layerId === 'number') {
+    return layerId <= 0
+  }
+  return layerId.length == 0
+}
+
+function readNullableString(source : UTSJSONObject, key : string) : string | null {
+  const value = source[key]
+  if (value == null) {
+    return null
+  }
+  return `${value}`
+}
+
+function readObject(value : any | null) : UTSJSONObject {
+  if (value == null) {
+    return {} as UTSJSONObject
+  }
+  return value as UTSJSONObject
+}
+
+function endOfNextDay() : number {
+  const date = new Date()
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() + 1
+  ).getTime()
+}
+
+export class GioABTestPlugin {
+  private tracker : any
+  private requestInterval : number = ABTEST_DEFAULT_REQUEST_INTERVAL
+  private requestTimeout : number = ABTEST_DEFAULT_REQUEST_TIMEOUT
+  private url : string = ''
+  private visitSessionId : string = ''
+
+  constructor(tracker : any, options : GioABTestPluginOptions | null = null) {
+    this.tracker = tracker
+    this.timeoutCheck(options)
+    this.generateUrl(options != null ? options.abServerUrl : null)
+    const context = this.tracker.getContext()
+    this.visitSessionId = context != null ? context.sessionId : ''
+  }
+
+  private timeoutCheck(options : GioABTestPluginOptions | null) {
+    if (options == null) {
+      return
+    }
+    const requestInterval = options.requestInterval
+    if (requestInterval != null) {
+      const value = Number(requestInterval)
+      if (value >= 0 && value <= ABTEST_MAX_REQUEST_INTERVAL) {
+        this.requestInterval = value
+      }
+    }
+    const requestTimeout = options.requestTimeout
+    if (requestTimeout != null) {
+      const value = Number(requestTimeout)
+      if (
+        value >= ABTEST_MIN_REQUEST_TIMEOUT &&
+        value <= ABTEST_MAX_REQUEST_TIMEOUT
+      ) {
+        this.requestTimeout = value
+      }
+    }
+  }
+
+  private generateUrl(abServerUrl : string | null) {
+    const serverUrl = abServerUrl != null && abServerUrl.length > 0
+      ? abServerUrl
+      : ABTEST_DEFAULT_SERVER_URL
+    if (serverUrl.startsWith('http')) {
+      this.url = `${serverUrl}/diversion/specified-layer-variables`
+      return
+    }
+    this.url = `https://${serverUrl}/diversion/specified-layer-variables`
+  }
+
+  private getHashKey(layerId : string | number) : number {
+    const options = this.tracker.getOptions()
+    const context = this.tracker.getContext()
+    if (options == null || context == null) {
+      return 0
+    }
+    return hashCode(
+      `g0#${options.projectId}#${context.deviceId}#${layerId}`,
+      true
+    )
+  }
+
+  private getSignStorageKey(hashKey : number) : string {
+    return `${hashKey}${ABTEST_SIGN_SUFFIX}`
+  }
+
+  private getDataStorageKey(hashKey : number) : string {
+    return `${hashKey}${ABTEST_DATA_SUFFIX}`
+  }
+
+  private getDataExpireStorageKey(hashKey : number) : string {
+    return `${hashKey}${ABTEST_DATA_EXPIRE_SUFFIX}`
+  }
+
+  private readCachedData(hashKey : number) : UTSJSONObject {
+    const expireAt = readStorageNumber(this.getDataExpireStorageKey(hashKey))
+    if (expireAt > 0 && expireAt <= now()) {
+      removeStorage(this.getDataStorageKey(hashKey))
+      removeStorage(this.getDataExpireStorageKey(hashKey))
+      return {} as UTSJSONObject
+    }
+    const value = uni.getStorageSync(this.getDataStorageKey(hashKey))
+    if (value == null) {
+      return {} as UTSJSONObject
+    }
+    return value as UTSJSONObject
+  }
+
+  private writeCachedData(hashKey : number, data : GioABTestResult) {
+    uni.setStorageSync(this.getDataStorageKey(hashKey), data as UTSJSONObject)
+    uni.setStorageSync(
+      this.getDataExpireStorageKey(hashKey),
+      endOfNextDay()
+    )
+  }
+
+  private cloneComparisonData(originData : UTSJSONObject) : UTSJSONObject {
+    const cloned = {} as UTSJSONObject
+    const keys = Object.keys(originData)
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]
+      if (
+        key == 'layerName' ||
+        key == 'strategyName' ||
+        key == 'experimentName'
+      ) {
+        continue
+      }
+      cloned[key] = originData[key]
+    }
+    return cloned
+  }
+
+  getABTest(
+    layerId : string | number,
+    callback : GioABTestCallback | null = null
+  ) {
+    if (isEmptyLayerId(layerId)) {
+      consoleText('获取ABTest数据失败! 实验层Id不合法!', 'error')
+      niceCallback(callback, {} as UTSJSONObject)
+      return
+    }
+    const hashKey = this.getHashKey(layerId)
+    const sign = readStorageNumber(this.getSignStorageKey(hashKey))
+    const originData = this.readCachedData(hashKey)
+    if (sign == 0 || sign < now()) {
+      this.initiateRequest(layerId, originData, callback, 0)
+      return
+    }
+    niceCallback(callback, originData)
+  }
+
+  private initiateRequest(
+    layerId : string | number,
+    originData : UTSJSONObject,
+    callback : GioABTestCallback | null,
+    retryCount : number
+  ) {
+    const options = this.tracker.getOptions()
+    const context = this.tracker.getContext()
+    if (options == null || context == null) {
+      niceCallback(callback, {} as UTSJSONObject)
+      return
+    }
+    uni.request({
+      url: this.url,
+      header: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      } as UTSJSONObject,
+      method: 'POST',
+      data: {
+        accountId: options.projectId,
+        datasourceId: options.dataSourceId,
+        distinctId: context.deviceId,
+        layerId: `${layerId}`,
+        newDevice: this.visitSessionId == context.sessionId
+      } as UTSJSONObject,
+      timeout: this.requestTimeout,
+      success: (res) => {
+        const data = readObject(res.data)
+        const code = Number(data['code'] != null ? data['code'] : -1)
+        if (code == 0) {
+          this.experimentVerify(layerId, data, originData, callback)
+        } else {
+          const errorMsg = data['errorMsg'] != null ? `${data['errorMsg']}` : ''
+          consoleText(`获取ABTest数据失败! ${errorMsg}!`, 'error')
+          niceCallback(callback, {} as UTSJSONObject)
+        }
+        uni.setStorageSync(
+          this.getSignStorageKey(this.getHashKey(layerId)),
+          now() + 1000 * 60 * this.requestInterval
+        )
+      },
+      fail: (err) => {
+        const raw = err as UTSJSONObject
+        const errMsg = raw['errMsg'] != null ? `${raw['errMsg']}` : ''
+        if (errMsg.indexOf('timeout') >= 0) {
+          consoleText('获取ABTest数据失败! 请求超时!', 'error')
+          niceCallback(callback, {} as UTSJSONObject)
+          return
+        }
+        if (retryCount < 2) {
+          this.initiateRequest(layerId, originData, callback, retryCount + 1)
+          return
+        }
+        consoleText(`获取ABTest数据失败! ${errMsg.slice(0, 30)}!`, 'error')
+        niceCallback(callback, {} as UTSJSONObject)
+      }
+    })
+  }
+
+  private experimentVerify(
+    layerId : string | number,
+    responseData : UTSJSONObject,
+    originData : UTSJSONObject,
+    callback : GioABTestCallback | null
+  ) {
+    const variablesValue = responseData['variables']
+    const variables = variablesValue != null
+      ? variablesValue as UTSJSONObject
+      : null
+    const comparisonData = {
+      layerId: `${responseData['layerId'] != null ? responseData['layerId'] : layerId}`,
+      strategyId: `${responseData['strategyId'] != null ? responseData['strategyId'] : ''}`,
+      experimentId: `${responseData['experimentId'] != null ? responseData['experimentId'] : ''}`,
+      variables: variables != null ? variables : {} as UTSJSONObject
+    } as UTSJSONObject
+    const controlData = this.cloneComparisonData(originData)
+    const comparisonValue = hashCode(JSON.stringify(comparisonData))
+    const controlValue = hashCode(JSON.stringify(controlData))
+
+    const result : GioABTestResult = {
+      layerId: `${comparisonData['layerId']}`,
+      strategyId: `${comparisonData['strategyId']}`,
+      experimentId: `${comparisonData['experimentId']}`,
+      layerName: readNullableString(responseData, 'layerName'),
+      experimentName: readNullableString(responseData, 'experimentName'),
+      strategyName: readNullableString(responseData, 'strategyName'),
+      variables: variables
+    }
+
+    this.writeCachedData(this.getHashKey(layerId), result)
+
+    if (
+      comparisonValue != controlValue &&
+      result.strategyId.length > 0 &&
+      result.experimentId.length > 0
+    ) {
+      this.buildExperimentHitEvent(result)
+    }
+
+    niceCallback(callback, result)
+  }
+
+  private buildExperimentHitEvent(result : GioABTestResult) {
+    const attributes = {
+      $exp_layer_id: result.layerId,
+      $exp_id: result.experimentId,
+      $exp_strategy_id: result.strategyId,
+      $exp_layer_name: result.layerName != null ? result.layerName : '',
+      $exp_name: result.experimentName != null ? result.experimentName : '',
+      $exp_strategy_name: result.strategyName != null ? result.strategyName : ''
+    } as UTSJSONObject
+    this.tracker.trackPluginEvent('$exp_hit', attributes)
+  }
+}

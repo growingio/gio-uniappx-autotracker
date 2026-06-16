@@ -1,11 +1,12 @@
-import { GioInitOptions } from '../interface.uts'
+import { platformName } from './utils.uts'
 
 export const SDK_VERSION = '0.1.0'
-export const DEFAULT_SESSION_TIMEOUT_MS = 30 * 60 * 1000
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
 export const DEFAULT_MAX_QUEUE_SIZE = 100
-export const DEFAULT_STORAGE_PREFIX = 'gio:uniappx'
 export const DEFAULT_APP_VERSION = '1.0.0'
+export const DEFAULT_WEB_SESSION_EXPIRES_MINUTES = 30
+export const DEFAULT_MP_SESSION_EXPIRES_MINUTES = 5
+export const DEFAULT_APP_SESSION_EXPIRES_MINUTES = 0.5
 
 function readRequiredString(raw : UTSJSONObject, key : string) : string {
   const value = raw[key]
@@ -45,12 +46,18 @@ function readNullableNumber(raw : UTSJSONObject, key : string) : number | null {
   return null
 }
 
-export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOptions {
-  const headerValue = raw['header']
-  let header : UTSJSONObject | null = null
-  if (headerValue != null) {
-    header = headerValue as UTSJSONObject
+function getDefaultSessionExpires() : number {
+  const platform = platformName()
+  if (platform == 'web') {
+    return DEFAULT_WEB_SESSION_EXPIRES_MINUTES
   }
+  if (platform.startsWith('mp-')) {
+    return DEFAULT_MP_SESSION_EXPIRES_MINUTES
+  }
+  return DEFAULT_APP_SESSION_EXPIRES_MINUTES
+}
+
+export const normalizeInitOptions = function (raw : UTSJSONObject) : UTSJSONObject {
   return {
     projectId: readRequiredString(raw, 'projectId'),
     dataSourceId: readRequiredString(raw, 'dataSourceId'),
@@ -59,13 +66,9 @@ export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOpti
     appVersion: readNullableString(raw, 'appVersion'),
     debug: readNullableBoolean(raw, 'debug'),
     forceLogin: readNullableBoolean(raw, 'forceLogin'),
-    autoTrackLifecycle: readNullableBoolean(raw, 'autoTrackLifecycle'),
-    sessionTimeoutMs: readNullableNumber(raw, 'sessionTimeoutMs'),
-    requestTimeoutMs: readNullableNumber(raw, 'requestTimeoutMs'),
-    maxQueueSize: readNullableNumber(raw, 'maxQueueSize'),
-    storagePrefix: readNullableString(raw, 'storagePrefix'),
-    header: header
-  } as GioInitOptions
+    originalSource: readNullableBoolean(raw, 'originalSource'),
+    sessionExpires: readNullableNumber(raw, 'sessionExpires')
+  } as UTSJSONObject
 }
 
 class GioConfigData {
@@ -78,35 +81,22 @@ class GioConfigData {
     return GioConfigData.instance as GioConfigData
   }
 
-  private options : GioInitOptions | null = null
+  private options : UTSJSONObject | null = null
 
   private constructor() {}
 
-  setOptions(options : GioInitOptions) {
+  setOptions(options : UTSJSONObject) {
     if (options.debug == null) {
       options.debug = false
     }
     if (options.forceLogin == null) {
       options.forceLogin = false
     }
-    if (options.autoTrackLifecycle == null) {
-      options.autoTrackLifecycle = true
+    if (options.originalSource == null) {
+      options.originalSource = true
     }
-    if (options.sessionTimeoutMs == null) {
-      options.sessionTimeoutMs = DEFAULT_SESSION_TIMEOUT_MS
-    }
-    if (options.requestTimeoutMs == null) {
-      options.requestTimeoutMs = DEFAULT_REQUEST_TIMEOUT_MS
-    }
-    if (options.maxQueueSize == null) {
-      options.maxQueueSize = DEFAULT_MAX_QUEUE_SIZE
-    }
-    const storagePrefix = options.storagePrefix
-    if (storagePrefix == null || storagePrefix.length == 0) {
-      options.storagePrefix = DEFAULT_STORAGE_PREFIX
-    }
-    if (options.header == null) {
-      options.header = {} as UTSJSONObject
+    if (options.sessionExpires == null) {
+      options.sessionExpires = getDefaultSessionExpires()
     }
     if (options.appVersion == null || options.appVersion.length == 0) {
       options.appVersion = DEFAULT_APP_VERSION
@@ -114,7 +104,7 @@ class GioConfigData {
     this.options = options
   }
 
-  getOptions() : GioInitOptions | null {
+  getOptions() : UTSJSONObject | null {
     return this.options
   }
 }
