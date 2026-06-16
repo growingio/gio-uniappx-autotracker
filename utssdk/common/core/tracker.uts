@@ -38,13 +38,13 @@ import {
 import { GioStorageContainer } from '../storage/index.uts'
 
 export class GioTracker implements GioABTestHost {
-  static instance : GioTracker | null = null
+  static sharedInstance : GioTracker | null = null
 
   static getInstance() : GioTracker {
-    if (GioTracker.instance == null) {
-      GioTracker.instance = new GioTracker()
+    if (GioTracker.sharedInstance == null) {
+      GioTracker.sharedInstance = new GioTracker()
     }
-    return GioTracker.instance as GioTracker
+    return GioTracker.sharedInstance as GioTracker
   }
 
   private initialized : boolean = false

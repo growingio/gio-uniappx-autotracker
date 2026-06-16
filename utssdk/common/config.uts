@@ -49,13 +49,13 @@ export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOpti
 }
 
 class GioConfigData {
-  static instance : GioConfigData | null = null
+  static sharedInstance : GioConfigData | null = null
 
   static getInstance() : GioConfigData {
-    if (GioConfigData.instance == null) {
-      GioConfigData.instance = new GioConfigData()
+    if (GioConfigData.sharedInstance == null) {
+      GioConfigData.sharedInstance = new GioConfigData()
     }
-    return GioConfigData.instance as GioConfigData
+    return GioConfigData.sharedInstance as GioConfigData
   }
 
   private options : GioInitOptions | null = null

@@ -18,13 +18,13 @@ type GioUserIdUpdateListener = (payload : GioUserIdUpdatePayload) => void
 type GioUserKeyUpdateListener = (payload : GioUserKeyUpdatePayload) => void
 
 class GioEventCenterData {
-  static instance : GioEventCenterData | null = null
+  static sharedInstance : GioEventCenterData | null = null
 
   static getInstance() : GioEventCenterData {
-    if (GioEventCenterData.instance == null) {
-      GioEventCenterData.instance = new GioEventCenterData()
+    if (GioEventCenterData.sharedInstance == null) {
+      GioEventCenterData.sharedInstance = new GioEventCenterData()
     }
-    return GioEventCenterData.instance as GioEventCenterData
+    return GioEventCenterData.sharedInstance as GioEventCenterData
   }
 
   private sessionIdListeners : Array<GioSessionIdUpdateListener> = []
