@@ -23,7 +23,7 @@
 				<text class="record-detail">path={{ rec.path }}</text>
 				<text v-if="rec.extra != null && rec.extra.length > 0" class="record-extra">{{ rec.extra }}</text>
 			</view>
-			<text v-if="records.length === 0" class="empty">(等待生命周期触发...)</text>
+			<text v-if="records.length == 0" class="empty">(等待生命周期触发...)</text>
 		</view>
 
 		<view class="section">
