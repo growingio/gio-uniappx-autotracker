@@ -5,7 +5,7 @@ const tracker = GioTracker.getInstance()
 
 const lifecycle = defineMixin({
   // @ts-ignore
-  onLoad(options) {
+  onLoad(options : OnLoadOptions) {
     // @ts-ignore
     tracker.onPageLoad(this, options)
   },
