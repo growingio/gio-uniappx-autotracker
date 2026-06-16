@@ -36,6 +36,7 @@ import {
   shouldTrackAppClosed
 } from '../runtime/index.uts'
 import { GioStorageContainer } from '../storage/index.uts'
+import { resolvePageRoute } from '../route.uts'
 
 export class GioTracker implements GioABTestHost {
   static instance : GioTracker | null = null
@@ -315,6 +316,7 @@ export class GioTracker implements GioABTestHost {
     // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
     this.dataStore.ensureSystemReady(() => {
       const event = this.buildEvent(name, eventType, properties, pageContext)
+      this.recordEventContext(eventType, event)
       this.uploader.enqueue(event, this.getMaxQueueSize())
       if (flushAfter) {
         this.uploader.flush(null, null)
@@ -324,6 +326,14 @@ export class GioTracker implements GioABTestHost {
 
   private emitPageEvent(pageContext : GioPageContext | null) {
     this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
+  }
+
+  private recordEventContext(eventType : string, event : GioTrackEvent) {
+    const path = event.path != null ? event.path as string : ''
+    const query = event.query != null ? event.query as string : ''
+    const title = event.title
+    const referralPage = event.referralPage != null ? event.referralPage as string : ''
+    this.dataStore.recordEvent(eventType, path, query, title, referralPage)
   }
 
   private dispatchVisitAndPage(pageContext : GioPageContext | null) {
@@ -552,8 +562,16 @@ export class GioTracker implements GioABTestHost {
       return
     }
     this.currentPageShown = false
+    this.cachePageQueryOptions(page, options)
     const pageContext = this.updateCurrentPage(page, options)
     this.logLifecycle('page', 'onLoad', pageContext)
+  }
+
+  private cachePageQueryOptions(page : any | null, options : any | null) {
+    const routeInfo = resolvePageRoute(page, options)
+    if (routeInfo.path.length > 0) {
+      this.dataStore.cacheQueryOptions(routeInfo.path, routeInfo.query)
+    }
   }
 
   onShow(target : any | null) {
