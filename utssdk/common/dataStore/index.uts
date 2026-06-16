@@ -53,6 +53,7 @@ export class GioDataStore {
     this.sessionUpdateHandlers = sessionUpdateHandlers
     this.eventBuilder.configure(userStore)
     this.systemContext.initialize(options.debug == true)
+    this.pageStore.configure(options.appId)
     this.bindSessionUpdateListener()
   }
 
@@ -117,6 +118,18 @@ export class GioDataStore {
 
   buildCurrentPageContext(duration : number | null) : GioPageContext | null {
     return this.pageStore.buildCurrentPageContext(duration)
+  }
+
+  cacheQueryOptions(path : string, query : string) {
+    this.pageStore.cacheQueryOptions(path, query)
+  }
+
+  recordEvent(eventType : string, path : string, query : string, title : string, referralPage : string) {
+    if (eventType == 'PAGE') {
+      this.pageStore.recordLastPageEvent(path, query, title, referralPage)
+    } else if (eventType == 'VISIT') {
+      this.pageStore.recordLastVisitEvent(path, query, referralPage)
+    }
   }
 
   buildPageContextFromTarget(

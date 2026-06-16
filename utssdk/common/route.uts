@@ -127,7 +127,7 @@ function getPageUrl(page : any | null) : string {
   return ''
 }
 
-function getPagePath(page : any | null) : string {
+export function getPagePath(page : any | null) : string {
   const route = readAnyField(page, 'route')
   if (route != null && `${route}`.length > 0) {
     return normalizeRoutePath(`${route}`)
@@ -156,7 +156,12 @@ function getPagePath(page : any | null) : string {
   return ''
 }
 
-function getPageQuery(page : any | null, options : any | null) : string {
+function getPageQuery(
+  page : any | null,
+  options : any | null,
+  cachedQueryOptions : string | null,
+  queryFromLastEvent : string | null
+) : string {
   if (options != null) {
     return stringifyRouteQuery(options)
   }
@@ -174,12 +179,21 @@ function getPageQuery(page : any | null, options : any | null) : string {
       return query
     }
   }
+  if (cachedQueryOptions != null) {
+    return cachedQueryOptions
+  }
   const pageUrl = getPageUrl(page)
   if (pageUrl.length == 0) {
+    if (queryFromLastEvent != null && queryFromLastEvent.length > 0) {
+      return queryFromLastEvent
+    }
     return ''
   }
   const queryIndex = pageUrl.indexOf('?')
   if (queryIndex < 0 || queryIndex >= pageUrl.length - 1) {
+    if (queryFromLastEvent != null && queryFromLastEvent.length > 0) {
+      return queryFromLastEvent
+    }
     return ''
   }
   return normalizeQueryString(pageUrl.slice(queryIndex + 1))
@@ -214,10 +228,12 @@ export function buildRouteSignature(path : string, query : string) : string {
 
 export function resolvePageRoute(
   page : any | null,
-  options : any | null
+  options : any | null,
+  cachedQueryOptions : string | null = null,
+  queryFromLastEvent : string | null = null
 ) : GioResolvedRoute {
   const path = getPagePath(page)
-  const query = getPageQuery(page, options)
+  const query = getPageQuery(page, options, cachedQueryOptions, queryFromLastEvent)
   const title = getPageTitle(page)
   return {
     path: path,

@@ -44,6 +44,7 @@
 			<text class="section-title">快捷动作</text>
 			<view class="btn-row">
 				<button class="btn" @click="onTrackQuick">发一条首页事件</button>
+				<button class="btn" @click="onGoRouteWithParams">去路由页(带参)</button>
 				<button class="btn ghost" @click="onRefreshNote">刷新说明</button>
 			</view>
 			<text class="hint">{{ lastNote }}</text>
@@ -76,6 +77,11 @@ export default {
 				return
 			}
 			uni.navigateTo({ url })
+		},
+		onGoRouteWithParams() {
+			uni.navigateTo({
+				url: '/pages/route/route?from=index&ts=' + Date.now() + '&tag=quick',
+			})
 		},
 		onTrackQuick() {
 			track('home_quick_track', {

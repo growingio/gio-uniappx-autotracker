@@ -398,6 +398,18 @@ function readDocumentReferrer() : string {
   return ''
 }
 
+let lastPageFullUrl : string = ''
+
+function readCurrentHref() : string {
+  try {
+    const runtimeLocation = getRuntimeLocation()
+    if (runtimeLocation != null && runtimeLocation.href != null) {
+      return `${runtimeLocation.href}`
+    }
+  } catch (_error) {}
+  return ''
+}
+
 function resolveBrowserPageContext(
   logicalPageContext : GioPageContext | null
 ) : GioPageContext | null {
@@ -454,15 +466,15 @@ function resolveBrowserPageContext(
     title = logicalPageContext.title
   }
   const documentReferrer = readDocumentReferrer()
-  const logicalReferralPage = logicalPageContext != null && logicalPageContext.referralPage != null
-    ? logicalPageContext.referralPage
-    : ''
+  const currentHref = readCurrentHref()
+  const previousPageUrl = lastPageFullUrl
+  lastPageFullUrl = currentHref.length > 0 ? currentHref : lastPageFullUrl
   return {
     path: path,
     query: query,
     title: title,
-    referralPage: logicalReferralPage.length > 0
-      ? logicalReferralPage
+    referralPage: previousPageUrl.length > 0
+      ? previousPageUrl
       : documentReferrer,
     duration: logicalPageContext != null ? logicalPageContext.duration : null
   } as GioPageContext
