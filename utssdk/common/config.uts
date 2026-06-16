@@ -44,6 +44,7 @@ export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOpti
     debug: readNullableBoolean(raw, 'debug'),
     forceLogin: readNullableBoolean(raw, 'forceLogin'),
     originalSource: readNullableBoolean(raw, 'originalSource'),
+    followShare: readNullableBoolean(raw, 'followShare'),
     storageType: readNullableString(raw, 'storageType')
   } as GioInitOptions
 }
@@ -71,6 +72,15 @@ class GioConfigData {
     }
     if (options.originalSource == null) {
       options.originalSource = true
+    }
+    // followShare 仅小程序生效：mp-weixin 默认开启（用户未显式关闭时），其余端一律关闭，
+    // 分享 / 收藏事件本就只在小程序端产生。
+    if (platformName() == 'mp-weixin') {
+      if (options.followShare == null) {
+        options.followShare = true
+      }
+    } else {
+      options.followShare = false
     }
     if (options.cookieDomain == null) {
       options.cookieDomain = ''
