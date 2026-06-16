@@ -90,19 +90,19 @@ export default {
 	},
 	onLoad(options: any) {
 		const safeOptions = options != null ? options : {} as UTSJSONObject
-		;(this as any).log('onLoad', 'options=' + JSON.stringify(safeOptions))
+		this.log('onLoad', 'options=' + JSON.stringify(safeOptions))
 	},
 	onShow() {
-		;(this as any).log('onShow')
+		this.log('onShow')
 	},
 	onReady() {
-		;(this as any).log('onReady')
+		this.log('onReady')
 	},
 	onHide() {
-		;(this as any).log('onHide')
+		this.log('onHide')
 	},
 	onUnload() {
-		;(this as any).log('onUnload')
+		this.log('onUnload')
 	},
 }
 </script>

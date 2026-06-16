@@ -71,7 +71,7 @@ export default {
 		},
 		go(name: string) {
 			const url = `/pages/${name}/${name}`
-			if ((this as any).isTabBarPage(name)) {
+			if (this.isTabBarPage(name)) {
 				uni.switchTab({ url })
 				return
 			}
