@@ -40,7 +40,7 @@ function readQueryValue(query: UTSJSONObject, key: string): string {
 	if (value == null) {
 		return '(none)'
 	}
-	return String(value)
+	return `${value}`
 }
 
 onLoad((query: UTSJSONObject | null) => {
