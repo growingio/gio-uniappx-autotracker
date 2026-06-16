@@ -28,7 +28,7 @@
 import { ref } from 'vue'
 import { getABTest } from '@/uni_modules/gio-uniappx-autotracker'
 
-const layerId = ref('1001')
+const layerId = ref('DY5l85Jj')
 const resultText = ref('(none)')
 
 function stringifyResult(result : any | null) : string {
@@ -39,7 +39,7 @@ function stringifyResult(result : any | null) : string {
 }
 
 function onUsePreset() {
-	layerId.value = '1001'
+	layerId.value = 'DY5l85Jj'
 }
 
 function onGetABTest() {
