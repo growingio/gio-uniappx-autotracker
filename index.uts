@@ -1,7 +1,4 @@
-// The Vue plugin (defineMixin + app.mixin) must be imported directly from
-// ./plugin.uts in main.uts — NOT re-exported here. Re-exporting it through the
-// package entry pulls plugin.uts into the uts native module compilation, where
-// the Vue global `defineMixin` is not in scope. (Matches the uni-stat plugin.)
+export { gioUniappxAutotracker } from './plugin.uts'
 
 // #ifdef WEB
 export * from './utssdk/web/index.uts'
