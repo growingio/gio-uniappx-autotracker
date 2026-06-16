@@ -1,26 +1,56 @@
 <template>
 	<view class="page">
 		<view class="section">
-			<text class="section-title">当前说明</text>
-			<text class="hint">这个页面不再通过内部实例读取 context，只使用当前保留的公开 API 做身份设置演示。</text>
-		</view>
-
-		<view class="section">
 			<text class="section-title">设置身份</text>
 			<text class="field-label">userId</text>
 			<input class="input" v-model="userIdInput" placeholder="userId" />
 			<text class="field-label">userKey</text>
 			<input class="input" v-model="userKeyInput" placeholder="userKey" />
-			<text class="field-label">identify / assignmentId</text>
-			<input class="input" v-model="identifyInput" placeholder="identify assignmentId" />
 			<view class="btn-row">
 				<button class="btn" @click="onSetUserId">setUserId(userId)</button>
 				<button class="btn" @click="onSetUserIdWithKey">setUserId(userId, userKey)</button>
-				<button class="btn subtle" @click="onIdentify">identify(assignmentId)</button>
 				<button class="btn subtle" @click="onSetUserKey">setUserKey(userKey)</button>
 				<button class="btn danger" @click="onClearUserId">clearUserId</button>
 			</view>
-			<text class="hint">`identify` 只有在初始化开启 `forceLogin: true` 时才会生效；生效后会把积压事件统一补发。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">identify (forceLogin 模式)</text>
+			<text class="hint">identify 仅在初始化配置 forceLogin: true 时可用，用于将匿名访客绑定到已知用户 ID。当前初始化配置 forceLogin: false，下方用例预期全部失败。</text>
+			<text class="hint">如需测试正确场景，请先在 main.uts 中将 forceLogin 改为 true。</text>
+
+			<view class="sub-section">
+				<text class="sub-title">正确场景</text>
+				<text class="field-label">assignmentId (string)</text>
+				<input class="input" v-model="identifyValidInput" placeholder="如 openId_abc123" />
+				<view class="btn-row">
+					<button class="btn subtle" @click="onIdentifyValid">identify(有效字符串)</button>
+					<button class="btn subtle" @click="onIdentifyNumber">identify(有效数字)</button>
+				</view>
+				<text class="expect">预期：forceLogin=true 时返回 true，释放积压事件并刷新上报</text>
+			</view>
+
+			<view class="sub-section">
+				<text class="sub-title">边界场景</text>
+				<view class="btn-row">
+					<button class="btn ghost" @click="onIdentifyEmpty">identify('')</button>
+					<button class="btn ghost" @click="onIdentifyDash">identify('-')</button>
+					<button class="btn ghost" @click="onIdentifyNullStr">identify('null')</button>
+					<button class="btn ghost" @click="onIdentifyUndefinedStr">identify('undefined')</button>
+					<button class="btn ghost" @click="onIdentifyZero">identify(0)</button>
+					<button class="btn ghost" @click="onIdentifyNegative">identify(-1)</button>
+					<button class="btn ghost" @click="onIdentifyRepeat">重复 identify</button>
+				</view>
+				<text class="expect">预期：空字符串、'-'、'null'、'undefined'、0、负数均返回 false；重复调用第二次返回 false（forceLogin 已被置为 false）</text>
+			</view>
+
+			<view class="sub-section">
+				<text class="sub-title">错误场景</text>
+				<view class="btn-row">
+					<button class="btn danger" @click="onIdentifyWhenDisabled">forceLogin=false 时 identify</button>
+				</view>
+				<text class="expect">预期：当前配置 forceLogin=false，identify 直接返回 false 并打印错误日志</text>
+			</view>
 		</view>
 
 		<view class="section">
@@ -32,14 +62,7 @@
 			<view class="btn-row">
 				<button class="btn subtle" @click="onSetUserAttributes">setUserAttributes({ key: value })</button>
 			</view>
-			<text class="hint">该调用会单独发送一条 `LOGIN_USER_ATTRIBUTES` 类型事件，不会走普通 `track()` 事件名。</text>
-		</view>
-
-		<view class="section">
-			<text class="section-title">验证建议</text>
-			<text class="hint">1. 先设置 `userId` 或 `userKey`。</text>
-			<text class="hint">2. 或者直接在这里调用 `setUserAttributes()`。</text>
-			<text class="hint">3. 在请求体里确认是否出现 `LOGIN_USER_ATTRIBUTES` 事件，以及后续事件是否带上了新的 `userId/userKey`。</text>
+			<text class="hint">该调用会单独发送一条 LOGIN_USER_ATTRIBUTES 类型事件。</text>
 		</view>
 
 		<view class="result">
@@ -54,7 +77,7 @@ import { ref } from 'vue'
 import { clearUserId, identify, setUserAttributes, setUserId, setUserKey } from '@/uni_modules/gio-uniappx-autotracker'
 const userIdInput = ref('demo_user_001')
 const userKeyInput = ref('mobile')
-const identifyInput = ref('demo_openid_001')
+const identifyValidInput = ref('demo_openid_001')
 const attributeKeyInput = ref('member_level')
 const attributeValueInput = ref('gold')
 const lastAction = ref('(none)')
@@ -64,23 +87,74 @@ function note(msg: string) {
 }
 
 function onSetUserId() {
-	setUserId(userIdInput.value)
-	note('setUserId(' + userIdInput.value + ')')
+	const ok = setUserId(userIdInput.value)
+	note('setUserId(' + userIdInput.value + ') → ' + ok)
 }
 
 function onSetUserIdWithKey() {
-	setUserId(userIdInput.value, userKeyInput.value)
-	note('setUserId(' + userIdInput.value + ', ' + userKeyInput.value + ')')
-}
-
-function onIdentify() {
-	identify(identifyInput.value)
-	note('identify(' + identifyInput.value + ')')
+	const ok = setUserId(userIdInput.value, userKeyInput.value)
+	note('setUserId(' + userIdInput.value + ', ' + userKeyInput.value + ') → ' + ok)
 }
 
 function onSetUserKey() {
-	setUserKey(userKeyInput.value)
-	note('setUserKey(' + userKeyInput.value + ')')
+	const ok = setUserKey(userKeyInput.value)
+	note('setUserKey(' + userKeyInput.value + ') → ' + ok)
+}
+
+function onClearUserId() {
+	const ok = clearUserId()
+	note('clearUserId() → ' + ok)
+}
+
+function onIdentifyValid() {
+	const ok = identify(identifyValidInput.value)
+	note('identify(' + identifyValidInput.value + ') → ' + ok)
+}
+
+function onIdentifyNumber() {
+	const ok = identify(88001234)
+	note('identify(88001234) → ' + ok)
+}
+
+function onIdentifyEmpty() {
+	const ok = identify('')
+	note("identify('') → " + ok)
+}
+
+function onIdentifyDash() {
+	const ok = identify('-')
+	note("identify('-') → " + ok)
+}
+
+function onIdentifyNullStr() {
+	const ok = identify('null')
+	note("identify('null') → " + ok)
+}
+
+function onIdentifyUndefinedStr() {
+	const ok = identify('undefined')
+	note("identify('undefined') → " + ok)
+}
+
+function onIdentifyZero() {
+	const ok = identify(0)
+	note('identify(0) → ' + ok)
+}
+
+function onIdentifyNegative() {
+	const ok = identify(-1)
+	note('identify(-1) → ' + ok)
+}
+
+function onIdentifyRepeat() {
+	const first = identify('repeat_test_id')
+	const second = identify('repeat_test_id_2')
+	note('identify 第一次 → ' + first + '，第二次 → ' + second + '（预期第二次 false）')
+}
+
+function onIdentifyWhenDisabled() {
+	const ok = identify('should_fail')
+	note('forceLogin=false 时 identify → ' + ok + '（预期 false）')
 }
 
 function onSetUserAttributes() {
@@ -94,17 +168,14 @@ function onSetUserAttributes() {
 	setUserAttributes(attributes)
 	note('setUserAttributes({ ' + key + ': ' + attributeValueInput.value + ' })')
 }
-
-function onClearUserId() {
-	clearUserId()
-	note('clearUserId()')
-}
 </script>
 
 <style>
 .page { padding: 20rpx; }
 .section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
 .section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.sub-section { margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #f0f0f0; }
+.sub-title { font-size: 24rpx; font-weight: 500; color: #333; margin-bottom: 8rpx; }
 .input { border: 1rpx solid #ddd; padding: 14rpx; border-radius: 6rpx; margin-bottom: 12rpx; font-size: 26rpx; }
 .field-label { font-size: 22rpx; color: #667085; margin: 10rpx 2rpx 6rpx; }
 .btn-row { flex-direction: row; flex-wrap: wrap; }
@@ -113,6 +184,7 @@ function onClearUserId() {
 .btn.ghost { background: #eef5ff; color: #1677ff; }
 .btn.danger { background: #ef4444; }
 .hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+.expect { font-size: 22rpx; color: #b8860b; padding: 4rpx 2rpx; }
 .result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }
 .label { font-size: 24rpx; color: #999; }
 .val { font-size: 26rpx; color: #333; margin-top: 8rpx; }
