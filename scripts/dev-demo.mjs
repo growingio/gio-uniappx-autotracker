@@ -7,6 +7,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const DEMO_DIR = path.join(PROJECT_ROOT, 'demos/growingio-showcase');
+// Launch by project *name*, not the nested absolute path: HBuilderX resolves an
+// absolute path to the enclosing imported project (the repo root, imported as a
+// plain "Web" project), which makes app launches fail with
+// "项目类型为Web，暂不支持" and would target the wrong project for web too.
+const DEMO_PROJECT = path.basename(DEMO_DIR);
 const HBX_CLI = process.env.HBX_CLI ?? '/Applications/HBuilderX.app/Contents/MacOS/cli';
 const WATCH_ROOT = PROJECT_ROOT;
 const IGNORED_SEGMENTS = [
@@ -246,7 +251,7 @@ function launchWebDemo(options) {
 
     webChild = spawn(
       HBX_CLI,
-      ['launch', 'web', '--project', DEMO_DIR, '--continue-on-error', 'true'],
+      ['launch', 'web', '--project', DEMO_PROJECT, '--continue-on-error', 'true'],
       {
         cwd: PROJECT_ROOT,
         stdio: ['ignore', 'pipe', 'pipe'],

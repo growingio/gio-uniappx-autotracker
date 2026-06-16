@@ -7,6 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
 const DEMO_DIR = path.join(PROJECT_ROOT, 'demos/growingio-showcase');
+// HBuilderX resolves `--project <abs-path>` to the *enclosing* imported project.
+// Because the demo is nested inside the repo (also imported, as a plain "Web"
+// project), an absolute path matches the repo root and HBuilderX rejects the
+// launch with "项目类型为Web，暂不支持". Passing the project *name* matches the
+// demo's own entry (UniApp_VUE) unambiguously.
+const DEMO_PROJECT = path.basename(DEMO_DIR);
 const DIST_BUNDLE = path.join(
   PROJECT_ROOT,
   'dist/uni_modules/gio-uniappx-autotracker/index.uts',
@@ -107,7 +113,10 @@ function clearUnpackage() {
   if (!fs.existsSync(target)) {
     return;
   }
-  fs.rmSync(target, { recursive: true, force: true });
+  // A previous HBuilderX launch (e.g. the iOS simulator build) may still be
+  // writing into unpackage when we switch platforms. `force` only ignores
+  // ENOENT, so a concurrent writer surfaces as ENOTEMPTY/EBUSY — retry briefly.
+  fs.rmSync(target, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   log(`cleared ${path.relative(PROJECT_ROOT, target)}`);
 }
 
@@ -117,14 +126,14 @@ function buildArgs(platform, dev) {
       'launch',
       platform,
       '--project',
-      DEMO_DIR,
+      DEMO_PROJECT,
       '--compile',
       'true',
       '--continue-on-error',
       'true',
     ];
   }
-  return ['publish', platform, '--project', DEMO_DIR];
+  return ['publish', platform, '--project', DEMO_PROJECT];
 }
 
 function runHBuilderX(platform, dev) {
