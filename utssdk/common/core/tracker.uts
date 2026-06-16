@@ -578,7 +578,7 @@ export class GioTracker implements GioABTestHost {
     this.onAppHide()
   }
 
-  onPageHide(page : any) {
+  onPageHide(page : any | null) {
     if (!this.ensureReady()) {
       return
     }
@@ -591,7 +591,7 @@ export class GioTracker implements GioABTestHost {
     )
   }
 
-  onPageShow(page : any) {
+  onPageShow(page : any | null) {
     if (!this.ensureReady()) {
       return
     }
@@ -601,7 +601,7 @@ export class GioTracker implements GioABTestHost {
     this.dispatchFirstPageWhenReady(pageContext)
   }
 
-  onPageUnload(page : any) {
+  onPageUnload(page : any | null) {
     if (!this.ensureReady()) {
       return
     }

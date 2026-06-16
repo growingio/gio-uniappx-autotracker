@@ -19,7 +19,7 @@ export class GioUploader {
     this.onFlushSuccess = onFlushSuccess
   }
 
-  private sanitizeValue(value : any) : any | null {
+  private sanitizeValue(value : any | null) : any | null {
     if (value == null) {
       return null
     }
@@ -173,7 +173,7 @@ export class GioUploader {
       header: this.buildRequestHeader(),
       data: requestData,
       success: (res) => {
-        const statusCode = Number(res.statusCode)
+        const statusCode = parseFloat(`${res.statusCode}`)
         if (statusCode == 200 || statusCode == 204) {
           if (this.onFlushSuccess != null) {
             this.onFlushSuccess(batch)
