@@ -1,4 +1,5 @@
 import {
+  GioContext,
   GioInitOptions,
   GioOriginalSource,
   GioPageContext,
@@ -6,17 +7,13 @@ import {
 } from '../../interface.uts'
 import {
   platformName,
-  readStorageJson,
-  readStorageString,
-  removeStorage,
-  writeStorageJson,
-  writeStorageString
 } from '../utils.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import { GioSystemContextManager } from './context/system-context.uts'
 import { GioEventBuilder } from './eventBuilder/index.uts'
 import { GioPageStore } from './page/page-store.uts'
 import { GioWebPageStore } from './page/web-page-store.uts'
+import { GioStorageContainer } from '../storage/index.uts'
 
 const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
 const SENT_SIGN_SUFFIX = '_gdp_session_id_sent'
@@ -25,17 +22,50 @@ export class GioDataStore {
   private options : GioInitOptions | null = null
   private projectId : string = ''
   private userStore : GioUserStore | null = null
+  private storage : GioStorageContainer | null = null
   private systemContext : GioSystemContextManager = new GioSystemContextManager()
   private pageStore : GioPageStore = new GioPageStore()
   private webPageStore : GioWebPageStore = new GioWebPageStore()
   private eventBuilder : GioEventBuilder = new GioEventBuilder()
 
-  initialize(options : GioInitOptions, userStore : GioUserStore) {
+  initialize(
+    options : GioInitOptions,
+    userStore : GioUserStore,
+    storage : GioStorageContainer
+  ) {
     this.options = options
     this.projectId = options.projectId
     this.userStore = userStore
+    this.storage = storage
     this.eventBuilder.configure(userStore, this.webPageStore)
     this.systemContext.initialize(options.debug == true)
+  }
+
+  private getMainStorage() : any {
+    return (this.storage as GioStorageContainer).getMainStorage()
+  }
+
+  private getOriginalSourceStorage() : any {
+    return (this.storage as GioStorageContainer).getOriginalSourceStorage()
+  }
+
+  private getResolvedOptions() : GioInitOptions {
+    if (this.options != null) {
+      return this.options
+    }
+    return {
+      projectId: '',
+      dataSourceId: '',
+      appId: '',
+      serverUrl: '',
+      appVersion: null,
+      cookieDomain: null,
+      debug: null,
+      forceLogin: null,
+      originalSource: null,
+      storageType: null,
+      sessionExpires: null
+    } as GioInitOptions
   }
 
   isSystemReady() : boolean {
@@ -85,7 +115,8 @@ export class GioDataStore {
       return
     }
     const userStore = this.userStore as GioUserStore
-    const currentSessionId = userStore.getContext().sessionId
+    const context = userStore.getContext()
+    const currentSessionId = context.sessionId
     if (currentSessionId.length == 0) {
       return
     }
@@ -123,7 +154,7 @@ export class GioDataStore {
     appChannel : string | null
   ) : GioTrackEvent {
     return this.eventBuilder.buildEvent(
-      this.options as GioInitOptions,
+      this.getResolvedOptions(),
       this.systemContext.getContext(),
       name,
       eventType,
@@ -134,7 +165,7 @@ export class GioDataStore {
     )
   }
 
-  handleFlushSuccess(events : Array<UTSJSONObject>) {
+  handleFlushSuccess(events : Array<GioTrackEvent>) {
     for (let i = 0; i < events.length; i++) {
       const event = events[i]
       if (event['eventType'] != 'VISIT') {
@@ -177,35 +208,45 @@ export class GioDataStore {
   }
 
   private getVisitSentSessionId() : string {
-    return readStorageString(this.getSentSignKey())
+    const value = this.getMainStorage().getItem(this.getSentSignKey())
+    return value != null ? `${value}` : ''
   }
 
   private markVisitSent(sessionId : string) {
-    writeStorageString(this.getSentSignKey(), sessionId)
+    this.getMainStorage().setItem(this.getSentSignKey(), sessionId)
   }
 
   private getOriginalSource() : GioOriginalSource | null {
-    const storedValue = readStorageJson(this.getOriginalSourceKey())
+    const storedValue = this.getOriginalSourceStorage().getItem(
+      this.getOriginalSourceKey()
+    )
     if (storedValue == null) {
       return null
     }
+    const raw = storedValue as UTSJSONObject
     return {
-      sessionId: storedValue['sessionId'] != null ? `${storedValue['sessionId']}` : '',
-      path: storedValue['path'] != null ? `${storedValue['path']}` : '',
-      query: storedValue['query'] != null ? `${storedValue['query']}` : '',
-      title: storedValue['title'] != null ? `${storedValue['title']}` : '',
-      referralPage: storedValue['referralPage'] != null
-        ? `${storedValue['referralPage']}`
+      sessionId: raw['sessionId'] != null ? `${raw['sessionId']}` : '',
+      path: raw['path'] != null ? `${raw['path']}` : '',
+      query: raw['query'] != null ? `${raw['query']}` : '',
+      title: raw['title'] != null ? `${raw['title']}` : '',
+      referralPage: raw['referralPage'] != null
+        ? `${raw['referralPage']}`
         : ''
     } as GioOriginalSource
   }
 
   private setOriginalSource(originalSource : GioOriginalSource) {
-    writeStorageJson(this.getOriginalSourceKey(), originalSource as UTSJSONObject)
+    this.getOriginalSourceStorage().setItem(this.getOriginalSourceKey(), {
+      sessionId: originalSource.sessionId,
+      path: originalSource.path,
+      query: originalSource.query,
+      title: originalSource.title,
+      referralPage: originalSource.referralPage
+    } as UTSJSONObject)
   }
 
   private clearOriginalSource() {
-    removeStorage(this.getOriginalSourceKey())
+    this.getOriginalSourceStorage().removeItem(this.getOriginalSourceKey())
   }
 
   private getCurrentOriginalSource() : GioOriginalSource | null {
@@ -213,7 +254,8 @@ export class GioDataStore {
       return null
     }
     const userStore = this.userStore as GioUserStore
-    const currentSessionId = userStore.getContext().sessionId
+    const context = userStore.getContext() as GioContext
+    const currentSessionId = context.sessionId
     const originalSource = this.getOriginalSource()
     if (originalSource == null || originalSource.sessionId != currentSessionId) {
       return null

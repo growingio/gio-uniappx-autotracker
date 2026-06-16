@@ -1,3 +1,4 @@
+import { GioInitOptions } from '../interface.uts'
 import { platformName } from './utils.uts'
 
 export const SDK_VERSION = '0.1.0'
@@ -57,18 +58,20 @@ function getDefaultSessionExpires() : number {
   return DEFAULT_APP_SESSION_EXPIRES_MINUTES
 }
 
-export const normalizeInitOptions = function (raw : UTSJSONObject) : UTSJSONObject {
+export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOptions {
   return {
     projectId: readRequiredString(raw, 'projectId'),
     dataSourceId: readRequiredString(raw, 'dataSourceId'),
     appId: readRequiredString(raw, 'appId'),
     serverUrl: readRequiredString(raw, 'serverUrl'),
     appVersion: readNullableString(raw, 'appVersion'),
+    cookieDomain: readNullableString(raw, 'cookieDomain'),
     debug: readNullableBoolean(raw, 'debug'),
     forceLogin: readNullableBoolean(raw, 'forceLogin'),
     originalSource: readNullableBoolean(raw, 'originalSource'),
+    storageType: readNullableString(raw, 'storageType'),
     sessionExpires: readNullableNumber(raw, 'sessionExpires')
-  } as UTSJSONObject
+  } as GioInitOptions
 }
 
 class GioConfigData {
@@ -81,11 +84,11 @@ class GioConfigData {
     return GioConfigData.instance as GioConfigData
   }
 
-  private options : UTSJSONObject | null = null
+  private options : GioInitOptions | null = null
 
   private constructor() {}
 
-  setOptions(options : UTSJSONObject) {
+  setOptions(options : GioInitOptions) {
     if (options.debug == null) {
       options.debug = false
     }
@@ -94,6 +97,14 @@ class GioConfigData {
     }
     if (options.originalSource == null) {
       options.originalSource = true
+    }
+    if (options.cookieDomain == null) {
+      options.cookieDomain = ''
+    }
+    if (options.storageType == null || options.storageType.length == 0) {
+      options.storageType = platformName() == 'web' ? 'cookie' : 'localstorage'
+    } else {
+      options.storageType = options.storageType.toLowerCase()
     }
     if (options.sessionExpires == null) {
       options.sessionExpires = getDefaultSessionExpires()
@@ -104,7 +115,7 @@ class GioConfigData {
     this.options = options
   }
 
-  getOptions() : UTSJSONObject | null {
+  getOptions() : GioInitOptions | null {
     return this.options
   }
 }

@@ -1,0 +1,45 @@
+const GIO_ENCRYPTED_PREFIX = 'gioenc-'
+
+function isEncryptionSpecialChar(value : string) : boolean {
+  return (
+    value == 'A' ||
+    value == 'a' ||
+    value == 'Z' ||
+    value == 'z' ||
+    value == '@' ||
+    value == '{'
+  )
+}
+
+function xorStorageChar(value : string) : string {
+  if (value.length == 0) {
+    return ''
+  }
+  if (value >= '0' && value <= '9') {
+    return `${Number(value) ^ 1}`
+  }
+  return String.fromCharCode(value.charCodeAt(0) ^ 1)
+}
+
+function bitEncryptStorageValue(value : string) : string {
+  let result = ''
+  for (let i = 0; i < value.length; i++) {
+    const item = value.charAt(i)
+    result += isEncryptionSpecialChar(item) ? item : xorStorageChar(item)
+  }
+  return result
+}
+
+export const encryptStorageString = function (value : string) : string {
+  if (value.length == 0) {
+    return value
+  }
+  return `${GIO_ENCRYPTED_PREFIX}${bitEncryptStorageValue(value)}`
+}
+
+export const decryptStorageString = function (value : string) : string {
+  if (!value.startsWith(GIO_ENCRYPTED_PREFIX)) {
+    return value
+  }
+  return bitEncryptStorageValue(value.slice(GIO_ENCRYPTED_PREFIX.length))
+}

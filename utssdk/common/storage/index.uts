@@ -1,0 +1,312 @@
+import { GioInitOptions } from '../../interface.uts'
+import { now, platformName } from '../utils.uts'
+import {
+  decryptStorageString,
+  encryptStorageString
+} from './encrypt.uts'
+
+type GioWebStorageProvider = {
+  resolveCookieDomain : (requestedDomain : string) => string
+  canUseLocalStorage : () => boolean
+  readCookieItem : (key : string, domain : string) => string | null
+  writeCookieItem : (key : string, value : string, expiredAt : number, domain : string) => void
+  removeCookieItem : (key : string, domain : string) => void
+  getCookieKeys : () => Array<string>
+  readLocalItem : (key : string) => string | null
+  writeLocalItem : (key : string, value : string) => void
+  removeLocalItem : (key : string) => void
+  getLocalKeys : () => Array<string>
+}
+
+const STORAGE_ENCRYPTED_SUFFIX = '_gioenc'
+const DEFAULT_STORAGE_EXPIRE_MS = 1000 * 60 * 60 * 24 * 365 * 3
+
+let registeredWebStorageProvider : GioWebStorageProvider | null = null
+
+export const registerWebStorageProvider = function (
+  provider : GioWebStorageProvider | null
+) {
+  registeredWebStorageProvider = provider
+}
+
+export const getStorageKey = function (prefix : string, name : string) : string {
+  return `${prefix}:${name}`
+}
+
+function getActualStorageKey(key : string) : string {
+  if (!key.endsWith(STORAGE_ENCRYPTED_SUFFIX)) {
+    return key
+  }
+  return key.slice(0, key.length - STORAGE_ENCRYPTED_SUFFIX.length)
+}
+
+function shouldEncryptStorageValue(key : string, value : any) : boolean {
+  return key.endsWith(STORAGE_ENCRYPTED_SUFFIX) &&
+    typeof value === 'string' &&
+    value.length > 0
+}
+
+function encodeStorageValue(key : string, value : any) : any {
+  if (shouldEncryptStorageValue(key, value)) {
+    return encryptStorageString(`${value}`)
+  }
+  return value
+}
+
+function decodeStorageValue(key : string, value : any) : any {
+  if (
+    key.endsWith(STORAGE_ENCRYPTED_SUFFIX) &&
+    typeof value === 'string'
+  ) {
+    return decryptStorageString(value)
+  }
+  return value
+}
+
+function parseStorageValue(value : any) : any {
+  if (value == null) {
+    return null
+  }
+  if (typeof value !== 'string') {
+    return value
+  }
+  const text = `${value}`
+  if (isNaN(Number(text))) {
+    try {
+      return JSON.parse(text)
+    } catch (_error) {
+      return text
+    }
+  }
+  return text
+}
+
+function getDefaultExpiredAt() : number {
+  return now() + DEFAULT_STORAGE_EXPIRE_MS
+}
+
+function buildWrappedStorageValue(
+  key : string,
+  value : any,
+  expiredAt : number | null
+) : string {
+  const storedValue = {
+    value: encodeStorageValue(key, value),
+    expiredAt: expiredAt != null && expiredAt > 0
+      ? expiredAt
+      : getDefaultExpiredAt()
+  } as UTSJSONObject
+  return JSON.stringify(storedValue)
+}
+
+function readWrappedStorageValue(
+  key : string,
+  rawValue : any
+) : any {
+  if (rawValue == null) {
+    return null
+  }
+  let parsedValue : any = rawValue
+  if (typeof rawValue === 'string') {
+    const text = `${rawValue}`
+    if (text.length == 0) {
+      return null
+    }
+    try {
+      parsedValue = JSON.parse(text)
+    } catch (_error) {
+      return parseStorageValue(decodeStorageValue(key, text))
+    }
+  }
+  if (parsedValue == null) {
+    return null
+  }
+  const envelope = parsedValue as UTSJSONObject
+  if (
+    envelope['expiredAt'] != null &&
+    envelope['value'] != null
+  ) {
+    const expiredAt = Number(envelope['expiredAt'])
+    if (expiredAt > 0 && expiredAt <= now()) {
+      return null
+    }
+    return parseStorageValue(
+      decodeStorageValue(key, envelope['value'])
+    )
+  }
+  return parseStorageValue(decodeStorageValue(key, parsedValue))
+}
+
+function buildCookieStorageValue(key : string, value : any) : string {
+  const storedValue = encodeStorageValue(key, value)
+  if (storedValue == null) {
+    return ''
+  }
+  if (typeof storedValue === 'string') {
+    return storedValue
+  }
+  return JSON.stringify(storedValue)
+}
+
+function readUniStorageRaw(key : string) : any {
+  const actualKey = getActualStorageKey(key)
+  let value = uni.getStorageSync(actualKey)
+  if (value == null && actualKey != key) {
+    value = uni.getStorageSync(key)
+  }
+  return value
+}
+
+function writeUniStorageRaw(key : string, value : string) {
+  uni.setStorageSync(getActualStorageKey(key), value)
+}
+
+function removeUniStorageRaw(key : string) {
+  const actualKey = getActualStorageKey(key)
+  uni.removeStorageSync(actualKey)
+  if (actualKey != key) {
+    uni.removeStorageSync(key)
+  }
+}
+
+function getUniStorageKeys() : Array<string> {
+  try {
+    const info = uni.getStorageInfoSync()
+    if (info != null && Array.isArray(info.keys)) {
+      return info.keys as Array<string>
+    }
+  } catch (_error) {}
+  return [] as Array<string>
+}
+
+class GioStorageEngine {
+  private mode : string = 'uni'
+  private cookieDomain : string = ''
+
+  configure(mode : string, cookieDomain : string = '') {
+    this.mode = mode
+    this.cookieDomain = cookieDomain
+  }
+
+  getItem(key : string) : any {
+    const provider = registeredWebStorageProvider
+    if (this.mode == 'web-cookie' && provider != null) {
+      const cookieValue = provider.readCookieItem(
+        getActualStorageKey(key),
+        this.cookieDomain
+      )
+      if (cookieValue == null) {
+        return null
+      }
+      return parseStorageValue(decodeStorageValue(key, cookieValue))
+    }
+    if (this.mode == 'web-local' && provider != null) {
+      return readWrappedStorageValue(
+        key,
+        provider.readLocalItem(getActualStorageKey(key))
+      )
+    }
+    return readWrappedStorageValue(key, readUniStorageRaw(key))
+  }
+
+  setItem(key : string, value : any, expiredAt : number | null = null) {
+    const provider = registeredWebStorageProvider
+    if (this.mode == 'web-cookie' && provider != null) {
+      provider.writeCookieItem(
+        getActualStorageKey(key),
+        buildCookieStorageValue(key, value),
+        expiredAt != null && expiredAt > 0
+          ? expiredAt
+          : getDefaultExpiredAt(),
+        this.cookieDomain
+      )
+      return
+    }
+    const wrappedValue = buildWrappedStorageValue(key, value, expiredAt)
+    if (this.mode == 'web-local' && provider != null) {
+      provider.writeLocalItem(getActualStorageKey(key), wrappedValue)
+      return
+    }
+    writeUniStorageRaw(key, wrappedValue)
+  }
+
+  removeItem(key : string) {
+    const provider = registeredWebStorageProvider
+    if (this.mode == 'web-cookie' && provider != null) {
+      provider.removeCookieItem(getActualStorageKey(key), this.cookieDomain)
+      return
+    }
+    if (this.mode == 'web-local' && provider != null) {
+      provider.removeLocalItem(getActualStorageKey(key))
+      if (getActualStorageKey(key) != key) {
+        provider.removeLocalItem(key)
+      }
+      return
+    }
+    removeUniStorageRaw(key)
+  }
+
+  hasItem(key : string) : boolean {
+    return this.getItem(key) != null
+  }
+
+  getKeys() : Array<string> {
+    const provider = registeredWebStorageProvider
+    if (this.mode == 'web-cookie' && provider != null) {
+      return provider.getCookieKeys()
+    }
+    if (this.mode == 'web-local' && provider != null) {
+      return provider.getLocalKeys()
+    }
+    return getUniStorageKeys()
+  }
+}
+
+export class GioStorageContainer {
+  private mainStorage : GioStorageEngine = new GioStorageEngine()
+  private originalSourceStorage : GioStorageEngine = new GioStorageEngine()
+
+  initialize(options : GioInitOptions) {
+    const provider = registeredWebStorageProvider
+    if (platformName() != 'web') {
+      this.mainStorage.configure('uni')
+      this.originalSourceStorage.configure('uni')
+      return
+    }
+    const requestedStorageType = options.storageType != null
+      ? options.storageType.toLowerCase()
+      : 'cookie'
+    const storageType = requestedStorageType == 'localstorage'
+      ? 'localstorage'
+      : 'cookie'
+    if (storageType == 'cookie' && provider != null) {
+      const cookieDomain = provider.resolveCookieDomain(
+        options.cookieDomain != null ? options.cookieDomain : ''
+      )
+      if (cookieDomain.length > 0) {
+        this.mainStorage.configure('web-cookie', cookieDomain)
+      } else if (provider.canUseLocalStorage()) {
+        this.mainStorage.configure('web-local')
+      } else {
+        this.mainStorage.configure('uni')
+      }
+    } else if (provider != null && provider.canUseLocalStorage()) {
+      this.mainStorage.configure('web-local')
+    } else {
+      this.mainStorage.configure('uni')
+    }
+    if (provider != null && provider.canUseLocalStorage()) {
+      this.originalSourceStorage.configure('web-local')
+    } else {
+      this.originalSourceStorage.configure('uni')
+    }
+  }
+
+  getMainStorage() : GioStorageEngine {
+    return this.mainStorage
+  }
+
+  getOriginalSourceStorage() : GioStorageEngine {
+    return this.originalSourceStorage
+  }
+}

@@ -1,17 +1,18 @@
+import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
 import { buildCollectUrl, debugLog } from '../utils.uts'
 
 export class GioUploader {
-  private options : UTSJSONObject | null = null
-  private pending : Array<UTSJSONObject> = []
-  private hoarding : Array<UTSJSONObject> = []
+  private options : GioInitOptions | null = null
+  private pending : Array<GioTrackEvent> = []
+  private hoarding : Array<GioTrackEvent> = []
   private inflight : boolean = false
   private forceLogin : boolean = false
-  private onFlushSuccess : ((events : Array<UTSJSONObject>) => void) | null = null
+  private onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
 
   configure(
-    options : UTSJSONObject,
-    onFlushSuccess : ((events : Array<UTSJSONObject>) => void) | null = null
+    options : GioInitOptions,
+    onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
   ) {
     this.options = options
     this.forceLogin = options.forceLogin == true
@@ -26,7 +27,7 @@ export class GioUploader {
     return eventType == 'VISIT' && (key == 'query' || key == 'title')
   }
 
-  enqueue(event : UTSJSONObject, maxQueueSize : number) {
+  enqueue(event : GioTrackEvent, maxQueueSize : number) {
     const queue = this.forceLogin ? this.hoarding : this.pending
     queue.push(event)
     if (queue.length > maxQueueSize) {
@@ -58,9 +59,9 @@ export class GioUploader {
     this.hoarding = []
   }
 
-  private sanitizeEvent(event : UTSJSONObject) : UTSJSONObject {
+  private sanitizeEvent(event : GioTrackEvent) : UTSJSONObject {
     const sanitized = {} as UTSJSONObject
-    const raw = event as UTSJSONObject
+    const raw = this.toEventJSONObject(event)
     const target = sanitized as UTSJSONObject
     const keys = Object.keys(raw)
     for (let i = 0; i < keys.length; i++) {
@@ -78,6 +79,42 @@ export class GioUploader {
       target[key] = value
     }
     return sanitized
+  }
+
+  private toEventJSONObject(event : GioTrackEvent) : UTSJSONObject {
+    return {
+      appChannel: event.appChannel,
+      appVersion: event.appVersion,
+      dataSourceId: event.dataSourceId,
+      deviceBrand: event.deviceBrand,
+      deviceId: event.deviceId,
+      deviceModel: event.deviceModel,
+      deviceType: event.deviceType,
+      domain: event.domain,
+      eventName: event.eventName,
+      eventSequenceId: event.eventSequenceId,
+      eventType: event.eventType,
+      language: event.language,
+      latitude: event.latitude,
+      longitude: event.longitude,
+      networkState: event.networkState,
+      operatingSystem: event.operatingSystem,
+      path: event.path,
+      platform: event.platform,
+      platformVersion: event.platformVersion,
+      query: event.query,
+      referralPage: event.referralPage,
+      screenHeight: event.screenHeight,
+      screenWidth: event.screenWidth,
+      sdkVersion: event.sdkVersion,
+      sessionId: event.sessionId,
+      timestamp: event.timestamp,
+      timezoneOffset: event.timezoneOffset,
+      title: event.title,
+      userId: event.userId,
+      userKey: event.userKey,
+      attributes: event.attributes
+    } as UTSJSONObject
   }
 
   private buildRequestHeader() : UTSJSONObject {
@@ -99,7 +136,11 @@ export class GioUploader {
     for (let i = 0; i < batch.length; i++) {
       requestData.push(this.sanitizeEvent(batch[i]))
     }
-    const options = this.options as UTSJSONObject
+    const options = this.options
+    if (options == null) {
+      this.inflight = false
+      return false
+    }
     const sendAt = Date.now()
 
     this.inflight = true

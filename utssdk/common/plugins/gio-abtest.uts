@@ -7,9 +7,7 @@ import {
   consoleText,
   hashCode,
   niceCallback,
-  now,
-  readStorageNumber,
-  removeStorage
+  now
 } from '../utils.uts'
 
 const ABTEST_DEFAULT_SERVER_URL = 'https://ab.growingio.com'
@@ -20,7 +18,6 @@ const ABTEST_MAX_REQUEST_TIMEOUT = 5000
 const ABTEST_MIN_REQUEST_TIMEOUT = 100
 const ABTEST_SIGN_SUFFIX = '_gdp_abt_sign'
 const ABTEST_DATA_SUFFIX = '_gdp_abtd'
-const ABTEST_DATA_EXPIRE_SUFFIX = '_gdp_abtd_expire'
 
 function isEmptyLayerId(layerId : string | number) : boolean {
   if (typeof layerId === 'number') {
@@ -44,6 +41,18 @@ function readObject(value : any | null) : UTSJSONObject {
   return value as UTSJSONObject
 }
 
+function readRequestErrorMessage(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as any
+  const errMsg = raw.errMsg
+  if (errMsg == null) {
+    return ''
+  }
+  return `${errMsg}`
+}
+
 function endOfNextDay() : number {
   const date = new Date()
   return new Date(
@@ -59,9 +68,11 @@ export class GioABTestPlugin {
   private requestTimeout : number = ABTEST_DEFAULT_REQUEST_TIMEOUT
   private url : string = ''
   private visitSessionId : string = ''
+  private storage : any = null
 
   constructor(tracker : any, options : GioABTestPluginOptions | null = null) {
     this.tracker = tracker
+    this.storage = tracker.getStorage().getMainStorage()
     this.timeoutCheck(options)
     this.generateUrl(options != null ? options.abServerUrl : null)
     const context = this.tracker.getContext()
@@ -122,18 +133,8 @@ export class GioABTestPlugin {
     return `${hashKey}${ABTEST_DATA_SUFFIX}`
   }
 
-  private getDataExpireStorageKey(hashKey : number) : string {
-    return `${hashKey}${ABTEST_DATA_EXPIRE_SUFFIX}`
-  }
-
   private readCachedData(hashKey : number) : UTSJSONObject {
-    const expireAt = readStorageNumber(this.getDataExpireStorageKey(hashKey))
-    if (expireAt > 0 && expireAt <= now()) {
-      removeStorage(this.getDataStorageKey(hashKey))
-      removeStorage(this.getDataExpireStorageKey(hashKey))
-      return {} as UTSJSONObject
-    }
-    const value = uni.getStorageSync(this.getDataStorageKey(hashKey))
+    const value = this.storage.getItem(this.getDataStorageKey(hashKey))
     if (value == null) {
       return {} as UTSJSONObject
     }
@@ -141,10 +142,30 @@ export class GioABTestPlugin {
   }
 
   private writeCachedData(hashKey : number, data : GioABTestResult) {
-    uni.setStorageSync(this.getDataStorageKey(hashKey), data as UTSJSONObject)
-    uni.setStorageSync(
-      this.getDataExpireStorageKey(hashKey),
-      endOfNextDay()
+    this.storage.setItem(this.getDataStorageKey(hashKey), {
+      layerId: data.layerId,
+      strategyId: data.strategyId,
+      experimentId: data.experimentId,
+      layerName: data.layerName,
+      experimentName: data.experimentName,
+      strategyName: data.strategyName,
+      variables: data.variables
+    } as UTSJSONObject, endOfNextDay())
+  }
+
+  private getSign(hashKey : number) : number {
+    const value = this.storage.getItem(this.getSignStorageKey(hashKey))
+    if (value == null) {
+      return 0
+    }
+    return Number(value)
+  }
+
+  private updateSign(hashKey : number) {
+    this.storage.setItem(
+      this.getSignStorageKey(hashKey),
+      1,
+      now() + 1000 * 60 * this.requestInterval
     )
   }
 
@@ -175,9 +196,9 @@ export class GioABTestPlugin {
       return
     }
     const hashKey = this.getHashKey(layerId)
-    const sign = readStorageNumber(this.getSignStorageKey(hashKey))
+    const sign = this.getSign(hashKey)
     const originData = this.readCachedData(hashKey)
-    if (sign == 0 || sign < now()) {
+    if (sign == 0) {
       this.initiateRequest(layerId, originData, callback, 0)
       return
     }
@@ -220,14 +241,10 @@ export class GioABTestPlugin {
           consoleText(`获取ABTest数据失败! ${errorMsg}!`, 'error')
           niceCallback(callback, {} as UTSJSONObject)
         }
-        uni.setStorageSync(
-          this.getSignStorageKey(this.getHashKey(layerId)),
-          now() + 1000 * 60 * this.requestInterval
-        )
+        this.updateSign(this.getHashKey(layerId))
       },
       fail: (err) => {
-        const raw = err as UTSJSONObject
-        const errMsg = raw['errMsg'] != null ? `${raw['errMsg']}` : ''
+        const errMsg = readRequestErrorMessage(err)
         if (errMsg.indexOf('timeout') >= 0) {
           consoleText('获取ABTest数据失败! 请求超时!', 'error')
           niceCallback(callback, {} as UTSJSONObject)

@@ -125,6 +125,14 @@ export class GioWebPageStore {
     if (path.length == 0) {
       return null
     }
+    if (
+      title.length == 0 &&
+      logicalPageContext != null &&
+      logicalPageContext.title != null &&
+      logicalPageContext.title.length > 0
+    ) {
+      title = logicalPageContext.title
+    }
     const referralPage = this.readDocumentReferrer()
     return {
       path: path,

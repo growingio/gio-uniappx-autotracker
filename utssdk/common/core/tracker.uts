@@ -29,6 +29,7 @@ import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
 import { GioUserStore } from '../userStore/index.uts'
+import { GioStorageContainer } from '../storage/index.uts'
 
 export class GioTracker {
   static instance : GioTracker | null = null
@@ -42,6 +43,7 @@ export class GioTracker {
 
   private initialized : boolean = false
   private options : GioInitOptions | null = null
+  private storage : GioStorageContainer = new GioStorageContainer()
   private userStore : GioUserStore = new GioUserStore()
   private uploader : GioUploader = new GioUploader()
   private dataStore : GioDataStore = new GioDataStore()
@@ -78,24 +80,30 @@ export class GioTracker {
     }
 
     GioConfig.setOptions(options)
-    this.options = GioConfig.getOptions() as GioInitOptions
+    const resolvedOptions = GioConfig.getOptions()
+    if (resolvedOptions == null) {
+      return false
+    }
+    this.options = resolvedOptions
     this.mpWeixinEnabled = isMpWeixinPlatform()
-    this.userStore.hydrate(this.options as GioInitOptions)
+    this.storage.initialize(this.options)
+    this.userStore.hydrate(this.options, this.storage)
     this.uploader.configure(
-      this.options as GioInitOptions,
-      (events : Array<UTSJSONObject>) => {
+      this.options,
+      (events : Array<GioTrackEvent>) => {
         this.handleFlushSuccess(events)
       }
     )
     this.dataStore.initialize(
-      this.options as GioInitOptions,
-      this.userStore
+      this.options,
+      this.userStore,
+      this.storage
     )
     this.refreshMiniProgramScene()
     this.initialized = true
     this.initializeSessionState()
     consoleText(this.getInitCompleteMessage(), 'success')
-    if ((this.options as GioInitOptions).forceLogin == true) {
+    if (this.options.forceLogin == true) {
       consoleText(
         'forceLogin已开启，请调用 identify 方法设置 openId 以继续上报!',
         'info'
@@ -109,7 +117,7 @@ export class GioTracker {
   }
 
   private isDebugEnabled() : boolean {
-    return this.options != null && (this.options as GioInitOptions).debug == true
+    return this.options != null && this.options.debug == true
   }
 
   private isWebPlatform() : boolean {
@@ -120,8 +128,15 @@ export class GioTracker {
     return this.options
   }
 
+  getStorage() : GioStorageContainer {
+    return this.storage
+  }
+
   private getSessionExpiresMs() : number {
-    const options = this.options as GioInitOptions
+    const options = this.options
+    if (options == null) {
+      return 0
+    }
     const sessionExpires = options.sessionExpires != null
       ? options.sessionExpires
       : 0
@@ -184,7 +199,7 @@ export class GioTracker {
     console.log(`[GrowingIO Lifecycle][${formatBeijingTimestamp()}] ${message}`)
   }
 
-  private handleFlushSuccess(events : Array<UTSJSONObject>) {
+  private handleFlushSuccess(events : Array<GioTrackEvent>) {
     this.dataStore.handleFlushSuccess(events)
   }
 
@@ -282,10 +297,23 @@ export class GioTracker {
     this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
   }
 
-  private dispatchFirstPageWhenReady(pageContext : GioPageContext | null) {
-    if (this.dataStore.isSystemReady()) {
+  private dispatchVisitAndPage(pageContext : GioPageContext | null) {
+    const dispatch = () => {
       this.maybeEmitVisit(pageContext)
       this.emitPageEvent(pageContext)
+    }
+    if (this.isWebPlatform()) {
+      setTimeout(() => {
+        dispatch()
+      }, 0)
+      return
+    }
+    dispatch()
+  }
+
+  private dispatchFirstPageWhenReady(pageContext : GioPageContext | null) {
+    if (this.dataStore.isSystemReady()) {
+      this.dispatchVisitAndPage(pageContext)
       return
     }
     this.pendingFirstPageContexts.push(pageContext)
@@ -299,8 +327,7 @@ export class GioTracker {
       this.pendingFirstPageContexts = []
       for (let i = 0; i < pendingPageContexts.length; i++) {
         const pendingPageContext = pendingPageContexts[i]
-        this.maybeEmitVisit(pendingPageContext)
-        this.emitPageEvent(pendingPageContext)
+        this.dispatchVisitAndPage(pendingPageContext)
       }
     })
   }
@@ -432,7 +459,10 @@ export class GioTracker {
     if (!this.ensureReady()) {
       return false
     }
-    const options = this.options as GioInitOptions
+    const options = this.options
+    if (options == null) {
+      return false
+    }
     if (options.forceLogin != true) {
       consoleText('identify 仅在 forceLogin 开启时允许调用', 'error')
       return false
