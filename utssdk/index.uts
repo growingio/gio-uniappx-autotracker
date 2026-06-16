@@ -3,8 +3,6 @@ import { GioTracker } from './common/core/tracker.uts'
 
 const tracker = GioTracker.getInstance()
 
-export { gioUniappxAutotracker } from '../plugin.uts'
-
 export const init = function (options : UTSJSONObject) : boolean {
   return tracker.init(normalizeInitOptions(options))
 }

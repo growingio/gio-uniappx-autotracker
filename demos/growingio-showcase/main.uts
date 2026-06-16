@@ -1,9 +1,7 @@
 import { createSSRApp } from 'vue'
 import App from './App.uvue'
-import {
-	gioUniappxAutotracker,
-	registerPlugins,
-} from '@/uni_modules/gio-uniappx-autotracker'
+import { gioUniappxAutotracker } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
+import { registerPlugins } from '@/uni_modules/gio-uniappx-autotracker'
 
 export function createApp() {
 	const app = createSSRApp(App)
