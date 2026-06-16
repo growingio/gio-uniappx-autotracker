@@ -1,2 +1,21 @@
 export { gioUniappxAutotracker } from './plugin.uts'
-export * from './utssdk/index.uts'
+
+// #ifdef WEB
+export * from './utssdk/web/index.uts'
+// #endif
+
+// #ifdef MP-WEIXIN
+export * from './utssdk/mp-weixin/index.uts'
+// #endif
+
+// #ifdef APP-ANDROID
+export * from './utssdk/app-android/index.uts'
+// #endif
+
+// #ifdef APP-IOS
+export * from './utssdk/app-ios/index.uts'
+// #endif
+
+// #ifdef APP-HARMONY
+export * from './utssdk/app-harmony/index.uts'
+// #endif
