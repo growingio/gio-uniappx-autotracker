@@ -2,18 +2,45 @@
 	<view class="page">
 		<view class="section">
 			<text class="h2">自定义事件 · track</text>
-			<text class="desc">这个页面参考了 develop showcase 的结构，但只保留当前最小 SDK 已支持的典型场景。</text>
-			<button class="btn" @click="onSimpleTrack">发一个简单事件</button>
-			<button class="btn" @click="onBusinessTrack">发一个业务事件</button>
-			<button class="btn" @click="onLongTextTrack">发一个长文本事件</button>
-			<button class="btn warn" @click="onEmptyNameTrack">发一个空事件名</button>
+			<text class="desc">参考 develop showcase 补齐了常见 track 测试面，但只保留当前公开 API 能稳定验证的场景。</text>
+			<button class="btn" @click="onSimpleTrack">简单事件 / custom_simple_click</button>
+			<button class="btn" @click="onPurchaseTrack">下单提交 / purchase_submit</button>
+			<button class="btn" @click="onEmojiTrack">多语言与 emoji</button>
+			<button class="btn" @click="onTypedValuesTrack">字符串 / 数字 / 布尔 / 数组</button>
+			<button class="btn" @click="onLongTextTrack">长文本属性截断</button>
+		</view>
+
+		<view class="section">
+			<text class="h2">边界与容错</text>
+			<text class="desc">用于观察事件名校验和属性归一化行为，重点看网络面板最终 body。</text>
+			<button class="btn warn" @click="onEmptyNameTrack">空事件名</button>
+			<button class="btn warn" @click="onInvalidNameTrack">非法事件名合集</button>
+			<button class="btn warn" @click="onNoPropsTrack">只传 eventName</button>
+			<button class="btn warn" @click="onNullPropsTrack">properties = null</button>
+			<button class="btn warn" @click="onWeirdValuesTrack">空串 / 0 / false / NaN / Infinity / 对象</button>
+		</view>
+
+		<view class="section">
+			<text class="h2">常见业务场景</text>
+			<text class="desc">覆盖电商、搜索、内容、广告、留资、客服、订阅等常见埋点命名。</text>
+			<button class="btn biz" @click="onSignupTrack">注册提交 / signup_submit</button>
+			<button class="btn biz" @click="onSearchTrack">站内搜索 / search</button>
+			<button class="btn biz" @click="onAddToCartTrack">加入购物车 / add_to_cart</button>
+			<button class="btn biz" @click="onCheckoutTrack">发起结算 / begin_checkout</button>
+			<button class="btn biz" @click="onCouponTrack">领券 / coupon_claim</button>
+			<button class="btn biz" @click="onContentTrack">内容互动 / article_engage</button>
+			<button class="btn biz" @click="onAdTrack">广告点击 / ad_click</button>
+			<button class="btn biz" @click="onLeadTrack">线索提交 / lead_submit</button>
+			<button class="btn biz" @click="onSupportTrack">客服会话 / support_start</button>
+			<button class="btn biz" @click="onSubscriptionTrack">订阅续费 / subscription_renew</button>
 		</view>
 
 		<view class="section">
 			<text class="h2">推荐观察点</text>
 			<text class="hint">1. 进入本页时，应先看到自动 `PAGE`。</text>
-			<text class="hint">2. 点按钮后，`track()` 会带上当前页的 `path` 和 `title`。</text>
-			<text class="hint">3. 从本页跳去路由页，再回来时，后续 `PAGE` 应带 `referralPage`。</text>
+			<text class="hint">2. 点按钮后，`track()` 应带上当前页的 `path`、`query`、`title`。</text>
+			<text class="hint">3. `properties` 最终会映射成请求体里的 `attributes`。</text>
+			<text class="hint">4. 从本页跳去路由页，再回来时，后续 `PAGE` 应带 `referralPage`。</text>
 			<view class="btn-row">
 				<button class="btn ghost" @click="goRoute">去路由页</button>
 			</view>
@@ -36,47 +63,201 @@ function note(msg: string) {
 	lastAction.value = msg
 }
 
+function sendTrack(
+	eventName: string,
+	properties: UTSJSONObject | null = null,
+	label: string | null = null
+) {
+	const success = track(eventName, properties)
+	const text = label != null ? label : eventName
+	note(text + ' => ' + (success ? 'success' : 'blocked'))
+}
+
 function buildLongText(): string {
 	let text = ''
-	for (let i = 0; i < 30; i++) {
-		text += 'LONG_TEXT_'
+	for (let i = 0; i < 40; i++) {
+		text += 'LONG_TEXT_SEGMENT_'
+	}
+	return text
+}
+
+function buildTooLongEventName(): string {
+	let text = 'evt_'
+	for (let i = 0; i < 26; i++) {
+		text += 'oversized_'
 	}
 	return text
 }
 
 function onSimpleTrack() {
-	track('custom_simple_click', {
+	sendTrack('custom_simple_click', {
 		from: 'custom-event',
 		level: 'basic',
 		tick: Date.now(),
 	} as UTSJSONObject)
-	note('custom_simple_click')
 }
 
-function onBusinessTrack() {
-	track('purchase_submit', {
+function onPurchaseTrack() {
+	sendTrack('purchase_submit', {
 		orderId: 'ORDER-' + Date.now(),
 		amount: 199,
 		currency: 'CNY',
 		channel: 'demo',
+		couponUsed: true,
 	} as UTSJSONObject)
-	note('purchase_submit')
+}
+
+function onEmojiTrack() {
+	sendTrack('emoji_payload', {
+		emoji: '😀🚀🧪🎉',
+		mixedLang: '中文 English 日本語 한국어',
+		lineBreaks: 'line1\nline2\tline3',
+	} as UTSJSONObject)
+}
+
+function onTypedValuesTrack() {
+	sendTrack('typed_attribute_values', {
+		title: 'summer_sale',
+		tags: ['new_user', 'flash_sale', 'coupon_ready'],
+		score: 98.6,
+		isVip: true,
+		occurredAt: '2026-06-16T14:00:00+08:00',
+	} as UTSJSONObject)
 }
 
 function onLongTextTrack() {
 	const text = buildLongText()
-	track('custom_long_text', {
+	sendTrack('custom_long_text', {
 		body: text,
 		length: text.length,
 	} as UTSJSONObject)
-	note('custom_long_text')
 }
 
 function onEmptyNameTrack() {
-	track('', {
+	sendTrack('', {
 		from: 'invalid-demo',
+	} as UTSJSONObject, 'empty event name')
+}
+
+function onInvalidNameTrack() {
+	const first = track('1bad_prefix', null)
+	const second = track('bad-name', null)
+	const third = track('bad name', null)
+	const fourth = track(buildTooLongEventName(), null)
+	note(
+		'invalid names => ' +
+		(first ? '1' : '0') +
+		'/' +
+		(second ? '1' : '0') +
+		'/' +
+		(third ? '1' : '0') +
+		'/' +
+		(fourth ? '1' : '0')
+	)
+}
+
+function onNoPropsTrack() {
+	sendTrack('track_without_properties', null)
+}
+
+function onNullPropsTrack() {
+	sendTrack('track_null_properties', null)
+}
+
+function onWeirdValuesTrack() {
+	sendTrack('boundary_values', {
+		emptyString: '',
+		zero: 0,
+		boolFalse: false,
+		boolTrue: true,
+		notANumber: 0 / 0,
+		infiniteValue: 1 / 0,
+		tags: ['vip', 'coupon', 'retarget'],
+		nestedObject: {
+			shouldBeIgnored: 'yes',
+		} as UTSJSONObject,
 	} as UTSJSONObject)
-	note('empty event name submitted')
+}
+
+function onSignupTrack() {
+	sendTrack('signup_submit', {
+		method: 'phone',
+		channel: 'landing_page',
+		isNewUser: true,
+	} as UTSJSONObject)
+}
+
+function onSearchTrack() {
+	sendTrack('search', {
+		keyword: 'running shoes',
+		resultCount: 28,
+		sortType: 'sales_desc',
+	} as UTSJSONObject)
+}
+
+function onAddToCartTrack() {
+	sendTrack('add_to_cart', {
+		skuId: 'SKU-10001',
+		category: 'sports',
+		price: 399,
+		quantity: 2,
+	} as UTSJSONObject)
+}
+
+function onCheckoutTrack() {
+	sendTrack('begin_checkout', {
+		cartSize: 3,
+		totalAmount: 699,
+		paymentMethod: 'wechat_pay',
+	} as UTSJSONObject)
+}
+
+function onCouponTrack() {
+	sendTrack('coupon_claim', {
+		couponId: 'COUPON-618',
+		scene: 'product_detail',
+		discount: 50,
+	} as UTSJSONObject)
+}
+
+function onContentTrack() {
+	sendTrack('article_engage', {
+		articleId: 'ART-2048',
+		engagementType: 'share',
+		readProgress: 85,
+	} as UTSJSONObject)
+}
+
+function onAdTrack() {
+	sendTrack('ad_click', {
+		adId: 'AD-9527',
+		placement: 'home_top_banner',
+		creativeType: 'image',
+	} as UTSJSONObject)
+}
+
+function onLeadTrack() {
+	sendTrack('lead_submit', {
+		formId: 'FORM-DEMO',
+		industry: 'education',
+		city: 'Shanghai',
+	} as UTSJSONObject)
+}
+
+function onSupportTrack() {
+	sendTrack('support_start', {
+		entry: 'order_detail',
+		ticketType: 'refund',
+		priority: 'high',
+	} as UTSJSONObject)
+}
+
+function onSubscriptionTrack() {
+	sendTrack('subscription_renew', {
+		plan: 'annual_pro',
+		price: 299,
+		autoRenew: true,
+	} as UTSJSONObject)
 }
 
 function goRoute() {
@@ -93,6 +274,7 @@ function goRoute() {
 .desc { font-size: 24rpx; color: #666; margin: 8rpx 0 12rpx; }
 .btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btn.warn { background: #fa8c16; }
+.btn.biz { background: #13a87f; }
 .btn.ghost { background: #fff; color: #1677ff; border: 1rpx solid #1677ff; }
 .btn-row { flex-direction: row; flex-wrap: wrap; }
 .result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }

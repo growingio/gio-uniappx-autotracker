@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawn } from 'node:child_process';
+import { spawn, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -54,6 +54,50 @@ function assertHBuilderX() {
     fail(
       `HBuilderX cli not found at ${HBX_CLI}\n` +
         'install HBuilderX or set HBX_CLI=/path/to/cli',
+    );
+  }
+}
+
+function readCommandText(command, args) {
+  try {
+    return execFileSync(command, args, {
+      cwd: PROJECT_ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+      encoding: 'utf8',
+    }).trim();
+  } catch (error) {
+    const stderr = typeof error?.stderr === 'string'
+      ? error.stderr.trim()
+      : Buffer.isBuffer(error?.stderr)
+        ? String(error.stderr).trim()
+        : '';
+    return stderr.length > 0 ? stderr : null;
+  }
+}
+
+function assertIosSimulatorRuntime() {
+  const developerDir = readCommandText('xcode-select', ['-p']);
+  if (developerDir == null || developerDir.length == 0) {
+    fail(
+      'iOS demo requires a working Xcode toolchain, but `xcode-select -p` is unavailable.\n' +
+        'Install Xcode and switch the active developer directory before running `npm run dev:demo-ios`.',
+    );
+  }
+
+  if (developerDir.includes('CommandLineTools')) {
+    fail(
+      'iOS demo requires the iOS Simulator from full Xcode, but the active developer directory is only CommandLineTools:\n' +
+        `${developerDir}\n` +
+        'Install Xcode and run:\n' +
+        'sudo xcode-select -s /Applications/Xcode.app/Contents/Developer',
+    );
+  }
+
+  const simctlResult = readCommandText('xcrun', ['simctl', 'list', 'devices', 'available']);
+  if (simctlResult == null || simctlResult.length == 0 || simctlResult.includes('unable to find utility "simctl"')) {
+    fail(
+      'iOS demo could not find an available Simulator runtime.\n' +
+        'Make sure full Xcode is installed, open Xcode once to finish setup, and verify `xcrun simctl list devices available` works.',
     );
   }
 }
@@ -116,6 +160,9 @@ async function main() {
   }
 
   assertHBuilderX();
+  if (options.platform === 'app-ios' && options.dev) {
+    assertIosSimulatorRuntime();
+  }
   log(`launching ${options.platform} demo (${options.dev ? 'dev' : 'publish'})`);
   await runHBuilderX(options.platform, options.dev);
 }

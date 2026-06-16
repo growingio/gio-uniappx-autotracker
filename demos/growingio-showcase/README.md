@@ -59,6 +59,13 @@ npm run dev:demo-ios
 npm run dev:demo-harmony
 ```
 
+如果你要调试 `iOS` demo，本机还需要满足这两个前置条件：
+
+- 安装完整 `Xcode`，不能只有 `CommandLineTools`
+- `xcode-select -p` 需要指向 `Xcode.app/Contents/Developer`，并且 `xcrun simctl list devices available` 能正常返回
+
+否则 HBuilderX 很容易退回到“iOS 真机未签名标准基座”这条链路，demo 不会真正进入模拟器运行。
+
 如果你只想准备环境，不真正拉起 HBuilderX，可以执行：
 
 ```bash

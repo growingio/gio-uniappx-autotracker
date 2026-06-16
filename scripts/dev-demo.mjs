@@ -34,6 +34,28 @@ function fail(message) {
   process.exit(1);
 }
 
+function summarizeLauncherText(text) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const summaries = [];
+  for (const line of lines) {
+    if (/Please\s*Login/i.test(line)) {
+      summaries.push('HBuilderX is not logged in');
+      continue;
+    }
+    if (/Incompatible processor/i.test(line)) {
+      summaries.push('HBuilderX web launcher is incompatible with the current processor');
+      continue;
+    }
+    if (/error/i.test(line) || /failed/i.test(line)) {
+      summaries.push(line);
+    }
+  }
+  return summaries;
+}
+
 function parseArgs(argv) {
   const platform = argv[0] ?? '';
   return {
@@ -234,13 +256,11 @@ function launchWebDemo(options) {
     webChild.stdout.on('data', (chunk) => {
       const text = String(chunk);
       outputBuffer += text;
-      process.stdout.write(text);
       resolveIfReady(text);
     });
     webChild.stderr.on('data', (chunk) => {
       const text = String(chunk);
       outputBuffer += text;
-      process.stderr.write(text);
       resolveIfReady(text);
     });
     webChild.on('error', (error) => {
@@ -256,6 +276,10 @@ function launchWebDemo(options) {
         settled = true;
         if (rejectWithKnownLauncherError()) {
           return;
+        }
+        const summaries = summarizeLauncherText(outputBuffer);
+        if (summaries.length > 0) {
+          summaries.forEach((line) => log('warn', line));
         }
         reject(new Error(`HBuilderX web launcher exited with code ${code}`));
         return;
