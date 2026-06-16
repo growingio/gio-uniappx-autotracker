@@ -6,17 +6,27 @@ import {
   GioTrackEvent
 } from '../../interface.uts'
 import {
-  platformName,
+  GioEventCenter,
+  GioSessionIdUpdatePayload
+} from '../events.uts'
+import {
+  platformName
 } from '../utils.uts'
+import { resolvePageContext } from '../runtime/index.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import { GioSystemContextManager } from './context/system-context.uts'
 import { GioEventBuilder } from './eventBuilder/index.uts'
 import { GioPageStore } from './page/page-store.uts'
-import { GioWebPageStore } from './page/web-page-store.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
 const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
 const SENT_SIGN_SUFFIX = '_gdp_session_id_sent'
+
+export type GioSessionUpdateHandlers = {
+  emitVisit : (pageContext : GioPageContext | null) => void
+  emitPage : (pageContext : GioPageContext | null) => void
+  shouldEmitPage : () => boolean
+}
 
 export class GioDataStore {
   private options : GioInitOptions | null = null
@@ -25,20 +35,49 @@ export class GioDataStore {
   private storage : GioStorageContainer | null = null
   private systemContext : GioSystemContextManager = new GioSystemContextManager()
   private pageStore : GioPageStore = new GioPageStore()
-  private webPageStore : GioWebPageStore = new GioWebPageStore()
   private eventBuilder : GioEventBuilder = new GioEventBuilder()
+  private sessionUpdateHandlers : GioSessionUpdateHandlers | null = null
+  private sessionListenerBound : boolean = false
 
   initialize(
     options : GioInitOptions,
     userStore : GioUserStore,
-    storage : GioStorageContainer
+    storage : GioStorageContainer,
+    sessionUpdateHandlers : GioSessionUpdateHandlers
   ) {
     this.options = options
     this.projectId = options.projectId
     this.userStore = userStore
     this.storage = storage
-    this.eventBuilder.configure(userStore, this.webPageStore)
+    this.sessionUpdateHandlers = sessionUpdateHandlers
+    this.eventBuilder.configure(userStore)
     this.systemContext.initialize(options.debug == true)
+    this.bindSessionUpdateListener()
+  }
+
+  private bindSessionUpdateListener() {
+    if (this.sessionListenerBound) {
+      return
+    }
+    this.sessionListenerBound = true
+    GioEventCenter.onSessionIdUpdate((payload : GioSessionIdUpdatePayload) => {
+      this.handleSessionIdUpdate(payload)
+    })
+  }
+
+  private handleSessionIdUpdate(payload : GioSessionIdUpdatePayload) {
+    if (payload.oldSessionId.length == 0) {
+      return
+    }
+    const handlers = this.sessionUpdateHandlers
+    if (handlers == null) {
+      return
+    }
+    const pageContext = this.buildCurrentPageContext(null)
+    handlers.emitVisit(pageContext)
+    if (handlers.shouldEmitPage()) {
+      handlers.emitPage(pageContext)
+    }
   }
 
   private getMainStorage() : any {
@@ -183,10 +222,6 @@ export class GioDataStore {
     }
   }
 
-  private isWebPlatform() : boolean {
-    return platformName() == 'web'
-  }
-
   private shouldUseOriginalSource() : boolean {
     if (this.options == null || this.options.originalSource != true) {
       return false
@@ -266,12 +301,6 @@ export class GioDataStore {
   private resolvePreferredPageContext(
     pageContext : GioPageContext | null
   ) : GioPageContext | null {
-    if (pageContext == null) {
-      return null
-    }
-    if (!this.isWebPlatform()) {
-      return pageContext
-    }
-    return this.webPageStore.buildBrowserPageContext(pageContext)
+    return resolvePageContext(pageContext)
   }
 }

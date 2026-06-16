@@ -1,5 +1,8 @@
 import { GioContext, GioInitOptions } from '../../interface.uts'
 import {
+  GioEventCenter
+} from '../events.uts'
+import {
   guid,
   now
 } from '../utils.uts'
@@ -9,6 +12,7 @@ const UID_STORAGE_KEY = 'gdp_user_id_gioenc'
 const SESSION_ID_SUFFIX = '_gdp_session_id'
 const USER_ID_SUFFIX = '_gdp_cs1_gioenc'
 const USER_KEY_SUFFIX = '_gdp_user_key_gioenc'
+const GIO_ID_SUFFIX = '_gdp_gio_id'
 const EVENT_SEQUENCE_ID_SUFFIX = '_gdp_sequence_ids'
 const LEGACY_SESSION_EXPIRES_AT_SUFFIX = '_gdp_session_id_expire'
 
@@ -56,6 +60,10 @@ export class GioUserStore {
     return this.buildProjectStorageKey(USER_KEY_SUFFIX)
   }
 
+  private getGioIdKey() : string {
+    return this.buildProjectStorageKey(GIO_ID_SUFFIX)
+  }
+
   private getEventSequenceIdKey() : string {
     return this.buildProjectStorageKey(EVENT_SEQUENCE_ID_SUFFIX)
   }
@@ -85,6 +93,11 @@ export class GioUserStore {
 
   private readStoredUserKey() : string {
     const value = this.getMainStorage().getItem(this.getUserKeyKey())
+    return value != null ? `${value}` : ''
+  }
+
+  private readStoredGioId() : string {
+    const value = this.getMainStorage().getItem(this.getGioIdKey())
     return value != null ? `${value}` : ''
   }
 
@@ -121,9 +134,44 @@ export class GioUserStore {
     this.getMainStorage().setItem(this.getUserKeyKey(), userKey)
   }
 
-  ensureSession(sessionExpiresMs : number) : boolean {
+  private persistGioId(gioId : string) {
+    this.getMainStorage().setItem(this.getGioIdKey(), gioId)
+  }
+
+  private emitSessionIdUpdate(newSessionId : string, oldSessionId : string) {
+    if (newSessionId == oldSessionId) {
+      return
+    }
+    GioEventCenter.emitSessionIdUpdate({
+      newSessionId: newSessionId,
+      oldSessionId: oldSessionId
+    })
+  }
+
+  private emitUserIdUpdate(newUserId : string, oldUserId : string) {
+    if (newUserId == oldUserId) {
+      return
+    }
+    GioEventCenter.emitUserIdUpdate({
+      newUserId: newUserId,
+      oldUserId: oldUserId
+    })
+  }
+
+  private emitUserKeyUpdate(newUserKey : string, oldUserKey : string) {
+    if (newUserKey == oldUserKey) {
+      return
+    }
+    GioEventCenter.emitUserKeyUpdate({
+      newUserKey: newUserKey,
+      oldUserKey: oldUserKey
+    })
+  }
+
+  ensureSession(sessionExpiresMs : number) : string | null {
     const ts = now()
-    let sessionId = this.readStoredSessionId()
+    const previousSessionId = this.readStoredSessionId()
+    let sessionId = previousSessionId
     const legacySessionExpiresAt = this.readLegacySessionExpiresAt()
     const expired = sessionId.length == 0 ||
       (legacySessionExpiresAt > 0 && legacySessionExpiresAt <= ts)
@@ -131,7 +179,11 @@ export class GioUserStore {
       sessionId = guid()
     }
     this.persistSession(sessionId, ts + sessionExpiresMs)
-    return expired
+    if (expired) {
+      this.emitSessionIdUpdate(sessionId, previousSessionId)
+      return previousSessionId
+    }
+    return null
   }
 
   touchSession(sessionExpiresMs : number) {
@@ -143,7 +195,12 @@ export class GioUserStore {
   }
 
   setUserId(userId : string) {
+    const previousUserId = this.readStoredUserId()
     this.persistUser(userId, this.readStoredUserKey())
+    if (userId.length > 0) {
+      this.persistGioId(userId)
+    }
+    this.emitUserIdUpdate(userId, previousUserId)
   }
 
   setDeviceId(deviceId : string) {
@@ -152,15 +209,24 @@ export class GioUserStore {
   }
 
   clearUserId() {
-    this.persistUser('', this.readStoredUserKey())
+    this.setUserId('')
   }
 
   setUserKey(userKey : string) {
+    const previousUserKey = this.readStoredUserKey()
     this.persistUser(this.readStoredUserId(), userKey)
+    this.emitUserKeyUpdate(userKey, previousUserKey)
   }
 
   renewSession(sessionExpiresMs : number) {
-    this.persistSession(guid(), now() + sessionExpiresMs)
+    const previousSessionId = this.readStoredSessionId()
+    const sessionId = guid()
+    this.persistSession(sessionId, now() + sessionExpiresMs)
+    this.emitSessionIdUpdate(sessionId, previousSessionId)
+  }
+
+  getGioId() : string {
+    return this.readStoredGioId()
   }
 
   getNextEventSequenceId() : number {

@@ -72,6 +72,57 @@ export const isValidEventName = function (eventName : string | null) : boolean {
   return (eventName as string).match(EVENT_NAME_REG) != null
 }
 
+function mergeSystemInfoPart(target : UTSJSONObject, source : any | null) {
+  if (source == null) {
+    return
+  }
+  const raw = source as UTSJSONObject
+  const keys = Object.keys(raw)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    target[key] = raw[key]
+  }
+}
+
+function readSystemText(source : any | null, keys : Array<string>) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as UTSJSONObject
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    const value = raw[key]
+    if (value != null && `${value}`.length > 0) {
+      return `${value}`
+    }
+  }
+  return ''
+}
+
+function callUniSyncApi(name : string) : any | null {
+  try {
+    const runtimeUni = uni as any
+    if (typeof runtimeUni[name] !== 'function') {
+      return null
+    }
+    return runtimeUni[name]()
+  } catch (_error) {
+    return null
+  }
+}
+
+function buildModernSystemInfoSnapshot() : any | null {
+  const merged = {} as UTSJSONObject
+  mergeSystemInfoPart(merged, callUniSyncApi('getAppBaseInfo'))
+  mergeSystemInfoPart(merged, callUniSyncApi('getDeviceInfo'))
+  mergeSystemInfoPart(merged, callUniSyncApi('getWindowInfo'))
+  return Object.keys(merged).length > 0 ? merged : null
+}
+
+export const getSystemInfoSnapshot = function () : any | null {
+  return buildModernSystemInfoSnapshot()
+}
+
 export const isValidIdentifyId = function (value : string | number | null) : boolean {
   if (value == null) {
     return false
@@ -131,33 +182,18 @@ export const normalizeTrackProperties = function (properties : UTSJSONObject | n
 }
 
 export const platformName = function () : string {
-  try {
-    const system = uni.getSystemInfoSync()
-    if (system.uniPlatform != null && `${system.uniPlatform}`.length > 0) {
-      return `${system.uniPlatform}`
-    }
-    if (system.platform != null && `${system.platform}`.length > 0) {
-      return `${system.platform}`
-    }
-  } catch (_error) {
-    return 'unknown'
+  const system = getSystemInfoSnapshot()
+  const platform = readSystemText(system, ['uniPlatform', 'platform'])
+  if (platform.length > 0) {
+    return platform
   }
   return 'unknown'
 }
 
 export const getSystemContext = function () : GioSystemContext {
-  let system : any = null
-  try {
-    system = uni.getSystemInfoSync()
-  } catch (_error) {
-    system = {} as UTSJSONObject
-  }
-  let platform = 'unknown'
-  if (system.uniPlatform != null && `${system.uniPlatform}`.length > 0) {
-    platform = `${system.uniPlatform}`
-  } else if (system.platform != null && `${system.platform}`.length > 0) {
-    platform = `${system.platform}`
-  }
+  const system = getSystemInfoSnapshot()
+  const platformText = readSystemText(system, ['uniPlatform', 'platform'])
+  const platform = platformText.length > 0 ? platformText : 'unknown'
 
   let operatingSystem = platform
   const lowerPlatform = platform.toLowerCase()
@@ -170,26 +206,38 @@ export const getSystemContext = function () : GioSystemContext {
     lowerPlatform.indexOf('ohos') >= 0
   ) {
     operatingSystem = 'uni-app-x-HarmonyOS'
+  } else {
+    const osName = readSystemText(system, ['osName'])
+    const lowerOsName = osName.toLowerCase()
+    if (lowerOsName.indexOf('android') >= 0) {
+      operatingSystem = 'uni-app-x-Android'
+    } else if (lowerOsName.indexOf('ios') >= 0) {
+      operatingSystem = 'uni-app-x-iOS'
+    } else if (
+      lowerOsName.indexOf('harmony') >= 0 ||
+      lowerOsName.indexOf('ohos') >= 0
+    ) {
+      operatingSystem = 'uni-app-x-HarmonyOS'
+    }
   }
 
   let platformVersion = operatingSystem
-  if (system.osVersion != null && `${system.osVersion}`.length > 0) {
-    platformVersion = `${operatingSystem} ${system.osVersion}`
-  } else if (system.version != null && `${system.version}`.length > 0) {
-    platformVersion = `${operatingSystem} ${system.version}`
+  const osVersion = readSystemText(system, ['osVersion', 'version'])
+  if (osVersion.length > 0) {
+    platformVersion = `${operatingSystem} ${osVersion}`
   }
 
   return {
-    deviceBrand: system.brand != null ? `${system.brand}` : '',
-    deviceModel: system.model != null ? `${system.model}` : '',
+    deviceBrand: readSystemText(system, ['deviceBrand', 'brand']),
+    deviceModel: readSystemText(system, ['deviceModel', 'model']),
     deviceType: operatingSystem,
-    language: system.language != null ? `${system.language}` : '',
-    networkState: system.networkType != null ? `${system.networkType}` : '',
+    language: readSystemText(system, ['language', 'appLanguage']),
+    networkState: readSystemText(system, ['networkType']),
     operatingSystem: operatingSystem,
     platform: platform,
     platformVersion: platformVersion,
-    screenHeight: Number(system.screenHeight != null ? system.screenHeight : 0),
-    screenWidth: Number(system.screenWidth != null ? system.screenWidth : 0)
+    screenHeight: Number(system != null && (system as UTSJSONObject)['screenHeight'] != null ? (system as UTSJSONObject)['screenHeight'] : 0),
+    screenWidth: Number(system != null && (system as UTSJSONObject)['screenWidth'] != null ? (system as UTSJSONObject)['screenWidth'] : 0)
   } as GioSystemContext
 }
 

@@ -5,21 +5,18 @@ import {
   GioTrackEvent
 } from '../../../interface.uts'
 import { SDK_VERSION } from '../../config.uts'
-import { GioSystemContext, now, platformName } from '../../utils.uts'
-import { GioWebPageStore } from '../page/web-page-store.uts'
+import { GioSystemContext, now } from '../../utils.uts'
+import {
+  resolvePageContext as resolveRuntimePageContext,
+  shapeTrackEvent
+} from '../../runtime/index.uts'
 import { GioUserStore } from '../../userStore/index.uts'
 
 export class GioEventBuilder {
   private userStore : GioUserStore | null = null
-  private webPageStore : GioWebPageStore | null = null
 
-  configure(userStore : GioUserStore, webPageStore : GioWebPageStore) {
+  configure(userStore : GioUserStore) {
     this.userStore = userStore
-    this.webPageStore = webPageStore
-  }
-
-  private isWebPlatform() : boolean {
-    return platformName() == 'web'
   }
 
   private resolvePageContext(
@@ -27,10 +24,7 @@ export class GioEventBuilder {
     pageContext : GioPageContext | null,
     originalSource : GioOriginalSource | null
   ) : GioPageContext | null {
-    let resolvedPageContext = pageContext
-    if (this.isWebPlatform() && this.webPageStore != null) {
-      resolvedPageContext = this.webPageStore.buildBrowserPageContext(pageContext)
-    }
+    let resolvedPageContext = resolveRuntimePageContext(pageContext)
     if (eventType == 'VISIT' && originalSource != null) {
       resolvedPageContext = {
         path: originalSource.path,
@@ -81,15 +75,14 @@ export class GioEventBuilder {
     ) {
       eventSequenceId = userStore.getNextEventSequenceId()
     }
-    const isWebPlatform = this.isWebPlatform()
-    return {
-      appChannel: isWebPlatform ? null : appChannel,
+    return shapeTrackEvent({
+      appChannel: appChannel,
       appVersion: options.appVersion as string,
       dataSourceId: options.dataSourceId,
       deviceBrand: systemContext.deviceBrand,
       deviceId: context.deviceId,
-      deviceModel: isWebPlatform ? null : systemContext.deviceModel,
-      deviceType: isWebPlatform ? null : systemContext.deviceType,
+      deviceModel: systemContext.deviceModel,
+      deviceType: systemContext.deviceType,
       domain: options.appId,
       eventName: eventName,
       eventSequenceId: eventSequenceId,
@@ -97,8 +90,8 @@ export class GioEventBuilder {
       language: systemContext.language,
       latitude: null,
       longitude: null,
-      networkState: isWebPlatform ? null : systemContext.networkState,
-      operatingSystem: isWebPlatform ? null : systemContext.operatingSystem,
+      networkState: systemContext.networkState,
+      operatingSystem: systemContext.operatingSystem,
       path: path,
       platform: systemContext.platform,
       platformVersion: systemContext.platformVersion,
@@ -114,6 +107,6 @@ export class GioEventBuilder {
       userId: context.userId,
       userKey: context.userKey,
       attributes: properties
-    } as GioTrackEvent
+    } as GioTrackEvent)
   }
 }

@@ -1,0 +1,111 @@
+import {
+  GioInitOptions,
+  GioPageContext,
+  GioTrackEvent
+} from '../../interface.uts'
+
+type GioPlatformStorageFactory = {
+  createMainStorage : (options : GioInitOptions, fallback : any) => any
+  createOriginalSourceStorage : (options : GioInitOptions, fallback : any) => any
+}
+
+type GioPageContextResolver = {
+  resolvePageContext : (pageContext : GioPageContext | null) => GioPageContext | null
+}
+
+type GioRuntimeBehavior = {
+  scheduleVisitAndPage : (dispatch : (() => void)) => void
+  shouldTrackAppClosed : () => boolean
+}
+
+type GioEventShaper = {
+  shapeTrackEvent : (event : GioTrackEvent) => GioTrackEvent
+}
+
+let registeredStorageFactory : GioPlatformStorageFactory | null = null
+let registeredPageContextResolver : GioPageContextResolver | null = null
+let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
+let registeredEventShaper : GioEventShaper | null = null
+
+export const registerPlatformStorageFactory = function (
+  factory : GioPlatformStorageFactory | null
+) {
+  registeredStorageFactory = factory
+}
+
+export const registerPageContextResolver = function (
+  resolver : GioPageContextResolver | null
+) {
+  registeredPageContextResolver = resolver
+}
+
+export const registerRuntimeBehavior = function (
+  behavior : GioRuntimeBehavior | null
+) {
+  registeredRuntimeBehavior = behavior
+}
+
+export const registerEventShaper = function (
+  shaper : GioEventShaper | null
+) {
+  registeredEventShaper = shaper
+}
+
+export const resolveMainStorage = function (
+  options : GioInitOptions,
+  fallback : any
+) : any {
+  const factory = registeredStorageFactory
+  if (factory == null) {
+    return fallback
+  }
+  return factory.createMainStorage(options, fallback)
+}
+
+export const resolveOriginalSourceStorage = function (
+  options : GioInitOptions,
+  fallback : any
+) : any {
+  const factory = registeredStorageFactory
+  if (factory == null) {
+    return fallback
+  }
+  return factory.createOriginalSourceStorage(options, fallback)
+}
+
+export const resolvePageContext = function (
+  pageContext : GioPageContext | null
+) : GioPageContext | null {
+  const resolver = registeredPageContextResolver
+  if (resolver == null) {
+    return pageContext
+  }
+  return resolver.resolvePageContext(pageContext)
+}
+
+export const scheduleVisitAndPage = function (dispatch : (() => void)) {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    dispatch()
+    return
+  }
+  behavior.scheduleVisitAndPage(dispatch)
+}
+
+export const shouldTrackAppClosed = function () : boolean {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    return true
+  }
+  return behavior.shouldTrackAppClosed()
+}
+
+export const shapeTrackEvent = function (
+  event : GioTrackEvent
+) : GioTrackEvent {
+  const shaper = registeredEventShaper
+  if (shaper == null) {
+    return event
+  }
+  return shaper.shapeTrackEvent(event)
+}

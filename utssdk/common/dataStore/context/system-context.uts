@@ -1,4 +1,4 @@
-import { GioSystemContext, debugLog } from '../../utils.uts'
+import { GioSystemContext, debugLog, getSystemInfoSnapshot } from '../../utils.uts'
 
 type GioSystemReadyCallback = () => void
 
@@ -154,28 +154,11 @@ export class GioSystemContextManager {
   }
 
   private loadSystemInfo() {
-    try {
-      const runtimeUni = uni as any
-      const getSystemInfo = runtimeUni.getSystemInfo
-      if (typeof getSystemInfo === 'function') {
-        getSystemInfo({
-          success: (res) => {
-            this.systemInfo = res
-            this.markSystemReady()
-          },
-          fail: (_) => {
-            debugLog(this.debugEnabled, 'getSystemInfo failed')
-            this.markSystemReady()
-          }
-        })
-        return
-      }
-      const getSystemInfoSync = runtimeUni.getSystemInfoSync
-      if (typeof getSystemInfoSync === 'function') {
-        this.systemInfo = getSystemInfoSync()
-      }
-    } catch (_error) {
-      debugLog(this.debugEnabled, 'getSystemInfo threw synchronously')
+    const systemSnapshot = getSystemInfoSnapshot()
+    if (systemSnapshot != null) {
+      this.systemInfo = systemSnapshot
+    } else {
+      debugLog(this.debugEnabled, 'system info snapshot is empty')
     }
     this.markSystemReady()
   }

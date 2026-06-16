@@ -1,0 +1,67 @@
+export type GioSessionIdUpdatePayload = {
+  newSessionId : string
+  oldSessionId : string
+}
+
+export type GioUserIdUpdatePayload = {
+  newUserId : string
+  oldUserId : string
+}
+
+export type GioUserKeyUpdatePayload = {
+  newUserKey : string
+  oldUserKey : string
+}
+
+type GioSessionIdUpdateListener = (payload : GioSessionIdUpdatePayload) => void
+type GioUserIdUpdateListener = (payload : GioUserIdUpdatePayload) => void
+type GioUserKeyUpdateListener = (payload : GioUserKeyUpdatePayload) => void
+
+class GioEventCenterData {
+  static instance : GioEventCenterData | null = null
+
+  static getInstance() : GioEventCenterData {
+    if (GioEventCenterData.instance == null) {
+      GioEventCenterData.instance = new GioEventCenterData()
+    }
+    return GioEventCenterData.instance as GioEventCenterData
+  }
+
+  private sessionIdListeners : Array<GioSessionIdUpdateListener> = []
+  private userIdListeners : Array<GioUserIdUpdateListener> = []
+  private userKeyListeners : Array<GioUserKeyUpdateListener> = []
+
+  private constructor() {}
+
+  onSessionIdUpdate(listener : GioSessionIdUpdateListener) {
+    this.sessionIdListeners.push(listener)
+  }
+
+  emitSessionIdUpdate(payload : GioSessionIdUpdatePayload) {
+    for (let i = 0; i < this.sessionIdListeners.length; i++) {
+      this.sessionIdListeners[i](payload)
+    }
+  }
+
+  onUserIdUpdate(listener : GioUserIdUpdateListener) {
+    this.userIdListeners.push(listener)
+  }
+
+  emitUserIdUpdate(payload : GioUserIdUpdatePayload) {
+    for (let i = 0; i < this.userIdListeners.length; i++) {
+      this.userIdListeners[i](payload)
+    }
+  }
+
+  onUserKeyUpdate(listener : GioUserKeyUpdateListener) {
+    this.userKeyListeners.push(listener)
+  }
+
+  emitUserKeyUpdate(payload : GioUserKeyUpdatePayload) {
+    for (let i = 0; i < this.userKeyListeners.length; i++) {
+      this.userKeyListeners[i](payload)
+    }
+  }
+}
+
+export const GioEventCenter = GioEventCenterData.getInstance()

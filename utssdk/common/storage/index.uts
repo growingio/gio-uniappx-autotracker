@@ -1,39 +1,37 @@
 import { GioInitOptions } from '../../interface.uts'
-import { now, platformName } from '../utils.uts'
+import { now } from '../utils.uts'
+import {
+  resolveMainStorage,
+  resolveOriginalSourceStorage
+} from '../runtime/index.uts'
 import {
   decryptStorageString,
   encryptStorageString
 } from './encrypt.uts'
 
-type GioWebStorageProvider = {
-  resolveCookieDomain : (requestedDomain : string) => string
-  canUseLocalStorage : () => boolean
-  readCookieItem : (key : string, domain : string) => string | null
-  writeCookieItem : (key : string, value : string, expiredAt : number, domain : string) => void
-  removeCookieItem : (key : string, domain : string) => void
-  getCookieKeys : () => Array<string>
-  readLocalItem : (key : string) => string | null
-  writeLocalItem : (key : string, value : string) => void
-  removeLocalItem : (key : string) => void
-  getLocalKeys : () => Array<string>
-}
-
 const STORAGE_ENCRYPTED_SUFFIX = '_gioenc'
 const DEFAULT_STORAGE_EXPIRE_MS = 1000 * 60 * 60 * 24 * 365 * 3
 
-let registeredWebStorageProvider : GioWebStorageProvider | null = null
-
-export const registerWebStorageProvider = function (
-  provider : GioWebStorageProvider | null
-) {
-  registeredWebStorageProvider = provider
+function shouldAttemptJsonParse(text : string) : boolean {
+  if (text.length == 0) {
+    return false
+  }
+  const first = text.charAt(0)
+  return (
+    first == '{' ||
+    first == '[' ||
+    first == '"' ||
+    text == 'true' ||
+    text == 'false' ||
+    text == 'null'
+  )
 }
 
 export const getStorageKey = function (prefix : string, name : string) : string {
   return `${prefix}:${name}`
 }
 
-function getActualStorageKey(key : string) : string {
+export const getActualStorageKey = function (key : string) : string {
   if (!key.endsWith(STORAGE_ENCRYPTED_SUFFIX)) {
     return key
   }
@@ -63,7 +61,17 @@ function decodeStorageValue(key : string, value : any) : any {
   return value
 }
 
-function parseStorageValue(value : any) : any {
+export const readDirectStorageValue = function (
+  key : string,
+  rawValue : any
+) : any {
+  if (rawValue == null) {
+    return null
+  }
+  return parseStorageValue(decodeStorageValue(key, rawValue))
+}
+
+export const parseStorageValue = function (value : any) : any {
   if (value == null) {
     return null
   }
@@ -71,7 +79,7 @@ function parseStorageValue(value : any) : any {
     return value
   }
   const text = `${value}`
-  if (isNaN(Number(text))) {
+  if (isNaN(Number(text)) && shouldAttemptJsonParse(text)) {
     try {
       return JSON.parse(text)
     } catch (_error) {
@@ -81,11 +89,11 @@ function parseStorageValue(value : any) : any {
   return text
 }
 
-function getDefaultExpiredAt() : number {
+export const getDefaultStorageExpiredAt = function () : number {
   return now() + DEFAULT_STORAGE_EXPIRE_MS
 }
 
-function buildWrappedStorageValue(
+export const buildWrappedStorageValue = function (
   key : string,
   value : any,
   expiredAt : number | null
@@ -94,12 +102,12 @@ function buildWrappedStorageValue(
     value: encodeStorageValue(key, value),
     expiredAt: expiredAt != null && expiredAt > 0
       ? expiredAt
-      : getDefaultExpiredAt()
+      : getDefaultStorageExpiredAt()
   } as UTSJSONObject
   return JSON.stringify(storedValue)
 }
 
-function readWrappedStorageValue(
+export const readWrappedStorageValue = function (
   key : string,
   rawValue : any
 ) : any {
@@ -111,6 +119,9 @@ function readWrappedStorageValue(
     const text = `${rawValue}`
     if (text.length == 0) {
       return null
+    }
+    if (!shouldAttemptJsonParse(text)) {
+      return parseStorageValue(decodeStorageValue(key, text))
     }
     try {
       parsedValue = JSON.parse(text)
@@ -137,7 +148,49 @@ function readWrappedStorageValue(
   return parseStorageValue(decodeStorageValue(key, parsedValue))
 }
 
-function buildCookieStorageValue(key : string, value : any) : string {
+export const readStructuredStorageValue = function (
+  key : string,
+  rawValue : any
+) : any {
+  if (rawValue == null || typeof rawValue !== 'string') {
+    return null
+  }
+  const text = `${rawValue}`
+  if (text.length == 0) {
+    return null
+  }
+  if (!text.startsWith('{')) {
+    return null
+  }
+  let parsedValue : any = null
+  try {
+    parsedValue = JSON.parse(text)
+  } catch (_error) {
+    return null
+  }
+  if (parsedValue == null) {
+    return null
+  }
+  const envelope = parsedValue as UTSJSONObject
+  if (
+    envelope['expiredAt'] == null ||
+    envelope['value'] == null
+  ) {
+    return null
+  }
+  const expiredAt = Number(envelope['expiredAt'])
+  if (expiredAt <= now()) {
+    return null
+  }
+  return parseStorageValue(
+    decodeStorageValue(key, envelope['value'])
+  )
+}
+
+export const buildCookieStorageValue = function (
+  key : string,
+  value : any
+) : string {
   const storedValue = encodeStorageValue(key, value)
   if (storedValue == null) {
     return ''
@@ -179,70 +232,17 @@ function getUniStorageKeys() : Array<string> {
   return [] as Array<string>
 }
 
-class GioStorageEngine {
-  private mode : string = 'uni'
-  private cookieDomain : string = ''
-
-  configure(mode : string, cookieDomain : string = '') {
-    this.mode = mode
-    this.cookieDomain = cookieDomain
-  }
-
+export class GioStorageEngine {
   getItem(key : string) : any {
-    const provider = registeredWebStorageProvider
-    if (this.mode == 'web-cookie' && provider != null) {
-      const cookieValue = provider.readCookieItem(
-        getActualStorageKey(key),
-        this.cookieDomain
-      )
-      if (cookieValue == null) {
-        return null
-      }
-      return parseStorageValue(decodeStorageValue(key, cookieValue))
-    }
-    if (this.mode == 'web-local' && provider != null) {
-      return readWrappedStorageValue(
-        key,
-        provider.readLocalItem(getActualStorageKey(key))
-      )
-    }
     return readWrappedStorageValue(key, readUniStorageRaw(key))
   }
 
   setItem(key : string, value : any, expiredAt : number | null = null) {
-    const provider = registeredWebStorageProvider
-    if (this.mode == 'web-cookie' && provider != null) {
-      provider.writeCookieItem(
-        getActualStorageKey(key),
-        buildCookieStorageValue(key, value),
-        expiredAt != null && expiredAt > 0
-          ? expiredAt
-          : getDefaultExpiredAt(),
-        this.cookieDomain
-      )
-      return
-    }
     const wrappedValue = buildWrappedStorageValue(key, value, expiredAt)
-    if (this.mode == 'web-local' && provider != null) {
-      provider.writeLocalItem(getActualStorageKey(key), wrappedValue)
-      return
-    }
     writeUniStorageRaw(key, wrappedValue)
   }
 
   removeItem(key : string) {
-    const provider = registeredWebStorageProvider
-    if (this.mode == 'web-cookie' && provider != null) {
-      provider.removeCookieItem(getActualStorageKey(key), this.cookieDomain)
-      return
-    }
-    if (this.mode == 'web-local' && provider != null) {
-      provider.removeLocalItem(getActualStorageKey(key))
-      if (getActualStorageKey(key) != key) {
-        provider.removeLocalItem(key)
-      }
-      return
-    }
     removeUniStorageRaw(key)
   }
 
@@ -251,62 +251,29 @@ class GioStorageEngine {
   }
 
   getKeys() : Array<string> {
-    const provider = registeredWebStorageProvider
-    if (this.mode == 'web-cookie' && provider != null) {
-      return provider.getCookieKeys()
-    }
-    if (this.mode == 'web-local' && provider != null) {
-      return provider.getLocalKeys()
-    }
     return getUniStorageKeys()
   }
 }
 
 export class GioStorageContainer {
-  private mainStorage : GioStorageEngine = new GioStorageEngine()
-  private originalSourceStorage : GioStorageEngine = new GioStorageEngine()
+  private mainStorage : any = new GioStorageEngine()
+  private originalSourceStorage : any = new GioStorageEngine()
 
   initialize(options : GioInitOptions) {
-    const provider = registeredWebStorageProvider
-    if (platformName() != 'web') {
-      this.mainStorage.configure('uni')
-      this.originalSourceStorage.configure('uni')
-      return
-    }
-    const requestedStorageType = options.storageType != null
-      ? options.storageType.toLowerCase()
-      : 'cookie'
-    const storageType = requestedStorageType == 'localstorage'
-      ? 'localstorage'
-      : 'cookie'
-    if (storageType == 'cookie' && provider != null) {
-      const cookieDomain = provider.resolveCookieDomain(
-        options.cookieDomain != null ? options.cookieDomain : ''
-      )
-      if (cookieDomain.length > 0) {
-        this.mainStorage.configure('web-cookie', cookieDomain)
-      } else if (provider.canUseLocalStorage()) {
-        this.mainStorage.configure('web-local')
-      } else {
-        this.mainStorage.configure('uni')
-      }
-    } else if (provider != null && provider.canUseLocalStorage()) {
-      this.mainStorage.configure('web-local')
-    } else {
-      this.mainStorage.configure('uni')
-    }
-    if (provider != null && provider.canUseLocalStorage()) {
-      this.originalSourceStorage.configure('web-local')
-    } else {
-      this.originalSourceStorage.configure('uni')
-    }
+    const defaultMainStorage = new GioStorageEngine()
+    const defaultOriginalSourceStorage = new GioStorageEngine()
+    this.mainStorage = resolveMainStorage(options, defaultMainStorage)
+    this.originalSourceStorage = resolveOriginalSourceStorage(
+      options,
+      defaultOriginalSourceStorage
+    )
   }
 
-  getMainStorage() : GioStorageEngine {
+  getMainStorage() : any {
     return this.mainStorage
   }
 
-  getOriginalSourceStorage() : GioStorageEngine {
+  getOriginalSourceStorage() : any {
     return this.originalSourceStorage
   }
 }
