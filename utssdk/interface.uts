@@ -31,7 +31,6 @@ export type GioInitOptions = {
   forceLogin : boolean | null
   originalSource : boolean | null
   storageType : string | null
-  sessionExpires : number | null
 }
 
 export type GioPluginItem = {

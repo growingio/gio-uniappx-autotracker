@@ -4,12 +4,14 @@ import {
 } from '../events.uts'
 import {
   guid,
-  now
+  now,
+  platformName
 } from '../utils.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
 const UID_STORAGE_KEY = 'gdp_user_id_gioenc'
 const SESSION_ID_SUFFIX = '_gdp_session_id'
+const SESSION_LAST_ACTIVE_SUFFIX = '_gdp_session_last_active'
 const USER_ID_SUFFIX = '_gdp_cs1_gioenc'
 const USER_KEY_SUFFIX = '_gdp_user_key_gioenc'
 const GIO_ID_SUFFIX = '_gdp_gio_id'
@@ -20,6 +22,7 @@ export class GioUserStore {
   private projectId : string = ''
   private deviceId : string = ''
   private storage : GioStorageContainer | null = null
+  private memorySessionId : string = ''
 
   hydrate(options : GioInitOptions, storage : GioStorageContainer) {
     this.projectId = options.projectId
@@ -36,12 +39,20 @@ export class GioUserStore {
     return (this.storage as GioStorageContainer).getMainStorage()
   }
 
+  private isWebPlatform() : boolean {
+    return platformName() == 'web'
+  }
+
   private buildProjectStorageKey(suffix : string) : string {
     return `${this.projectId}${suffix}`
   }
 
   private getSessionIdKey() : string {
     return this.buildProjectStorageKey(SESSION_ID_SUFFIX)
+  }
+
+  private getLastActiveKey() : string {
+    return this.buildProjectStorageKey(SESSION_LAST_ACTIVE_SUFFIX)
   }
 
   private getDeviceIdKey() : string {
@@ -73,9 +84,25 @@ export class GioUserStore {
     return value != null ? `${value}` : ''
   }
 
+  private writeStoredSessionId(sessionId : string, expiredAt : number) {
+    this.getMainStorage().setItem(this.getSessionIdKey(), sessionId, expiredAt)
+  }
+
   private readStoredDeviceId() : string {
     const value = this.getMainStorage().getItem(this.getDeviceIdKey())
     return value != null ? `${value}` : ''
+  }
+
+  private readStoredLastActiveAt() : number {
+    const value = this.getMainStorage().getItem(this.getLastActiveKey())
+    if (value == null) {
+      return 0
+    }
+    return Number(value)
+  }
+
+  private persistLastActiveAt(ts : number, expiredAt : number) {
+    this.getMainStorage().setItem(this.getLastActiveKey(), ts, expiredAt)
   }
 
   private readLegacySessionExpiresAt() : number {
@@ -120,15 +147,6 @@ export class GioUserStore {
     return numeric >= 1 && numeric < 1000000000 ? numeric : 1
   }
 
-  private persistSession(sessionId : string, sessionExpiresAt : number) {
-    this.getMainStorage().setItem(
-      this.getSessionIdKey(),
-      sessionId,
-      sessionExpiresAt
-    )
-    this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
-  }
-
   private persistUser(userId : string, userKey : string) {
     this.getMainStorage().setItem(this.getUserIdKey(), userId, null)
     this.getMainStorage().setItem(this.getUserKeyKey(), userKey, null)
@@ -168,30 +186,41 @@ export class GioUserStore {
     })
   }
 
-  ensureSession(sessionExpiresMs : number) : string | null {
+  private resolveSessionId() : string {
+    if (this.isWebPlatform()) {
+      return this.readStoredSessionId()
+    }
+    return this.memorySessionId
+  }
+
+  ensureSession(timeoutMs : number) : string | null {
     const ts = now()
-    const previousSessionId = this.readStoredSessionId()
+    const previousSessionId = this.resolveSessionId()
     let sessionId = previousSessionId
-    const legacySessionExpiresAt = this.readLegacySessionExpiresAt()
-    const expired = sessionId.length == 0 ||
-      (legacySessionExpiresAt > 0 && legacySessionExpiresAt <= ts)
-    if (expired) {
+    const lastActiveAt = this.readStoredLastActiveAt()
+    const legacyExpiresAt = this.readLegacySessionExpiresAt()
+    const timedOut = sessionId.length == 0 ||
+      (lastActiveAt > 0 && ts - lastActiveAt > timeoutMs) ||
+      (legacyExpiresAt > 0 && legacyExpiresAt <= ts)
+    if (timedOut) {
       sessionId = guid()
     }
-    this.persistSession(sessionId, ts + sessionExpiresMs)
-    if (expired) {
+    if (this.isWebPlatform()) {
+      this.writeStoredSessionId(sessionId, ts + timeoutMs)
+    } else {
+      this.memorySessionId = sessionId
+    }
+    this.persistLastActiveAt(ts, ts + timeoutMs)
+    this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+    if (timedOut) {
       this.emitSessionIdUpdate(sessionId, previousSessionId)
       return previousSessionId
     }
     return null
   }
 
-  touchSession(sessionExpiresMs : number) {
-    let sessionId = this.readStoredSessionId()
-    if (sessionId.length == 0) {
-      sessionId = guid()
-    }
-    this.persistSession(sessionId, now() + sessionExpiresMs)
+  touchSession(timeoutMs : number) {
+    this.persistLastActiveAt(now(), now() + timeoutMs)
   }
 
   setUserId(userId : string) {
@@ -218,10 +247,16 @@ export class GioUserStore {
     this.emitUserKeyUpdate(userKey, previousUserKey)
   }
 
-  renewSession(sessionExpiresMs : number) {
-    const previousSessionId = this.readStoredSessionId()
+  renewSession(timeoutMs : number) {
+    const previousSessionId = this.resolveSessionId()
     const sessionId = guid()
-    this.persistSession(sessionId, now() + sessionExpiresMs)
+    const ts = now()
+    if (this.isWebPlatform()) {
+      this.writeStoredSessionId(sessionId, ts + timeoutMs)
+    } else {
+      this.memorySessionId = sessionId
+    }
+    this.persistLastActiveAt(ts, ts + timeoutMs)
     this.emitSessionIdUpdate(sessionId, previousSessionId)
   }
 
@@ -238,7 +273,7 @@ export class GioUserStore {
 
   getContext() : GioContext {
     const deviceId = this.readStoredDeviceId()
-    const sessionId = this.readStoredSessionId()
+    const sessionId = this.resolveSessionId()
     const userId = this.readStoredUserId()
     const userKey = this.readStoredUserKey()
     return {

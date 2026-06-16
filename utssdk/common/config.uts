@@ -5,9 +5,6 @@ export const SDK_VERSION = '0.1.0'
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
 export const DEFAULT_MAX_QUEUE_SIZE = 100
 export const DEFAULT_APP_VERSION = '1.0.0'
-export const DEFAULT_WEB_SESSION_EXPIRES_MINUTES = 30
-export const DEFAULT_MP_SESSION_EXPIRES_MINUTES = 5
-export const DEFAULT_APP_SESSION_EXPIRES_MINUTES = 0.5
 
 function readRequiredString(raw : UTSJSONObject, key : string) : string {
   const value = raw[key]
@@ -36,28 +33,6 @@ function readNullableBoolean(raw : UTSJSONObject, key : string) : boolean | null
   return null
 }
 
-function readNullableNumber(raw : UTSJSONObject, key : string) : number | null {
-  const value = raw[key]
-  if (value == null) {
-    return null
-  }
-  if (typeof value === 'number') {
-    return value
-  }
-  return null
-}
-
-function getDefaultSessionExpires() : number {
-  const platform = platformName()
-  if (platform == 'web') {
-    return DEFAULT_WEB_SESSION_EXPIRES_MINUTES
-  }
-  if (platform.startsWith('mp-')) {
-    return DEFAULT_MP_SESSION_EXPIRES_MINUTES
-  }
-  return DEFAULT_APP_SESSION_EXPIRES_MINUTES
-}
-
 export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOptions {
   return {
     projectId: readRequiredString(raw, 'projectId'),
@@ -69,8 +44,7 @@ export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOpti
     debug: readNullableBoolean(raw, 'debug'),
     forceLogin: readNullableBoolean(raw, 'forceLogin'),
     originalSource: readNullableBoolean(raw, 'originalSource'),
-    storageType: readNullableString(raw, 'storageType'),
-    sessionExpires: readNullableNumber(raw, 'sessionExpires')
+    storageType: readNullableString(raw, 'storageType')
   } as GioInitOptions
 }
 
@@ -105,9 +79,6 @@ class GioConfigData {
       options.storageType = platformName() == 'web' ? 'cookie' : 'localstorage'
     } else {
       options.storageType = options.storageType.toLowerCase()
-    }
-    if (options.sessionExpires == null) {
-      options.sessionExpires = getDefaultSessionExpires()
     }
     if (options.appVersion == null || options.appVersion.length == 0) {
       options.appVersion = DEFAULT_APP_VERSION

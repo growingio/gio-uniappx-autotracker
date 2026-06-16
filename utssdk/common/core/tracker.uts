@@ -146,15 +146,15 @@ export class GioTracker implements GioABTestHost {
     return this.storage
   }
 
-  private getSessionExpiresMs() : number {
-    const options = this.options
-    if (options == null) {
-      return 0
+  private getSessionTimeoutMs() : number {
+    const platform = platformName()
+    if (platform == 'web') {
+      return 30 * 60 * 1000
     }
-    const sessionExpires = options.sessionExpires != null
-      ? options.sessionExpires
-      : 0
-    return sessionExpires * 60 * 1000
+    if (platform.startsWith('mp-')) {
+      return 5 * 60 * 1000
+    }
+    return 30 * 1000
   }
 
   private getMaxQueueSize() : number {
@@ -166,7 +166,7 @@ export class GioTracker implements GioABTestHost {
       return
     }
     const previousSessionId = this.userStore.ensureSession(
-      this.getSessionExpiresMs()
+      this.getSessionTimeoutMs()
     )
     if (previousSessionId != null && previousSessionId.length == 0) {
       this.pendingVisit = true
@@ -233,7 +233,7 @@ export class GioTracker implements GioABTestHost {
       return
     }
     const previousSessionId = this.userStore.ensureSession(
-      this.getSessionExpiresMs()
+      this.getSessionTimeoutMs()
     )
     if (previousSessionId != null) {
       if (previousSessionId.length == 0) {
@@ -471,7 +471,7 @@ export class GioTracker implements GioABTestHost {
     this.userStore.setUserId(userId)
     this.userStore.setUserKey(userKey != null ? userKey : '')
     if (previousGioId.length > 0 && previousGioId != userId) {
-      this.userStore.renewSession(this.getSessionExpiresMs())
+      this.userStore.renewSession(this.getSessionTimeoutMs())
     }
     return true
   }
@@ -651,7 +651,7 @@ export class GioTracker implements GioABTestHost {
     if (!shouldTrackAppClosed()) {
       return
     }
-    this.userStore.touchSession(this.getSessionExpiresMs())
+    this.userStore.touchSession(this.getSessionTimeoutMs())
     this.pushInternalEvent(
       'close',
       'APP_CLOSED',

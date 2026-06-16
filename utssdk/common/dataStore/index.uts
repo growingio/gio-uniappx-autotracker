@@ -104,7 +104,6 @@ export class GioDataStore {
       forceLogin: null,
       originalSource: null,
       storageType: null,
-      sessionExpires: null
     } as GioInitOptions
   }
 
