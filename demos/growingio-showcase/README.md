@@ -7,10 +7,29 @@
 - `APP_CLOSED`
 - `track`
 - `setUserId`
+- `setUserAttributes`
 - `setUserKey`
 - `clearUserId`
+- `identify`
+- `registerPlugins`
+- `getABTest`
 
-如果本地没有自动生成 `uni_modules/gio-uniappx-autotracker` 链接，需要先让 demo 指向当前仓库里的模块目录，再在 HBuilderX 中运行。
+当前 demo 初始化时只会传这几个配置：
+
+- `projectId`
+- `dataSourceId`
+- `appId`
+- `serverUrl`
+- `appVersion`
+- `debug`
+- `forceLogin`
+- `sessionExpires`
+
+对应源码见 [main.uts](/Users/anoiv/Workspace/gio-uniappx-autotracker/demos/growingio-showcase/main.uts)。
+
+当前 demo 会默认通过 `registerPlugins([{ name: 'gioABTest', options }])` 注册 `gioABTest` 插件，并额外提供一个 ABTest 页面做最小联调入口。该页面按单实例方式演示 `getABTest(layerId, callback)`，不包含 `trackingId` 多实例调用。
+
+如果本地的 `uni_modules/gio-uniappx-autotracker` 没有同步到当前仓库产物，先执行一次构建，让 demo 里的模块目录刷新成最新副本，再在 HBuilderX 中运行。
 
 推荐先在仓库根目录执行：
 

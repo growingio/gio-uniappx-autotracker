@@ -75,7 +75,7 @@ function clearDemoUnpackage(demoPath) {
 
 function ensureDemoBundle(demoPath) {
   if (demoPath === DEFAULT_DEMO) {
-    log('default showcase demo uses the dist bundle symlink from build output');
+    log('default showcase demo uses the copied dist bundle from build output');
     return;
   }
 

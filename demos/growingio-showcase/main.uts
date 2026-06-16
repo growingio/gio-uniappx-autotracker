@@ -1,25 +1,35 @@
 import { createSSRApp } from 'vue'
 import App from './App.uvue'
-import { gioUniappxAutotracker } from '@/uni_modules/gio-uniappx-autotracker'
+import {
+	gioUniappxAutotracker,
+	registerPlugins,
+} from '@/uni_modules/gio-uniappx-autotracker'
 
 export function createApp() {
 	const app = createSSRApp(App)
 
-	app.use(gioUniappxAutotracker, {
-		projectId: 'demo-project-id',
-		dataSourceId: 'demo-data-source-id',
-		appId: 'demo-app-id',
-		serverUrl: 'https://napi.growingio.com',
-		appVersion: '1.0.0',
-		debug: true,
-		forceLogin: false,
-		autoTrackLifecycle: true,
-		sessionTimeoutMs: 30 * 60 * 1000,
-		requestTimeoutMs: null,
-		maxQueueSize: null,
-		storagePrefix: null,
-		header: null,
-	})
+	try {
+		app.use(gioUniappxAutotracker, {
+			projectId: '0a1b4118dd954ec3bcc6',
+			dataSourceId: 'b9da31491eb9e926',
+			appId: 'wx03fed32794143578',
+			serverUrl: 'https://napi.growingio.com',
+			appVersion: '1.0.0',
+			debug: true,
+			forceLogin: false,
+			sessionExpires: 30,
+		})
+		registerPlugins([
+			{
+				name: 'gioABTest',
+				options: {
+					abServerUrl: 'https://ab.growingio.com',
+				} as UTSJSONObject,
+			},
+		])
+	} catch (error) {
+		console.error('[showcase] failed to initialize gioUniappxAutotracker', error)
+	}
 
 	return {
 		app,

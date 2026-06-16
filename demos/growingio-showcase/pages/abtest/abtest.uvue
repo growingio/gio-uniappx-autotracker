@@ -1,0 +1,63 @@
+<template>
+	<view class="page">
+		<view class="section">
+			<text class="section-title">ABTest 插件</text>
+			<text class="hint">当前插件层只考虑 `gioABTest`，对外调用方式先按小程序独立 SDK 的注册思路收敛。</text>
+			<text class="hint">demo 已在 `main.uts` 里调用 `registerPlugins([{ name: 'gioABTest', options }])`。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">请求参数</text>
+			<text class="field-label">layerId</text>
+			<input class="input" v-model="layerId" placeholder="ABTest layerId" />
+			<view class="btn-row">
+				<button class="btn" @click="onGetABTest">getABTest(layerId)</button>
+				<button class="btn ghost" @click="onUsePreset">填入示例 layerId</button>
+			</view>
+			<text class="hint">如果 layerId 非法、插件未注册、或者 AB 服务返回失败，会按小程序同方向回调空对象。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">最近结果</text>
+			<text class="result">{{ resultText }}</text>
+		</view>
+	</view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { getABTest } from '@/uni_modules/gio-uniappx-autotracker'
+
+const layerId = ref('1001')
+const resultText = ref('(none)')
+
+function stringifyResult(result : any | null) : string {
+	if (result == null) {
+		return '{}'
+	}
+	return JSON.stringify(result)
+}
+
+function onUsePreset() {
+	layerId.value = '1001'
+}
+
+function onGetABTest() {
+	getABTest(layerId.value, (result) => {
+		resultText.value = stringifyResult(result)
+	})
+}
+</script>
+
+<style>
+.page { padding: 20rpx; }
+.section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.field-label { font-size: 22rpx; color: #667085; margin: 10rpx 2rpx 6rpx; }
+.input { border: 1rpx solid #ddd; padding: 14rpx; border-radius: 6rpx; margin-bottom: 12rpx; font-size: 26rpx; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.btn { background: #1677ff; color: #fff; font-size: 24rpx; padding: 16rpx; border-radius: 8rpx; margin: 6rpx; }
+.btn.ghost { background: #eef5ff; color: #1677ff; }
+.hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+.result { font-size: 22rpx; color: #333; font-family: monospace; }
+</style>

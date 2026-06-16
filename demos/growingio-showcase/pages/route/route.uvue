@@ -53,8 +53,8 @@ onLoad((query: UTSJSONObject | null) => {
 })
 
 function goSelfNext() {
-	let currentStep = Number.parseInt(step.value)
-	if (!Number.isFinite(currentStep)) {
+	let currentStep = Number(step.value)
+	if (step.value.length == 0 || `${currentStep}` == 'NaN') {
 		currentStep = 0
 	}
 	const nextStep = currentStep + 1

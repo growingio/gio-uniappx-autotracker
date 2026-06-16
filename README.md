@@ -8,7 +8,52 @@
 - `forceLogin` / `identify` 最小链路
 - `VISIT`、`PAGE`、`APP_CLOSED` 三个关键事件的基础上报
 
-当前请求体已经按小程序独立 SDK 的核心风格对齐：上传时直接发送事件数组，请求 URL 带 `stm` / `compress` 查询参数，`CUSTOM` 事件使用 `eventName + attributes` 结构，`sessionId` / `userId` / `userKey` 会在每次构建事件时直接从存储读取。
+当前对外 API 只有：
+
+- `init(options)`
+- `track(eventName, properties = null)`
+- `setUserId(userId, userKey = null)`
+- `setUserAttributes(userAttributes)`
+- `identify(assignmentId)`
+- `setUserKey(userKey)`
+- `clearUserId()`
+- `registerPlugins(plugins)`
+- `getABTest(layerId, callback)`
+
+当前允许的初始化配置只有：
+
+- `projectId`
+- `dataSourceId`
+- `appId`
+- `serverUrl`
+- `appVersion`
+- `debug`
+- `forceLogin`
+- `sessionExpires`
+
+其中 `sessionExpires` 单位为分钟，默认值如下：
+
+- `web`：`30`
+- `mp-weixin`：`5`
+- `app-android` / `app-ios` / `app-harmony`：`0.5`
+
+当前请求体已经按小程序独立 SDK 的核心风格对齐：上传时直接发送事件数组，请求 URL 带 `stm` / `compress` 查询参数，`CUSTOM` 事件使用 `eventName + attributes` 结构，`LOGIN_USER_ATTRIBUTES` 会单独作为用户属性事件发送，`sessionId` / `userId` / `userKey` 会在每次构建事件时直接从存储读取。
+其中 `mp-weixin` 会额外按独立 SDK 的思路补 `scene` 场景值读取，优先从启动上下文同步读取，并把结果写进事件的 `appChannel=scn:<scene>`。
+
+以下旧能力已经不再对外透出，也不允许调用或传参：
+
+- `flush`
+- `autoTrackLifecycle`
+- `requestTimeoutMs`
+- `maxQueueSize`
+- `storagePrefix`
+- `header`
+
+当前插件层只考虑 `gioABTest`，并且对外注册思路先按小程序独立 SDK 对齐。
+当前 `gioABTest` 只按单实例场景收敛，不考虑 `trackingId` 多实例能力；对外调用方式保持为 `registerPlugins([{ name: 'gioABTest', options }]) + getABTest(layerId, callback)`。
+当前不会额外提供 `createGioABTestPlugin(options)` 这类插件项工厂函数，注册入口只保留 `registerPlugins([...])`。
+
+首屏 `VISIT` 和 `PAGE` 事件不会在上下文未就绪时抢先发送。设备信息和网络信息必须先通过官方异步 API 回来，事件才会真正构建并进入发送队列。
 
 当前源码已经补齐 `web`、`app-js`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 的 `utssdk` 平台入口，公共采集逻辑统一复用一份实现。
 
@@ -90,7 +135,7 @@ npm run release
 
 ### 说明
 
-- `build` 会顺手把 `demos/growingio-showcase/uni_modules/gio-uniappx-autotracker` 指到最新的 `dist` 产物
+- `build` 会顺手把最新的 `dist` 产物复制到 `demos/growingio-showcase/uni_modules/gio-uniappx-autotracker`
 - `verify:bundle` 只校验打包结构和平台声明，不等价于真实 HBuilderX 五端编译通过
 - `dev:demo-web` 会先构建并校验 SDK，然后调用 HBuilderX `launch web`；默认保持监听模式
 - `dev:demo-web -- --open-browser` 会在识别到本地调试 URL 后自动打开浏览器

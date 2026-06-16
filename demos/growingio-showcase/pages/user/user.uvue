@@ -1,23 +1,8 @@
 <template>
 	<view class="page">
 		<view class="section">
-			<text class="section-title">当前状态</text>
-			<view class="kv-row">
-				<text class="kv-key">deviceId</text>
-				<text class="kv-val">{{ deviceId }}</text>
-			</view>
-			<view class="kv-row">
-				<text class="kv-key">sessionId</text>
-				<text class="kv-val">{{ sessionId }}</text>
-			</view>
-			<view class="kv-row">
-				<text class="kv-key">userId</text>
-				<text class="kv-val">{{ currentUserId }}</text>
-			</view>
-			<view class="kv-row">
-				<text class="kv-key">userKey</text>
-				<text class="kv-val">{{ currentUserKey }}</text>
-			</view>
+			<text class="section-title">当前说明</text>
+			<text class="hint">这个页面不再通过内部实例读取 context，只使用当前保留的公开 API 做身份设置演示。</text>
 		</view>
 
 		<view class="section">
@@ -33,17 +18,28 @@
 				<button class="btn" @click="onSetUserIdWithKey">setUserId(userId, userKey)</button>
 				<button class="btn subtle" @click="onIdentify">identify(assignmentId)</button>
 				<button class="btn subtle" @click="onSetUserKey">setUserKey(userKey)</button>
-				<button class="btn ghost" @click="refreshState">刷新状态</button>
 				<button class="btn danger" @click="onClearUserId">clearUserId</button>
 			</view>
 			<text class="hint">`identify` 只有在初始化开启 `forceLogin: true` 时才会生效；生效后会把积压事件统一补发。</text>
 		</view>
 
 		<view class="section">
+			<text class="section-title">用户属性 / setUserAttributes</text>
+			<text class="field-label">attributeKey</text>
+			<input class="input" v-model="attributeKeyInput" placeholder="attribute key" />
+			<text class="field-label">attributeValue</text>
+			<input class="input" v-model="attributeValueInput" placeholder="attribute value" />
+			<view class="btn-row">
+				<button class="btn subtle" @click="onSetUserAttributes">setUserAttributes({ key: value })</button>
+			</view>
+			<text class="hint">该调用会单独发送一条 `LOGIN_USER_ATTRIBUTES` 类型事件，不会走普通 `track()` 事件名。</text>
+		</view>
+
+		<view class="section">
 			<text class="section-title">验证建议</text>
 			<text class="hint">1. 先设置 `userId` 或 `userKey`。</text>
-			<text class="hint">2. 再去“自定义事件”页发一条 `track()`。</text>
-			<text class="hint">3. 在请求体里确认后续事件是否带上了新的 `userId/userKey`。</text>
+			<text class="hint">2. 或者直接在这里调用 `setUserAttributes()`。</text>
+			<text class="hint">3. 在请求体里确认是否出现 `LOGIN_USER_ATTRIBUTES` 事件，以及后续事件是否带上了新的 `userId/userKey`。</text>
 		</view>
 
 		<view class="result">
@@ -54,36 +50,17 @@
 </template>
 
 <script setup lang="uts">
-import { onMounted, ref } from 'vue'
-import { GioTracker, clearUserId, identify, setUserId, setUserKey } from '@/uni_modules/gio-uniappx-autotracker'
-
-const deviceId = ref('')
-const sessionId = ref('')
-const currentUserId = ref('')
-const currentUserKey = ref('')
+import { ref } from 'vue'
+import { clearUserId, identify, setUserAttributes, setUserId, setUserKey } from '@/uni_modules/gio-uniappx-autotracker'
 const userIdInput = ref('demo_user_001')
 const userKeyInput = ref('mobile')
 const identifyInput = ref('demo_openid_001')
+const attributeKeyInput = ref('member_level')
+const attributeValueInput = ref('gold')
 const lastAction = ref('(none)')
-
-function refreshState() {
-	const context = GioTracker.getInstance().getContext()
-	if (context == null) {
-		deviceId.value = '(unknown)'
-		sessionId.value = '(unknown)'
-		currentUserId.value = '(empty)'
-		currentUserKey.value = '(empty)'
-		return
-	}
-	deviceId.value = context.deviceId
-	sessionId.value = context.sessionId
-	currentUserId.value = context.userId != null ? context.userId : '(empty)'
-	currentUserKey.value = context.userKey != null ? context.userKey : '(empty)'
-}
 
 function note(msg: string) {
 	lastAction.value = msg
-	refreshState()
 }
 
 function onSetUserId() {
@@ -106,14 +83,22 @@ function onSetUserKey() {
 	note('setUserKey(' + userKeyInput.value + ')')
 }
 
+function onSetUserAttributes() {
+	const key = attributeKeyInput.value
+	if (key.length == 0) {
+		note('attributeKey 不能为空')
+		return
+	}
+	const attributes = {} as UTSJSONObject
+	attributes[key] = attributeValueInput.value
+	setUserAttributes(attributes)
+	note('setUserAttributes({ ' + key + ': ' + attributeValueInput.value + ' })')
+}
+
 function onClearUserId() {
 	clearUserId()
 	note('clearUserId()')
 }
-
-onMounted(() => {
-	refreshState()
-})
 </script>
 
 <style>
@@ -128,9 +113,6 @@ onMounted(() => {
 .btn.ghost { background: #eef5ff; color: #1677ff; }
 .btn.danger { background: #ef4444; }
 .hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
-.kv-row { flex-direction: row; justify-content: space-between; padding: 6rpx 0; }
-.kv-key { font-size: 24rpx; color: #999; }
-.kv-val { font-size: 24rpx; color: #333; flex: 1; text-align: right; }
 .result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }
 .label { font-size: 24rpx; color: #999; }
 .val { font-size: 26rpx; color: #333; margin-top: 8rpx; }

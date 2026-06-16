@@ -16,7 +16,6 @@
 			<text class="hint">3. 从本页跳去路由页，再回来时，后续 `PAGE` 应带 `referralPage`。</text>
 			<view class="btn-row">
 				<button class="btn ghost" @click="goRoute">去路由页</button>
-				<button class="btn subtle" @click="onFlush">flush</button>
 			</view>
 		</view>
 
@@ -29,12 +28,20 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { flush, track } from '@/uni_modules/gio-uniappx-autotracker'
+import { track } from '@/uni_modules/gio-uniappx-autotracker'
 
 const lastAction = ref('(none)')
 
 function note(msg: string) {
 	lastAction.value = msg
+}
+
+function buildLongText(): string {
+	let text = ''
+	for (let i = 0; i < 30; i++) {
+		text += 'LONG_TEXT_'
+	}
+	return text
 }
 
 function onSimpleTrack() {
@@ -57,7 +64,7 @@ function onBusinessTrack() {
 }
 
 function onLongTextTrack() {
-	const text = 'LONG_TEXT_'.repeat(30)
+	const text = buildLongText()
 	track('custom_long_text', {
 		body: text,
 		length: text.length,
@@ -70,11 +77,6 @@ function onEmptyNameTrack() {
 		from: 'invalid-demo',
 	} as UTSJSONObject)
 	note('empty event name submitted')
-}
-
-function onFlush() {
-	flush()
-	note('flush')
 }
 
 function goRoute() {
@@ -92,7 +94,6 @@ function goRoute() {
 .btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btn.warn { background: #fa8c16; }
 .btn.ghost { background: #fff; color: #1677ff; border: 1rpx solid #1677ff; }
-.btn.subtle { background: #13a67a; }
 .btn-row { flex-direction: row; flex-wrap: wrap; }
 .result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }
 .label { font-size: 24rpx; color: #999; }

@@ -56,7 +56,7 @@
 	"vueVersion" : "3",
 	"web" : {
 		"router" : {
-			"mode" : ""
+			"mode" : "hash"
 		}
 	}
 }

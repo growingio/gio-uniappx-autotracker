@@ -14,6 +14,14 @@
 
 ## 2. 参考来源提炼
 
+优先级说明：
+
+- 第一优先级：uni-app x 官方 UTS 与 API 文档
+- 第二优先级：`uni-stat` 的目录组织和插件接入方式
+- 第三优先级：`gio-miniprogram-autotracker` 的事件模型和调用习惯
+
+也就是说，独立 SDK 现在更适合作为“行为参考”和“协议参考”，但所有 API 调用方式、语法约束、跨端可编译性判断，都要以官方文档为准。
+
 ### 来自 `uni-stat`
 
 参考的 `uni-stat` 模块主要提供了目录组织方式：
@@ -35,7 +43,7 @@
 - 需要独立的 `uploader`
 - 页面和应用生命周期应在“事件构建层”处理，而不是混进上传逻辑
 
-当前第一版只继承这些最基础、最值得提前定下来的部分。多实例、插件管理、ABTest、完整事件上下文构建、force-login 队列等能力仍然暂缓。
+当前第一版只继承这些最基础、最值得提前定下来的部分。多实例、复杂插件体系、完整事件上下文构建等能力仍然暂缓。
 
 ## 3. 当前非目标
 
@@ -43,8 +51,6 @@
 - 覆盖独立 SDK 的全部 API
 - 完整页面 / 组件自动采集能力
 - 曝光采集
-- ABTest
-- 插件注册体系
 - 多实例支持
 - 离线重试持久化
 
@@ -75,6 +81,8 @@ gio-uniappx-autotracker/
       index.uts
     common/
       config.uts
+      route.uts
+      system-context.uts
       utils.uts
       core/
         tracker.uts
@@ -96,12 +104,7 @@ app.use(gioUniappxAutotracker, {
   serverUrl,
   debug,
   forceLogin,
-  autoTrackLifecycle,
-  sessionTimeoutMs,
-  requestTimeoutMs: null,
-  maxQueueSize: null,
-  storagePrefix: null,
-  header: null
+  sessionExpires
 })
 ```
 
@@ -111,16 +114,20 @@ app.use(gioUniappxAutotracker, {
 - `track(eventName, properties = null)`
 - `identify(assignmentId)`
 - `setUserId(userId, userKey = null)`
+- `setUserAttributes(userAttributes)`
 - `setUserKey(userKey)`
 - `clearUserId()`
-- `flush()`
+- `registerPlugins(plugins)`
+- `getABTest(layerId, callback = null)`
 
 UTS 约束说明：
 
 - 为了避免落入 `undefined` 语义，所有“非必填”字段统一显式声明为 `| null`
 - 对外传入的配置对象不再依赖 `?` 可选属性
-- demo 与插件入口都会显式补齐 `null` 默认值
 - `track` 直接按独立 SDK 风格使用 `track(eventName, properties)`
+- `flush`、`autoTrackLifecycle`、`requestTimeoutMs`、`maxQueueSize`、`storagePrefix`、`header` 都不再对外透出，也不允许传入初始化配置
+- 当前插件层只支持 `gioABTest`
+- 插件注册方式先按小程序独立 SDK 思路对齐：先 `registerPlugins([...])`，再调用 `getABTest(...)`
 
 ## 6. 运行时架构
 
@@ -137,6 +144,9 @@ UTS 约束说明：
 - 组装统一事件结构
 - 将事件放入队列并触发上报
 - 把应用和页面生命周期桥接为 `VISIT`、`PAGE`、`APP_CLOSED`
+- 调用路由解析模块，统一维护 `path` / `query` / `title` / `referralPage`
+- 等待异步设备信息和网络信息就绪后，再真正构建事件并入队
+- 首屏 `VISIT` / `PAGE` 也不能例外，必须等上下文 ready 后才能发送
 
 ### 6.2 `GioUserStore`
 
@@ -151,14 +161,23 @@ UTS 约束说明：
 - 持久化 `sessionExpiresAt`
 - 判断当前是否需要创建新 session
 - 每次构建事件时都从存储重新读取 `sessionId` / `userId` / `userKey`
+- `identify(assignmentId)` 生效后持久化新的 `deviceId`
 
 存储键约定：
 
-- `${storagePrefix}:deviceId`
-- `${storagePrefix}:sessionId`
-- `${storagePrefix}:sessionExpiresAt`
-- `${storagePrefix}:userId`
-- `${storagePrefix}:userKey`
+- `deviceId`：`gdp_user_id_gioenc`
+- `sessionId`：`${projectId}_gdp_session_id`
+- `userId`：`${projectId}_gdp_cs1_gioenc`
+- `userKey`：`${projectId}_gdp_user_key_gioenc`
+- `eventSequenceId`：`${projectId}_gdp_sequence_ids`
+- `sessionExpiresAt`：`${projectId}_gdp_session_id_expire`
+
+说明：
+
+- 以上核心 key 按 web 独立 SDK 的命名规则对齐
+- `deviceId` 使用全局 key，不带 `projectId` 前缀
+- `deviceId`、`userId`、`userKey` 这三个 `_gioenc` 字段会按 web 独立 SDK 规则加密存储：真实存储 key 去掉 `_gioenc` 后缀，value 按 `gioenc-` + 异或编码写入
+- `sessionExpiresAt` 是 uni-app x 这边为了补齐本地过期判断增加的辅助 key，web 独立 SDK 对应能力主要依赖带过期时间的存储封装
 
 ### 6.3 `GioUploader`
 
@@ -172,6 +191,7 @@ UTS 约束说明：
 - 序列化批量请求体
 - 通过 `uni.request` 发起请求
 - 避免并发重复 flush
+- `identify` 成功后把积压队列释放到正式发送队列
 
 当前实现选择“积极 flush”策略：
 
@@ -181,6 +201,8 @@ UTS 约束说明：
 - `track` 后 flush
 
 这样做的好处是第一版逻辑简单、易观察、易调试。后续如果需要更强的 batching 或 retry，再在上传层继续演进即可。
+
+当前这些发送策略完全由 SDK 内部固定控制，不提供外部手动 `flush()` 入口。
 
 ### `forceLogin` / `identify`
 
@@ -192,7 +214,67 @@ UTS 约束说明：
 - 把积压事件的 `deviceId` 统一改成新的 `assignmentId`
 - 关闭 `forceLogin`，并立即补发积压事件
 
-当前版本只实现独立 SDK 中这条最核心的 force-login 行为链路，不额外补 `setUserAttributes`、多实例复制或更复杂的兼容层。
+当前版本只实现独立 SDK 中最核心的 force-login 行为链路，并补齐了 `setUserAttributes` 的基础上报能力；但仍然不覆盖多实例复制或更复杂的兼容层。
+
+### 6.4 `gioABTest`
+
+当前插件层先只支持一个插件：`gioABTest`。
+
+当前版本的 ABTest 能力按“小程序独立 SDK 的单实例主流程”对齐，不引入 `trackingId` 多实例语义。
+
+对外约束：
+
+- 只支持通过 `registerPlugins([{ name: 'gioABTest', options }])` 注册
+- 不提供 `createGioABTestPlugin(options)` 这类先生成插件项、再二次注册的包装入口
+- 注册成功后，通过 `getABTest(layerId, callback)` 获取实验数据
+- 如果没有注册插件就调用 `getABTest`，会按小程序 SDK 的方向报错并回调空对象
+- 当前只考虑单实例场景，不支持 `getABTest(trackingId, layerId, callback)` 这类多实例调用方式
+
+当前对齐到的小程序核心逻辑：
+
+- `abServerUrl` 默认回退到 `https://ab.growingio.com`
+- `requestInterval` 默认 `5` 分钟
+- `requestTimeout` 默认 `1000ms`
+- 使用“单实例 + `projectId` + `deviceId` + `layerId`”生成缓存 hash key
+- 命中节流 key 使用 `_gdp_abt_sign`
+- 实验数据缓存 key 使用 `_gdp_abtd`
+- 请求失败时保留“超时直接失败、非超时最多重试 2 次”的策略
+- 只有接口返回的新实验数据和本地缓存不一致时，才补发 `$exp_hit`
+- `$exp_hit` 只在网络响应路径触发，不会因为读缓存命中而重复上报
+
+当前刻意没有补齐的点：
+
+- 多实例 trackingId 维度的 ABTest 地址映射
+- 多实例下的 `getABTest(trackingId, layerId, callback)` 调用方式
+- 更通用的插件安装器和插件生命周期
+- 除 `gioABTest` 以外的其他插件
+
+### 6.5 `system-context.uts`
+
+这是设备与网络上下文的集中管理文件。
+
+职责：
+
+- 按官方 uni-app x 文档调用 `uni.getSystemInfo(options)` 获取设备和系统信息
+- 按官方 uni-app x 文档调用 `uni.getNetworkType(options)` 获取网络状态
+- 监听 `uni.onNetworkStatusChange`，在网络变化后刷新后续事件上下文
+- 在首轮系统信息和网络信息完成前，暂存待构建事件回调
+- 只有在上下文 ready 后，才允许 `tracker` 真正构建事件对象
+
+这样做的目的，是保证进入请求体的 `deviceBrand`、`deviceModel`、`networkState`、`platform`、`platformVersion` 等字段，来自异步 API 的最终结果，而不是先用空值建事件、再在发送阶段补救。
+这条约束同样适用于首屏 `VISIT` 和首个 `PAGE`：上下文没 ready 时，它们只能等待，不能抢先发送不完整事件。
+
+### 6.6 `route.uts`
+
+这是当前页面路由解析的集中管理文件。
+
+职责：
+
+- 统一从 `route`、`__route__`、`$page.route`、`fullPath`、`url` 等多个候选字段中提取页面路径
+- 统一从 `onLoad(options)`、`page.options`、`$page.options`、URL query 中提取页面参数
+- 统一归一化 `query` 的上报格式，最终始终输出字符串
+- 生成路由签名，用于判断“同一路径但 query 已变化”的场景
+- 为 `tracker` 提供 `path` / `query` / `title` / `signature` 这一组稳定结果
 
 ## 7. 事件模型
 
@@ -230,7 +312,14 @@ UTS 约束说明：
 
 其中 `sessionId`、`userId`、`userKey` 不是从运行时内存缓存里拿，而是在构建事件时即时从存储读取。这样即使页面刷新、运行时局部重建、或者别的流程先一步改写了存储，最终进入请求体的仍然是当前存储里的真实值。
 
+`eventSequenceId` 当前按独立 SDK 的全局事件序号思路实现：普通事件从 `1` 开始递增并持久化到 `${projectId}_gdp_sequence_ids`；`LOGIN_USER_ATTRIBUTES` 和 `APP_CLOSED` 不带这个字段。
+
+同时，设备信息和网络信息不会在 `init` 后立即同步写死到内存事件模板中，而是先等待异步 API 回调完成，再参与事件构建。这样请求体里看到的字段值会更接近真实端能力返回结果。
+其中首屏 `VISIT` 和首个 `PAGE` 事件也不会提前发出，必须在这些异步上下文回填后才允许真正入队和上报。
+
 对外 API 直接按独立 SDK 风格使用 `track(eventName, properties)`。业务传入的 `properties` 在真正构建请求体时会被归一化后映射到独立 SDK 风格的 `attributes` 字段。
+
+其中 `query` 的当前契约是“普通字符串”，例如 `from=banner&source=home`，不会上报成 JSON 字符串。
 
 ### 关键内置事件
 
@@ -241,6 +330,7 @@ UTS 约束说明：
 ### 其他事件类型
 
 - `CUSTOM`
+- `LOGIN_USER_ATTRIBUTES`
 
 ## 8. 生命周期策略
 
@@ -269,6 +359,13 @@ UTS 约束说明：
 - 页面 load query
 - 上一个页面路径，作为 `referralPage`
 
+当前实现补充规则：
+
+- 路由解析统一走 `route.uts`
+- `referralPage` 的切换判断不只看 `path`，而是看 `path + query` 组成的路由签名
+- 同一路径但 query 变化时，会被当成新的路由状态处理
+- 新页面如果暂时还没有标题，不会继续沿用上一个页面的标题
+
 ### `APP_CLOSED`
 
 触发时机：
@@ -288,6 +385,8 @@ UTS 约束说明：
 - `sessionId` 在初始化时创建
 - 当 `sessionExpiresAt <= now` 时续期并切新 session
 - 每次切新 session 都会补发 `VISIT`
+- 当 `forceLogin = true` 时，先继续采集事件但暂不发送，直到 `identify()` 成功
+- `identify()` 成功后会把新的 `assignmentId` 持久化为 `deviceId`，并补发之前积压的事件
 - 当 `setUserId()` 把登录用户从 A 切到 B 时，也会切新 session，并在后续事件前补发新的 `VISIT`
 - 页面 `onShow` 是首屏和后续前台页面采集的主要触发点
 - 自定义 `track` 也会重新检查 session，避免漏掉新的访问边界
@@ -295,7 +394,10 @@ UTS 约束说明：
 
 默认值：
 
-- `sessionTimeoutMs = 30min`
+- `sessionExpires` 单位为分钟
+- `web` 默认 `30`
+- `mp-weixin` 默认 `5`
+- `app-android` / `app-ios` / `app-harmony` 默认 `0.5`
 
 ## 10. 上报协议
 
@@ -320,7 +422,7 @@ UTS 约束说明：
     "path": "pages/home/index",
     "platform": "app",
     "platformVersion": "18.0",
-    "query": "{\"from\":\"banner\"}",
+    "query": "from=banner",
     "referralPage": "pages/index/index",
     "screenHeight": 844,
     "screenWidth": 390,
@@ -376,6 +478,9 @@ UTS 约束说明：
 - 当前上报 body 已经按独立 SDK 的核心结构对齐为“事件数组直传”，不再包一层 `{ events: [...] }`
 - `CUSTOM` 事件会使用 `eventName + attributes` 结构；`VISIT` / `PAGE` / `APP_CLOSED` 不再额外带 `eventName`
 - `setUserId()` 不会单独发一条身份事件，而是更新存储中的 `userId` / `userKey`，必要时切换 session
+- `query` 当前按普通 query string 上报，不再序列化为 JSON 字符串
+- 设备信息和网络信息字段在事件构建前会先等待异步上下文 ready
+- `mp-weixin` 会优先读取启动上下文里的 `scene` / `wxShoppingListScene`，并把它映射到 `appChannel`
 - 如果后续要继续做更细粒度的 collector 对齐，主要改动点仍然集中在 `uploader.uts` 和 `tracker.uts`
 
 ## 11. 为什么这是合适的第一版
@@ -388,10 +493,10 @@ UTS 约束说明：
 - 与独立 SDK 同方向的请求体结构
 - 生命周期桥接与上传逻辑分离
 - 关键事件命名与独立 SDK 同方向
+- 插件层先把最需要对齐的 `gioABTest` 单独补上
 
 同时刻意不去提前做那些需求还没稳定、但设计成本很高的部分：
 
-- 更复杂的路由解析
 - 字段级别的完全协议对齐
 - 重试持久化
 - 多实例行为
@@ -409,7 +514,6 @@ UTS 约束说明：
 ### Phase 3
 
 - 与独立 SDK 更细粒度的字段协议对齐
-- force-login 队列语义
 - 离线队列持久化
 
 ### Phase 4
@@ -434,5 +538,7 @@ UTS 约束说明：
 - 平台入口虽然已经补齐，但还没有经过五端逐一编译验证
 - 还没有做到与独立 SDK 完整请求体对齐
 - 当前 route / title 提取仍然只是“尽力提取”策略，后续还需要结合真实 uni-app x 页面对象继续收敛
+- 当前虽然已经把路由解析集中到了 `route.uts`，但不同端的页面对象字段还需要继续补充更多真实样本验证
+- 当前设备与网络字段虽然已经切到官方异步 API 驱动，但还需要继续做五端真机 / 模拟器样本校验，确认各端返回字段名没有额外差异
 
 这些缺口在当前阶段是可接受的，因为目标本来就是“保留基本功能”的第一版，而不是一次性做成完整对齐版本。

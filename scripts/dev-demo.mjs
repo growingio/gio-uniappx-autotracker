@@ -15,6 +15,7 @@ const IGNORED_SEGMENTS = [
   `${path.sep}dist${path.sep}`,
   `${path.sep}unpackage${path.sep}`,
   `${path.sep}.hbuilderx${path.sep}`,
+  `${path.sep}uni_modules${path.sep}gio-uniappx-autotracker${path.sep}`,
 ];
 const SUPPORTED = ['web', 'mp-weixin', 'app-android', 'app-ios', 'app-harmony'];
 
@@ -187,6 +188,23 @@ function launchWebDemo(options) {
     let resolvedUrl = '';
     let outputBuffer = '';
 
+    const rejectWithKnownLauncherError = () => {
+      if (/Incompatible processor/i.test(outputBuffer)) {
+        reject(
+          new Error(
+            'HBuilderX web launcher is incompatible with the current processor; the web demo did not start. ' +
+              'Check the installed HBuilderX build or run the demo from a compatible host.',
+          ),
+        );
+        return true;
+      }
+      if (/Please\s*Login/i.test(outputBuffer)) {
+        reject(new Error('HBuilderX is not logged in'));
+        return true;
+      }
+      return false;
+    };
+
     const resolveIfReady = (text) => {
       const match = text.match(/-\s+Local:\s+(http:\/\/\S+)/);
       if (match == null) {
@@ -236,8 +254,7 @@ function launchWebDemo(options) {
       webChild = null;
       if (!settled) {
         settled = true;
-        if (/Please\s*Login/i.test(outputBuffer)) {
-          reject(new Error('HBuilderX is not logged in'));
+        if (rejectWithKnownLauncherError()) {
           return;
         }
         reject(new Error(`HBuilderX web launcher exited with code ${code}`));

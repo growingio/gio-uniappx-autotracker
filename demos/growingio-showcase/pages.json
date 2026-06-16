@@ -29,6 +29,12 @@
 			"style": {
 				"navigationBarTitleText": "路由 / referralPage"
 			}
+		},
+		{
+			"path": "pages/abtest/abtest",
+			"style": {
+				"navigationBarTitleText": "ABTest / getABTest"
+			}
 		}
 	],
 	"globalStyle": {

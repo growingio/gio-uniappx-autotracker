@@ -40,6 +40,18 @@ function removeIfExists(target) {
   fs.rmSync(target, { recursive: true, force: true });
 }
 
+function removePath(target) {
+  if (!fs.existsSync(target)) {
+    return;
+  }
+  const stat = fs.lstatSync(target);
+  if (stat.isSymbolicLink()) {
+    fs.unlinkSync(target);
+    return;
+  }
+  fs.rmSync(target, { recursive: true, force: true });
+}
+
 function copyRecursive(src, dest) {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -73,42 +85,11 @@ function writeUniModulesJson() {
   fs.writeFileSync(target, `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
 }
 
-function ensureShowcaseBundleLink() {
+function syncShowcaseBundle() {
   fs.mkdirSync(path.dirname(SHOWCASE_BUNDLE), { recursive: true });
-
-  if (!fs.existsSync(SHOWCASE_BUNDLE)) {
-    fs.symlinkSync(
-      path.relative(path.dirname(SHOWCASE_BUNDLE), DIST_BUNDLE),
-      SHOWCASE_BUNDLE,
-      'dir',
-    );
-    log(`created showcase symlink: ${path.relative(PROJECT_ROOT, SHOWCASE_BUNDLE)}`);
-    return;
-  }
-
-  const stat = fs.lstatSync(SHOWCASE_BUNDLE);
-  if (stat.isSymbolicLink()) {
-    const resolved = path.resolve(path.dirname(SHOWCASE_BUNDLE), fs.readlinkSync(SHOWCASE_BUNDLE));
-    if (resolved === DIST_BUNDLE) {
-      return;
-    }
-    fs.unlinkSync(SHOWCASE_BUNDLE);
-    fs.symlinkSync(
-      path.relative(path.dirname(SHOWCASE_BUNDLE), DIST_BUNDLE),
-      SHOWCASE_BUNDLE,
-      'dir',
-    );
-    log(`relinked showcase symlink to dist bundle`);
-    return;
-  }
-
-  fs.rmSync(SHOWCASE_BUNDLE, { recursive: true, force: true });
-  fs.symlinkSync(
-    path.relative(path.dirname(SHOWCASE_BUNDLE), DIST_BUNDLE),
-    SHOWCASE_BUNDLE,
-    'dir',
-  );
-  log(`replaced showcase bundle with symlink to dist`);
+  removePath(SHOWCASE_BUNDLE);
+  copyRecursive(DIST_BUNDLE, SHOWCASE_BUNDLE);
+  log(`synced showcase bundle: ${path.relative(PROJECT_ROOT, SHOWCASE_BUNDLE)}`);
 }
 
 function main() {
@@ -130,7 +111,7 @@ function main() {
   }
 
   writeUniModulesJson();
-  ensureShowcaseBundleLink();
+  syncShowcaseBundle();
 
   log(`bundle ready: ${path.relative(PROJECT_ROOT, DIST_BUNDLE)}`);
 }
