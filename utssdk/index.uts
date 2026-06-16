@@ -1,4 +1,5 @@
 import { normalizeInitOptions } from './common/config.uts'
+import { GioPluginItem } from './interface.uts'
 import { GioTracker } from './common/core/tracker.uts'
 
 const tracker = GioTracker.getInstance()
@@ -32,10 +33,10 @@ export const setUserKey = function (userKey : string) : boolean {
 }
 
 export const registerPlugins = function (plugins : Array<any>) : boolean {
-  return tracker.registerPlugins(plugins)
+  return tracker.registerPlugins(plugins as Array<GioPluginItem>)
 }
 
-export const getABTest = function (
+export function getABTest(
   layerId : string | number,
   callback : ((result : any) => void) | null = null
 ) : boolean {
