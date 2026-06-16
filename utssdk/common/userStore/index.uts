@@ -84,8 +84,8 @@ export class GioUserStore {
     return value != null ? `${value}` : ''
   }
 
-  private writeStoredSessionId(sessionId : string) {
-    this.getMainStorage().setItem(this.getSessionIdKey(), sessionId)
+  private writeStoredSessionId(sessionId : string, expiredAt : number) {
+    this.getMainStorage().setItem(this.getSessionIdKey(), sessionId, expiredAt)
   }
 
   private readStoredDeviceId() : string {
@@ -101,8 +101,8 @@ export class GioUserStore {
     return Number(value)
   }
 
-  private persistLastActiveAt(ts : number) {
-    this.getMainStorage().setItem(this.getLastActiveKey(), ts)
+  private persistLastActiveAt(ts : number, expiredAt : number) {
+    this.getMainStorage().setItem(this.getLastActiveKey(), ts, expiredAt)
   }
 
   private readLegacySessionExpiresAt() : number {
@@ -206,11 +206,11 @@ export class GioUserStore {
       sessionId = guid()
     }
     if (this.isWebPlatform()) {
-      this.writeStoredSessionId(sessionId)
+      this.writeStoredSessionId(sessionId, ts + timeoutMs)
     } else {
       this.memorySessionId = sessionId
     }
-    this.persistLastActiveAt(ts)
+    this.persistLastActiveAt(ts, ts + timeoutMs)
     this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
     if (timedOut) {
       this.emitSessionIdUpdate(sessionId, previousSessionId)
@@ -219,8 +219,8 @@ export class GioUserStore {
     return null
   }
 
-  touchSession(_timeoutMs : number) {
-    this.persistLastActiveAt(now())
+  touchSession(timeoutMs : number) {
+    this.persistLastActiveAt(now(), now() + timeoutMs)
   }
 
   setUserId(userId : string) {
@@ -247,15 +247,16 @@ export class GioUserStore {
     this.emitUserKeyUpdate(userKey, previousUserKey)
   }
 
-  renewSession(_timeoutMs : number) {
+  renewSession(timeoutMs : number) {
     const previousSessionId = this.resolveSessionId()
     const sessionId = guid()
+    const ts = now()
     if (this.isWebPlatform()) {
-      this.writeStoredSessionId(sessionId)
+      this.writeStoredSessionId(sessionId, ts + timeoutMs)
     } else {
       this.memorySessionId = sessionId
     }
-    this.persistLastActiveAt(now())
+    this.persistLastActiveAt(ts, ts + timeoutMs)
     this.emitSessionIdUpdate(sessionId, previousSessionId)
   }
 
