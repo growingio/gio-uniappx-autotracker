@@ -4,7 +4,10 @@ import { GioTracker } from './common/core/tracker.uts'
 
 const tracker = GioTracker.getInstance()
 
-export { gioUniappxAutotracker } from '../plugin.uts'
+// NOTE: do NOT re-export gioUniappxAutotracker here. This file is the uts
+// NATIVE module entry; re-exporting plugin.uts would pull it into the native
+// (Kotlin/Swift) compile where the Vue global `defineMixin` is not in scope.
+// The app-facing root index.uts re-exports the plugin (in Vue context) instead.
 
 export const init = function (options : UTSJSONObject) : boolean {
   return tracker.init(normalizeInitOptions(options))
