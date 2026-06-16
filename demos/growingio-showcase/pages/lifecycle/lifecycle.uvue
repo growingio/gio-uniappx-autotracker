@@ -54,20 +54,13 @@ export default {
 	methods: {
 		log(hook: string, extra: string | null = null) {
 			const time = new Date().toISOString().slice(11, 23)
-			let path = ''
-			try {
-				const page = this as any
-				if (page.route != null && page.route.length > 0) {
-					path = page.route
-				} else if (page.__route__ != null && page.__route__.length > 0) {
-					path = page.__route__
-				} else if (page.$page != null && page.$page.route != null && page.$page.route.length > 0) {
-					path = page.$page.route as string
-				} else {
-					path = '-'
+			let path = '-'
+			const pages = getCurrentPages()
+			if (pages.length > 0) {
+				const route = pages[pages.length - 1].route
+				if (route.length > 0) {
+					path = route
 				}
-			} catch (_e) {
-				path = '-'
 			}
 			;(this.records as LifecycleRecord[]).unshift({
 				hook,
