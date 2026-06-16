@@ -98,7 +98,7 @@ export class GioUserStore {
     if (value == null) {
       return 0
     }
-    return Number(value)
+    return parseFloat(`${value}`)
   }
 
   private persistLastActiveAt(ts : number, expiredAt : number) {
