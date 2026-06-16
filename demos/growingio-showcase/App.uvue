@@ -3,10 +3,3 @@ export default {
 	onShow() {},
 }
 </script>
-
-<style>
-page {
-	background-color: #f8f8f8;
-	font-family: 'PingFang SC';
-}
-</style>
