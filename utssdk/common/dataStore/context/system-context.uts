@@ -26,7 +26,7 @@ function readNumberField(source : any | null, keys : Array<string>) : number {
     const key = keys[i]
     const value = raw[key]
     if (value != null && `${value}`.length > 0) {
-      return Number(value)
+      return parseFloat(`${value}`)
     }
   }
   return 0
@@ -164,28 +164,22 @@ export class GioSystemContextManager {
   }
 
   private loadNetworkType() {
+    // UTS cannot probe `uni` members dynamically; call the typed API directly.
     try {
-      const runtimeUni = uni as any
-      const getNetworkType = runtimeUni.getNetworkType
-      if (typeof getNetworkType === 'function') {
-        getNetworkType({
-          success: (res) => {
-            const raw = res as UTSJSONObject
-            const networkType = raw['networkType']
-            this.networkState = networkType != null ? `${networkType}` : ''
-            this.markNetworkReady()
-          },
-          fail: (_) => {
-            debugLog(this.debugEnabled, 'getNetworkType failed')
-            this.markNetworkReady()
-          }
-        })
-        return
-      }
+      uni.getNetworkType({
+        success: (res) => {
+          this.networkState = res.networkType
+          this.markNetworkReady()
+        },
+        fail: (_) => {
+          debugLog(this.debugEnabled, 'getNetworkType failed')
+          this.markNetworkReady()
+        }
+      })
     } catch (_error) {
       debugLog(this.debugEnabled, 'getNetworkType threw synchronously')
+      this.markNetworkReady()
     }
-    this.markNetworkReady()
   }
 
   private bindNetworkListener() {
@@ -193,19 +187,10 @@ export class GioSystemContextManager {
       return
     }
     try {
-      const runtimeUni = uni as any
-      const onNetworkStatusChange = runtimeUni.onNetworkStatusChange
-      if (typeof onNetworkStatusChange !== 'function') {
-        return
-      }
       this.listenerBound = true
-      onNetworkStatusChange((res) => {
-        const raw = res as UTSJSONObject
-        const networkType = raw['networkType']
-        if (networkType != null) {
-          this.networkState = `${networkType}`
-          this.updateContext()
-        }
+      uni.onNetworkStatusChange((res) => {
+        this.networkState = res.networkType
+        this.updateContext()
         if (!this.networkReady) {
           this.markNetworkReady()
         }

@@ -9,11 +9,11 @@ export const init = function (options : UTSJSONObject) : boolean {
   return tracker.init(normalizeInitOptions(options))
 }
 
-export const track = function (eventName : string, properties : UTSJSONObject | null = null) : boolean {
+export function track(eventName : string, properties : UTSJSONObject | null = null) : boolean {
   return tracker.track(eventName, properties)
 }
 
-export const setUserId = function (userId : string, userKey : string | null = null) : boolean {
+export function setUserId(userId : string, userKey : string | null = null) : boolean {
   return tracker.setUserId(userId, userKey)
 }
 

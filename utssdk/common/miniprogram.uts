@@ -29,19 +29,15 @@ function readSceneFromOptions(source : any | null) : string {
 }
 
 function getEnterOptionsSync() : any | null {
-  if (platformName() != 'mp-weixin') {
-    return null
-  }
-  const runtimeUni = uni as any
-  const getEnterOptions = runtimeUni.getEnterOptionsSync
-  if (typeof getEnterOptions === 'function') {
-    return getEnterOptions()
-  }
-  const getLaunchOptions = runtimeUni.getLaunchOptionsSync
-  if (typeof getLaunchOptions === 'function') {
-    return getLaunchOptions()
-  }
+  // The enter/launch option APIs only exist on mini-program platforms, and UTS
+  // cannot probe `uni` members dynamically. Gate the typed call with
+  // conditional compilation so non-MP targets exclude it at compile time.
+  // #ifdef MP-WEIXIN
+  return uni.getEnterOptionsSync()
+  // #endif
+  // #ifndef MP-WEIXIN
   return null
+  // #endif
 }
 
 export function isMpWeixinPlatform() : boolean {

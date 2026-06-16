@@ -1,4 +1,4 @@
-import { GioInitOptions } from '../../interface.uts'
+import { GioInitOptions, GioStorage, GioStorageProvider } from '../../interface.uts'
 import { now } from '../utils.uts'
 import {
   resolveMainStorage,
@@ -51,7 +51,7 @@ function encodeStorageValue(key : string, value : any) : any {
   return value
 }
 
-function decodeStorageValue(key : string, value : any) : any {
+function decodeStorageValue(key : string, value : any | null) : any | null {
   if (
     key.endsWith(STORAGE_ENCRYPTED_SUFFIX) &&
     typeof value === 'string'
@@ -63,15 +63,15 @@ function decodeStorageValue(key : string, value : any) : any {
 
 export const readDirectStorageValue = function (
   key : string,
-  rawValue : any
-) : any {
+  rawValue : any | null
+) : any | null {
   if (rawValue == null) {
     return null
   }
   return parseStorageValue(decodeStorageValue(key, rawValue))
 }
 
-export const parseStorageValue = function (value : any) : any {
+export const parseStorageValue = function (value : any | null) : any | null {
   if (value == null) {
     return null
   }
@@ -79,7 +79,9 @@ export const parseStorageValue = function (value : any) : any {
     return value
   }
   const text = `${value}`
-  if (isNaN(Number(text)) && shouldAttemptJsonParse(text)) {
+  // `Number(string)` resolves to the abstract Number ctor natively; parseFloat
+  // gives the same NaN-vs-numeric signal for the JSON-detection heuristic.
+  if (isNaN(parseFloat(text)) && shouldAttemptJsonParse(text)) {
     try {
       return JSON.parse(text)
     } catch (_error) {
@@ -109,12 +111,12 @@ export const buildWrappedStorageValue = function (
 
 export const readWrappedStorageValue = function (
   key : string,
-  rawValue : any
-) : any {
+  rawValue : any | null
+) : any | null {
   if (rawValue == null) {
     return null
   }
-  let parsedValue : any = rawValue
+  let parsedValue : any | null = rawValue
   if (typeof rawValue === 'string') {
     const text = `${rawValue}`
     if (text.length == 0) {
@@ -137,7 +139,7 @@ export const readWrappedStorageValue = function (
     envelope['expiredAt'] != null &&
     envelope['value'] != null
   ) {
-    const expiredAt = Number(envelope['expiredAt'])
+    const expiredAt = envelope.getNumber('expiredAt', 0)
     if (expiredAt > 0 && expiredAt <= now()) {
       return null
     }
@@ -150,8 +152,8 @@ export const readWrappedStorageValue = function (
 
 export const readStructuredStorageValue = function (
   key : string,
-  rawValue : any
-) : any {
+  rawValue : any | null
+) : any | null {
   if (rawValue == null || typeof rawValue !== 'string') {
     return null
   }
@@ -162,7 +164,7 @@ export const readStructuredStorageValue = function (
   if (!text.startsWith('{')) {
     return null
   }
-  let parsedValue : any = null
+  let parsedValue : any | null = null
   try {
     parsedValue = JSON.parse(text)
   } catch (_error) {
@@ -178,7 +180,7 @@ export const readStructuredStorageValue = function (
   ) {
     return null
   }
-  const expiredAt = Number(envelope['expiredAt'])
+  const expiredAt = envelope.getNumber('expiredAt', 0)
   if (expiredAt <= now()) {
     return null
   }
@@ -201,7 +203,7 @@ export const buildCookieStorageValue = function (
   return JSON.stringify(storedValue)
 }
 
-function readUniStorageRaw(key : string) : any {
+function readUniStorageRaw(key : string) : any | null {
   const actualKey = getActualStorageKey(key)
   let value = uni.getStorageSync(actualKey)
   if (value == null && actualKey != key) {
@@ -232,12 +234,12 @@ function getUniStorageKeys() : Array<string> {
   return [] as Array<string>
 }
 
-export class GioStorageEngine {
-  getItem(key : string) : any {
+export class GioStorageEngine implements GioStorage {
+  getItem(key : string) : any | null {
     return readWrappedStorageValue(key, readUniStorageRaw(key))
   }
 
-  setItem(key : string, value : any, expiredAt : number | null = null) {
+  setItem(key : string, value : any, expiredAt : number | null) {
     const wrappedValue = buildWrappedStorageValue(key, value, expiredAt)
     writeUniStorageRaw(key, wrappedValue)
   }
@@ -255,9 +257,9 @@ export class GioStorageEngine {
   }
 }
 
-export class GioStorageContainer {
-  private mainStorage : any = new GioStorageEngine()
-  private originalSourceStorage : any = new GioStorageEngine()
+export class GioStorageContainer implements GioStorageProvider {
+  private mainStorage : GioStorage = new GioStorageEngine()
+  private originalSourceStorage : GioStorage = new GioStorageEngine()
 
   initialize(options : GioInitOptions) {
     const defaultMainStorage = new GioStorageEngine()
@@ -269,11 +271,11 @@ export class GioStorageContainer {
     )
   }
 
-  getMainStorage() : any {
+  getMainStorage() : GioStorage {
     return this.mainStorage
   }
 
-  getOriginalSourceStorage() : any {
+  getOriginalSourceStorage() : GioStorage {
     return this.originalSourceStorage
   }
 }

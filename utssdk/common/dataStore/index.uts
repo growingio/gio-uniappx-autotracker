@@ -3,6 +3,7 @@ import {
   GioInitOptions,
   GioOriginalSource,
   GioPageContext,
+  GioStorage,
   GioTrackEvent
 } from '../../interface.uts'
 import {
@@ -80,11 +81,11 @@ export class GioDataStore {
     }
   }
 
-  private getMainStorage() : any {
+  private getMainStorage() : GioStorage {
     return (this.storage as GioStorageContainer).getMainStorage()
   }
 
-  private getOriginalSourceStorage() : any {
+  private getOriginalSourceStorage() : GioStorage {
     return (this.storage as GioStorageContainer).getOriginalSourceStorage()
   }
 
@@ -248,7 +249,7 @@ export class GioDataStore {
   }
 
   private markVisitSent(sessionId : string) {
-    this.getMainStorage().setItem(this.getSentSignKey(), sessionId)
+    this.getMainStorage().setItem(this.getSentSignKey(), sessionId, null)
   }
 
   private getOriginalSource() : GioOriginalSource | null {
@@ -277,7 +278,7 @@ export class GioDataStore {
       query: originalSource.query,
       title: originalSource.title,
       referralPage: originalSource.referralPage
-    } as UTSJSONObject)
+    } as UTSJSONObject, null)
   }
 
   private clearOriginalSource() {

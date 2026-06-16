@@ -16,9 +16,11 @@ function xorStorageChar(value : string) : string {
     return ''
   }
   if (value >= '0' && value <= '9') {
-    return `${Number(value) ^ 1}`
+    return `${parseInt(value) ^ 1}`
   }
-  return String.fromCharCode(value.charCodeAt(0) ^ 1)
+  // charCodeAt is `Number?` on the native backend; coalesce before the XOR.
+  const code = value.charCodeAt(0)
+  return String.fromCharCode((code != null ? code : 0) ^ 1)
 }
 
 function bitEncryptStorageValue(value : string) : string {

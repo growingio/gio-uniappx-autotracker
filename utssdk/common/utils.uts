@@ -1,4 +1,4 @@
-import { GioInitOptions } from '../interface.uts'
+import { GioInitOptions, GioABTestCallback, GioABTestResult } from '../interface.uts'
 
 export const now = function () : number {
   return Date.now()
@@ -20,15 +20,17 @@ export const guid = function () : string {
   return result
 }
 
-export const hashCode = function (value : string, abs : boolean = false) : number {
+export function hashCode(value : string, abs : boolean = false) : number {
   let hash = 0
   if (value.length == 0) {
     return hash
   }
   let index = 0
   while (index < value.length) {
+    // charCodeAt is typed `number` for the editor but the native (Kotlin)
+    // backend returns `Number?`, so coalesce to keep the arithmetic non-null.
     const charCode = value.charCodeAt(index)
-    hash = (hash << 5) - hash + charCode
+    hash = (hash << 5) - hash + (charCode != null ? charCode : 0)
     hash = hash & hash
     index++
   }
@@ -72,18 +74,6 @@ export const isValidEventName = function (eventName : string | null) : boolean {
   return (eventName as string).match(EVENT_NAME_REG) != null
 }
 
-function mergeSystemInfoPart(target : UTSJSONObject, source : any | null) {
-  if (source == null) {
-    return
-  }
-  const raw = source as UTSJSONObject
-  const keys = Object.keys(raw)
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i]
-    target[key] = raw[key]
-  }
-}
-
 function readSystemText(source : any | null, keys : Array<string>) : string {
   if (source == null) {
     return ''
@@ -99,28 +89,35 @@ function readSystemText(source : any | null, keys : Array<string>) : string {
   return ''
 }
 
-function callUniSyncApi(name : string) : any | null {
+export function getSystemInfoSnapshot() : UTSJSONObject | null {
+  // UTS (Kotlin/Swift) cannot index `uni` dynamically by string name, so call
+  // the typed sync APIs directly and assemble the snapshot the consumers read.
   try {
-    const runtimeUni = uni as any
-    if (typeof runtimeUni[name] !== 'function') {
-      return null
-    }
-    return runtimeUni[name]()
+    const snapshot = {} as UTSJSONObject
+
+    const device = uni.getDeviceInfo()
+    snapshot['deviceBrand'] = device.deviceBrand
+    snapshot['brand'] = device.brand
+    snapshot['deviceModel'] = device.deviceModel
+    snapshot['model'] = device.model
+    snapshot['osName'] = device.osName
+    snapshot['osVersion'] = device.osVersion
+    snapshot['platform'] = device.platform
+
+    const appBase = uni.getAppBaseInfo()
+    snapshot['uniPlatform'] = appBase.uniPlatform
+    snapshot['version'] = appBase.version
+    snapshot['appLanguage'] = appBase.appLanguage
+    snapshot['language'] = appBase.language
+
+    const windowInfo = uni.getWindowInfo()
+    snapshot['screenWidth'] = windowInfo.screenWidth
+    snapshot['screenHeight'] = windowInfo.screenHeight
+
+    return snapshot
   } catch (_error) {
     return null
   }
-}
-
-function buildModernSystemInfoSnapshot() : any | null {
-  const merged = {} as UTSJSONObject
-  mergeSystemInfoPart(merged, callUniSyncApi('getAppBaseInfo'))
-  mergeSystemInfoPart(merged, callUniSyncApi('getDeviceInfo'))
-  mergeSystemInfoPart(merged, callUniSyncApi('getWindowInfo'))
-  return Object.keys(merged).length > 0 ? merged : null
-}
-
-export const getSystemInfoSnapshot = function () : any | null {
-  return buildModernSystemInfoSnapshot()
 }
 
 export const isValidIdentifyId = function (value : string | number | null) : boolean {
@@ -141,7 +138,7 @@ export const normalizeTrackProperties = function (properties : UTSJSONObject | n
 
   const normalized = {} as UTSJSONObject
   const raw = properties as UTSJSONObject
-  const keys = Object.keys(raw)
+  const keys = UTSJSONObject.keys(raw)
 
   for (let i = 0; i < keys.length; i++) {
     const rawKey = keys[i]
@@ -178,7 +175,7 @@ export const normalizeTrackProperties = function (properties : UTSJSONObject | n
     normalized[key] = `${value}`.slice(0, 1000)
   }
 
-  return Object.keys(normalized).length > 0 ? normalized : null
+  return UTSJSONObject.keys(normalized).length > 0 ? normalized : null
 }
 
 export const platformName = function () : string {
@@ -236,12 +233,12 @@ export const getSystemContext = function () : GioSystemContext {
     operatingSystem: operatingSystem,
     platform: platform,
     platformVersion: platformVersion,
-    screenHeight: Number(system != null && (system as UTSJSONObject)['screenHeight'] != null ? (system as UTSJSONObject)['screenHeight'] : 0),
-    screenWidth: Number(system != null && (system as UTSJSONObject)['screenWidth'] != null ? (system as UTSJSONObject)['screenWidth'] : 0)
+    screenHeight: system != null ? (system as UTSJSONObject).getNumber('screenHeight', 0) : 0,
+    screenWidth: system != null ? (system as UTSJSONObject).getNumber('screenWidth', 0) : 0
   } as GioSystemContext
 }
 
-export const consoleText = function (
+export function consoleText(
   message : any,
   type : string | null = null
 ) {
@@ -282,13 +279,13 @@ function padDatePart(value : number, size : number = 2) : string {
   return text
 }
 
-export const formatBeijingTimestamp = function (ts : number = Date.now()) : string {
+export function formatBeijingTimestamp(ts : number) : string {
   const beijingMs = ts + 480 * 60 * 1000
   const beijingDate = new Date(beijingMs)
   return `${beijingDate.getUTCFullYear()}-${padDatePart(beijingDate.getUTCMonth() + 1)}-${padDatePart(beijingDate.getUTCDate())} ${padDatePart(beijingDate.getUTCHours())}:${padDatePart(beijingDate.getUTCMinutes())}:${padDatePart(beijingDate.getUTCSeconds())}.${padDatePart(beijingDate.getUTCMilliseconds(), 3)} GMT+8`
 }
 
-export const debugLog = function (enabled : boolean, message : string, data : any | null = null) {
+export function debugLog(enabled : boolean, message : string, data : any | null = null) {
   if (!enabled) {
     return
   }
@@ -299,7 +296,7 @@ export const debugLog = function (enabled : boolean, message : string, data : an
   console.log(buildDebugMessage(`${message}\n${stringifyDebugData(data)}`))
 }
 
-export const niceCallback = function (callback : Function | null, value : any | null = null) {
+export function niceCallback(callback : GioABTestCallback | null, value : GioABTestResult | UTSJSONObject) {
   if (callback == null) {
     return
   }

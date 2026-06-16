@@ -39,7 +39,7 @@ export class GioUploader {
     if (typeof value === 'object') {
       const raw = value as UTSJSONObject
       const sanitized = {} as UTSJSONObject
-      const keys = Object.keys(raw)
+      const keys = UTSJSONObject.keys(raw)
       for (let i = 0; i < keys.length; i++) {
         const key = keys[i]
         const sanitizedValue = this.sanitizeValue(raw[key])
@@ -47,7 +47,7 @@ export class GioUploader {
           sanitized[key] = sanitizedValue
         }
       }
-      return Object.keys(sanitized).length > 0 ? sanitized : null
+      return UTSJSONObject.keys(sanitized).length > 0 ? sanitized : null
     }
     return value
   }
@@ -88,7 +88,7 @@ export class GioUploader {
     const sanitized = {} as UTSJSONObject
     const raw = this.toEventJSONObject(event)
     const target = sanitized as UTSJSONObject
-    const keys = Object.keys(raw)
+    const keys = UTSJSONObject.keys(raw)
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
       const sanitizedValue = this.sanitizeValue(raw[key])

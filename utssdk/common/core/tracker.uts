@@ -1,10 +1,12 @@
 import {
   GioABTestCallback,
+  GioABTestHost,
   GioABTestPluginOptions,
   GioContext,
   GioInitOptions,
   GioPluginItem,
   GioPageContext,
+  GioStorageProvider,
   GioTrackEvent
 } from '../../interface.uts'
 import {
@@ -35,7 +37,7 @@ import {
 } from '../runtime/index.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
-export class GioTracker {
+export class GioTracker implements GioABTestHost {
   static instance : GioTracker | null = null
 
   static getInstance() : GioTracker {
@@ -140,7 +142,7 @@ export class GioTracker {
     return this.options
   }
 
-  getStorage() : GioStorageContainer {
+  getStorage() : GioStorageProvider {
     return this.storage
   }
 
@@ -210,7 +212,7 @@ export class GioTracker {
     if (extra != null && extra.length > 0) {
       message += ` ${extra}`
     }
-    console.log(`[GrowingIO Lifecycle][${formatBeijingTimestamp()}] ${message}`)
+    console.log(`[GrowingIO Lifecycle][${formatBeijingTimestamp(Date.now())}] ${message}`)
   }
 
   private handleFlushSuccess(events : Array<GioTrackEvent>) {
@@ -381,7 +383,7 @@ export class GioTracker {
 
   trackPluginEvent(
     eventName : string,
-    properties : UTSJSONObject | null = null
+    properties : UTSJSONObject | null
   ) : boolean {
     if (!this.ensureReady()) {
       return false

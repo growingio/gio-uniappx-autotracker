@@ -57,6 +57,17 @@ export type GioABTestResult = {
 
 export type GioABTestCallback = (result : GioABTestResult | UTSJSONObject) => void
 
+// Storage contract shared by the common engine and the platform adapters.
+// UTS cannot call methods on an `any`-typed value, so storage must be typed
+// through this interface rather than passed around as `any`.
+export interface GioStorage {
+  getItem(key : string) : any | null
+  setItem(key : string, value : any, expiredAt : number | null) : void
+  removeItem(key : string) : void
+  hasItem(key : string) : boolean
+  getKeys() : Array<string>
+}
+
 export type GioContext = {
   deviceId : string
   sessionId : string
@@ -112,4 +123,22 @@ export type GioTrackEvent = {
   userId : string | null
   userKey : string | null
   attributes : UTSJSONObject | null
+}
+
+// Provides the two storage instances. Implemented by GioStorageContainer.
+// Declared after the types it depends on — UTS does not hoist forward
+// references from `export interface` member signatures.
+export interface GioStorageProvider {
+  getMainStorage() : GioStorage
+  getOriginalSourceStorage() : GioStorage
+}
+
+// The slice of the tracker that plugins (e.g. ABTest) depend on. Declared here
+// to break the tracker<->plugin import cycle; UTS cannot dot-access an `any`
+// tracker, so plugins type it through this interface. Implemented by GioTracker.
+export interface GioABTestHost {
+  getStorage() : GioStorageProvider
+  getContext() : GioContext | null
+  getOptions() : GioInitOptions | null
+  trackPluginEvent(eventName : string, properties : UTSJSONObject | null) : boolean
 }

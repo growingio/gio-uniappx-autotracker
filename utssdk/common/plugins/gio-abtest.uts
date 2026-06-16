@@ -1,7 +1,11 @@
 import {
   GioABTestCallback,
+  GioABTestHost,
   GioABTestPluginOptions,
-  GioABTestResult
+  GioABTestResult,
+  GioContext,
+  GioInitOptions,
+  GioStorage
 } from '../../interface.uts'
 import {
   consoleText,
@@ -21,9 +25,9 @@ const ABTEST_DATA_SUFFIX = '_gdp_abtd'
 
 function isEmptyLayerId(layerId : string | number) : boolean {
   if (typeof layerId === 'number') {
-    return layerId <= 0
+    return (layerId as number) <= 0
   }
-  return layerId.length == 0
+  return (layerId as string).length == 0
 }
 
 function readNullableString(source : UTSJSONObject, key : string) : string | null {
@@ -45,8 +49,7 @@ function readRequestErrorMessage(source : any | null) : string {
   if (source == null) {
     return ''
   }
-  const raw = source as any
-  const errMsg = raw.errMsg
+  const errMsg = (source as UTSJSONObject)['errMsg']
   if (errMsg == null) {
     return ''
   }
@@ -63,14 +66,14 @@ function endOfNextDay() : number {
 }
 
 export class GioABTestPlugin {
-  private tracker : any
+  private tracker : GioABTestHost
   private requestInterval : number = ABTEST_DEFAULT_REQUEST_INTERVAL
   private requestTimeout : number = ABTEST_DEFAULT_REQUEST_TIMEOUT
   private url : string = ''
   private visitSessionId : string = ''
-  private storage : any = null
+  private storage : GioStorage | null = null
 
-  constructor(tracker : any, options : GioABTestPluginOptions | null = null) {
+  constructor(tracker : GioABTestHost, options : GioABTestPluginOptions | null = null) {
     this.tracker = tracker
     this.storage = tracker.getStorage().getMainStorage()
     this.timeoutCheck(options)
@@ -85,14 +88,14 @@ export class GioABTestPlugin {
     }
     const requestInterval = options.requestInterval
     if (requestInterval != null) {
-      const value = Number(requestInterval)
+      const value = requestInterval as number
       if (value >= 0 && value <= ABTEST_MAX_REQUEST_INTERVAL) {
         this.requestInterval = value
       }
     }
     const requestTimeout = options.requestTimeout
     if (requestTimeout != null) {
-      const value = Number(requestTimeout)
+      const value = requestTimeout as number
       if (
         value >= ABTEST_MIN_REQUEST_TIMEOUT &&
         value <= ABTEST_MAX_REQUEST_TIMEOUT
@@ -119,8 +122,10 @@ export class GioABTestPlugin {
     if (options == null || context == null) {
       return 0
     }
+    const opts = options as GioInitOptions
+    const ctx = context as GioContext
     return hashCode(
-      `g0#${options.projectId}#${context.deviceId}#${layerId}`,
+      `g0#${opts.projectId}#${ctx.deviceId}#${layerId}`,
       true
     )
   }
@@ -134,7 +139,7 @@ export class GioABTestPlugin {
   }
 
   private readCachedData(hashKey : number) : UTSJSONObject {
-    const value = this.storage.getItem(this.getDataStorageKey(hashKey))
+    const value = (this.storage as GioStorage).getItem(this.getDataStorageKey(hashKey))
     if (value == null) {
       return {} as UTSJSONObject
     }
@@ -142,7 +147,7 @@ export class GioABTestPlugin {
   }
 
   private writeCachedData(hashKey : number, data : GioABTestResult) {
-    this.storage.setItem(this.getDataStorageKey(hashKey), {
+    (this.storage as GioStorage).setItem(this.getDataStorageKey(hashKey), {
       layerId: data.layerId,
       strategyId: data.strategyId,
       experimentId: data.experimentId,
@@ -154,15 +159,15 @@ export class GioABTestPlugin {
   }
 
   private getSign(hashKey : number) : number {
-    const value = this.storage.getItem(this.getSignStorageKey(hashKey))
+    const value = (this.storage as GioStorage).getItem(this.getSignStorageKey(hashKey))
     if (value == null) {
       return 0
     }
-    return Number(value)
+    return parseFloat(`${value}`)
   }
 
   private updateSign(hashKey : number) {
-    this.storage.setItem(
+    (this.storage as GioStorage).setItem(
       this.getSignStorageKey(hashKey),
       1,
       now() + 1000 * 60 * this.requestInterval
@@ -171,7 +176,7 @@ export class GioABTestPlugin {
 
   private cloneComparisonData(originData : UTSJSONObject) : UTSJSONObject {
     const cloned = {} as UTSJSONObject
-    const keys = Object.keys(originData)
+    const keys = UTSJSONObject.keys(originData)
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
       if (
@@ -217,6 +222,8 @@ export class GioABTestPlugin {
       niceCallback(callback, {} as UTSJSONObject)
       return
     }
+    const opts = options as GioInitOptions
+    const ctx = context as GioContext
     uni.request({
       url: this.url,
       header: {
@@ -224,16 +231,16 @@ export class GioABTestPlugin {
       } as UTSJSONObject,
       method: 'POST',
       data: {
-        accountId: options.projectId,
-        datasourceId: options.dataSourceId,
-        distinctId: context.deviceId,
+        accountId: opts.projectId,
+        datasourceId: opts.dataSourceId,
+        distinctId: ctx.deviceId,
         layerId: `${layerId}`,
-        newDevice: this.visitSessionId == context.sessionId
+        newDevice: this.visitSessionId == ctx.sessionId
       } as UTSJSONObject,
       timeout: this.requestTimeout,
       success: (res) => {
         const data = readObject(res.data)
-        const code = Number(data['code'] != null ? data['code'] : -1)
+        const code = data.getNumber('code', -1)
         if (code == 0) {
           this.experimentVerify(layerId, data, originData, callback)
         } else {

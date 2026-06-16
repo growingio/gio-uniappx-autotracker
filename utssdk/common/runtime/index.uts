@@ -1,12 +1,13 @@
 import {
   GioInitOptions,
   GioPageContext,
+  GioStorage,
   GioTrackEvent
 } from '../../interface.uts'
 
 type GioPlatformStorageFactory = {
-  createMainStorage : (options : GioInitOptions, fallback : any) => any
-  createOriginalSourceStorage : (options : GioInitOptions, fallback : any) => any
+  createMainStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
+  createOriginalSourceStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
 }
 
 type GioPageContextResolver = {
@@ -53,8 +54,8 @@ export const registerEventShaper = function (
 
 export const resolveMainStorage = function (
   options : GioInitOptions,
-  fallback : any
-) : any {
+  fallback : GioStorage
+) : GioStorage {
   const factory = registeredStorageFactory
   if (factory == null) {
     return fallback
@@ -64,8 +65,8 @@ export const resolveMainStorage = function (
 
 export const resolveOriginalSourceStorage = function (
   options : GioInitOptions,
-  fallback : any
-) : any {
+  fallback : GioStorage
+) : GioStorage {
   const factory = registeredStorageFactory
   if (factory == null) {
     return fallback
