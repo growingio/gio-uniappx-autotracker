@@ -28,7 +28,8 @@ function isEmptyLayerId(layerId : any) : boolean {
   // typeof-number branch becomes `\(x as! NSNumber)` which Swift rejects.
   const text = `${layerId}`
   if (typeof layerId === 'number') {
-    return parseFloat(text) <= 0
+    const numeric = parseFloat(text)
+    return numeric <= 0
   }
   return text.length == 0
 }

@@ -79,9 +79,10 @@ export const parseStorageValue = function (value : any | null) : any | null {
     return value
   }
   const text = `${value}`
-  // `Number(string)` resolves to the abstract Number ctor natively; parseFloat
-  // gives the same NaN-vs-numeric signal for the JSON-detection heuristic.
-  if (isNaN(parseFloat(text)) && shouldAttemptJsonParse(text)) {
+  // shouldAttemptJsonParse already excludes numeric strings (they don't start
+  // with {/[/"/true/false/null), so no need for an inline parseFloat/isNaN check
+  // (which Swift rejects as a numeric op on a String).
+  if (shouldAttemptJsonParse(text)) {
     try {
       return JSON.parse(text)
     } catch (_error) {

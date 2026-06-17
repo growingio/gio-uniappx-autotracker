@@ -124,15 +124,10 @@ export const isValidIdentifyId = function (value : any | null) : boolean {
   if (value == null) {
     return false
   }
-  // Stringify BEFORE the typeof-number narrowing: inside a `typeof === 'number'`
-  // branch UTS casts `${value}` to `\(value as! NSNumber)`, which Swift rejects.
-  // Done on the un-narrowed value, `${value}` is `\(value)` and parseFloat takes
-  // a plain String.
+  // Validate purely via the string form — no typeof-number branch / numeric
+  // comparison, which transpiles to NSNumber casts/compares Swift rejects.
   const text = `${value}`
-  if (typeof value === 'number') {
-    return parseFloat(text) > 0
-  }
-  return text.length > 0 && text != '-' && text != 'null' && text != 'undefined'
+  return text.length > 0 && text != '0' && text != '-' && text != 'null' && text != 'undefined'
 }
 
 export const normalizeTrackProperties = function (properties : UTSJSONObject | null) : UTSJSONObject | null {
