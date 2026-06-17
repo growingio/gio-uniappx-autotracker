@@ -134,6 +134,7 @@ export type GioTrackEvent = {
 export interface GioStorageProvider {
   getMainStorage() : GioStorage
   getOriginalSourceStorage() : GioStorage
+  getLocalStorage() : GioStorage
 }
 
 // The slice of the tracker that plugins (e.g. ABTest) depend on. Declared here

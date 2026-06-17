@@ -80,7 +80,7 @@ export class GioABTestPlugin {
 
   constructor(tracker : GioABTestHost, options : GioABTestPluginOptions | null = null) {
     this.tracker = tracker
-    this.storage = tracker.getStorage().getMainStorage()
+    this.storage = tracker.getStorage().getLocalStorage()
 
     // Inlined from the former timeoutCheck/generateUrl methods: Swift forbids
     // calling an instance's OWN methods in a constructor before super.init(),
