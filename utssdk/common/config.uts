@@ -36,11 +36,14 @@ function readNullableBoolean(raw : UTSJSONObject, key : string) : boolean | null
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
 
 export const normalizeInitOptions = function (raw : UTSJSONObject) : GioInitOptions {
+  // `||` is a boolean-only operator in UTS; can't use it for string fallback.
+  const rawServerUrl = readRequiredString(raw, 'serverUrl')
+  const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
   return {
     projectId: readRequiredString(raw, 'projectId'),
     dataSourceId: readRequiredString(raw, 'dataSourceId'),
     appId: readRequiredString(raw, 'appId'),
-    serverUrl: readRequiredString(raw, 'serverUrl') || DEFAULT_SERVER_URL,
+    serverUrl: serverUrl,
     appVersion: readNullableString(raw, 'appVersion'),
     cookieDomain: readNullableString(raw, 'cookieDomain'),
     debug: readNullableBoolean(raw, 'debug'),
