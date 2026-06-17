@@ -102,7 +102,7 @@ export const buildWrappedStorageValue = function (
 ) : string {
   const storedValue = {
     value: encodeStorageValue(key, value),
-    expiredAt: expiredAt != null && expiredAt > 0
+    expiredAt: expiredAt != null && (expiredAt as number) > 0
       ? expiredAt
       : getDefaultStorageExpiredAt()
   } as UTSJSONObject

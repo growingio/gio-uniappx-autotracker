@@ -125,7 +125,7 @@ export const isValidIdentifyId = function (value : string | number | null) : boo
     return false
   }
   if (typeof value === 'number') {
-    return value > 0
+    return (value as number) > 0
   }
   const text = `${value}`
   return text.length > 0 && text != '-' && text != 'null' && text != 'undefined'

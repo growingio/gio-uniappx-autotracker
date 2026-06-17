@@ -82,7 +82,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       : 'Gio uni-app-x SDK 初始化完成！'
   }
 
-  init(options : GioInitOptions) : boolean {
+  initialize(options : GioInitOptions) : boolean {
     consoleText(this.getInitStartMessage(), 'info')
     if (
       isBlank(options.projectId) ||
