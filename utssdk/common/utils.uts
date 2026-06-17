@@ -120,7 +120,7 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
   }
 }
 
-export const isValidIdentifyId = function (value : string | number | null) : boolean {
+export const isValidIdentifyId = function (value : any | null) : boolean {
   if (value == null) {
     return false
   }
