@@ -35,12 +35,6 @@
 			"style": {
 				"navigationBarTitleText": "ABTest / getABTest"
 			}
-		},
-		{
-			"path": "pages/share/share",
-			"style": {
-				"navigationBarTitleText": "分享 / 朋友圈 / 收藏"
-			}
 		}
 	],
 	"globalStyle": {
