@@ -282,6 +282,55 @@ function stringifyDebugData(data : any) : string {
   }
 }
 
+function escapeDebugString(text : string) : string {
+  return text
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\t', '\\t')
+}
+
+function prettyPrintDebugJson(value : any | null, indentLevel : number = 0) : string {
+  if (value == null) {
+    return 'null'
+  }
+  if (typeof value == 'string') {
+    return `"${escapeDebugString(value)}"`
+  }
+  if (typeof value == 'number' || typeof value == 'boolean') {
+    return `${value}`
+  }
+  const indentUnit = '  '
+  const currentIndent = indentUnit.repeat(indentLevel)
+  const nextIndent = indentUnit.repeat(indentLevel + 1)
+  if (Array.isArray(value)) {
+    if (value.length == 0) {
+      return '[]'
+    }
+    const lines = [] as Array<string>
+    for (let i = 0; i < value.length; i++) {
+      lines.push(`${nextIndent}${prettyPrintDebugJson(value[i], indentLevel + 1)}`)
+    }
+    return `[\n${lines.join(',\n')}\n${currentIndent}]`
+  }
+  if (typeof value == 'object') {
+    const raw = value as UTSJSONObject
+    const keys = UTSJSONObject.keys(raw)
+    if (keys.length == 0) {
+      return '{}'
+    }
+    const lines = [] as Array<string>
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]
+      const rendered = prettyPrintDebugJson(raw[key], indentLevel + 1)
+      lines.push(`${nextIndent}"${escapeDebugString(key)}": ${rendered}`)
+    }
+    return `{\n${lines.join(',\n')}\n${currentIndent}}`
+  }
+  return stringifyDebugData(value)
+}
+
 type GioCivilTime = {
   year : number
   month : number
@@ -364,7 +413,7 @@ export function debugLog(enabled : boolean, message : string, data : any | null 
     console.log(buildDebugMessage(message))
     return
   }
-  console.log(buildDebugMessage(`${message}\n${stringifyDebugData(data)}`))
+  console.log(buildDebugMessage(`${message}\n${prettyPrintDebugJson(data)}`))
 }
 
 export function niceCallback(callback : GioABTestCallback | null, value : GioABTestResult | UTSJSONObject) {
