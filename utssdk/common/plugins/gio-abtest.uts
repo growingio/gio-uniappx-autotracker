@@ -275,10 +275,10 @@ export class GioABTestPlugin {
     originData : UTSJSONObject,
     callback : GioABTestCallback | null
   ) {
-    const variablesValue = responseData['variables']
-    const variables = variablesValue != null
-      ? variablesValue as UTSJSONObject
-      : null
+    // Nested object: getJSON, not `responseData['variables'] as UTSJSONObject`.
+    // The subscript value can't be force-cast to UTSJSONObject at runtime
+    // (swift_dynamicCastFailure) — same crash class as registerPlugins' options.
+    const variables = responseData.getJSON('variables')
     const comparisonData = {
       layerId: `${responseData['layerId'] != null ? responseData['layerId'] : layerId}`,
       strategyId: `${responseData['strategyId'] != null ? responseData['strategyId'] : ''}`,
