@@ -8,7 +8,8 @@ import {
   registerEventSender,
   registerPageContextResolver,
   registerPlatformStorageFactory,
-  registerRuntimeBehavior
+  registerRuntimeBehavior,
+  registerVisitSessionStore
 } from '../common/runtime/index.uts'
 import {
   buildCookieStorageValue,
@@ -516,6 +517,24 @@ registerPlatformStorageFactory({
 registerPageContextResolver({
   resolvePageContext(pageContext : GioPageContext | null) : GioPageContext | null {
     return resolveBrowserPageContext(pageContext)
+  }
+})
+
+// Web 端首访 session 快照必须持久化：页面刷新会清空内存、且 session 自身存于 localStorage，
+// 只有把快照也落 localStorage，才能复刻独立 web SDK「全新设备首个 session 内刷新仍 newDevice=true」。
+// 用裸 localStorage（与独立 SDK 的 abts 一致），判为非新设备时由插件经 host 触发 clear。
+const VISIT_SESSION_STORAGE_KEY = 'gdp_abt_visit_sid'
+
+registerVisitSessionStore({
+  record(sessionId : string) {
+    writeLocalItem(VISIT_SESSION_STORAGE_KEY, sessionId)
+  },
+  read() : string {
+    const value = readLocalItem(VISIT_SESSION_STORAGE_KEY)
+    return value != null ? value : ''
+  },
+  clear() {
+    removeLocalItem(VISIT_SESSION_STORAGE_KEY)
   }
 })
 

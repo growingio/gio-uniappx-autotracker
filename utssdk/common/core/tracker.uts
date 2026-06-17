@@ -33,6 +33,9 @@ import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import {
+  clearVisitSessionSnapshot,
+  readVisitSessionSnapshot,
+  recordVisitSessionSnapshot,
   scheduleVisitAndPage,
   shouldTrackAppClosed
 } from '../runtime/index.uts'
@@ -127,6 +130,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.refreshMiniProgramScene()
     this.initialized = true
     this.initializeSessionState()
+    this.recordVisitSessionIfNewDevice()
     consoleText(this.getInitCompleteMessage(), 'success')
     if (this.options.forceLogin == true) {
       consoleText(
@@ -177,6 +181,19 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     )
     if (previousSessionId != null && previousSessionId.length == 0) {
       this.pendingVisit = true
+    }
+  }
+
+  // 仅当本次是「全新设备」首访时，把当前（首访）session 记成快照。对齐独立 SDK：
+  // visitSids 只在 `!oldUId && newUId`（全新设备）时写入；老设备不写 → newDevice 恒 false。
+  // 必须在 initializeSessionState 之后调用，确保 session 已建立。
+  private recordVisitSessionIfNewDevice() {
+    if (!this.userStore.isNewDevice()) {
+      return
+    }
+    const context = this.userStore.getContext()
+    if (context.sessionId.length > 0) {
+      recordVisitSessionSnapshot(context.sessionId)
     }
   }
 
@@ -727,5 +744,15 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       return null
     }
     return this.userStore.getContext()
+  }
+
+  // ── GioABTestHost：首访 session 快照（实际存储分平台，见 runtime 注册表）──
+
+  readVisitSessionId() : string {
+    return readVisitSessionSnapshot()
+  }
+
+  clearVisitSession() : void {
+    clearVisitSessionSnapshot()
   }
 }

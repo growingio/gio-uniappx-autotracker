@@ -75,7 +75,6 @@ export class GioABTestPlugin {
   private requestInterval : number = ABTEST_DEFAULT_REQUEST_INTERVAL
   private requestTimeout : number = ABTEST_DEFAULT_REQUEST_TIMEOUT
   private url : string = ''
-  private visitSessionId : string = ''
   private storage : GioStorage | null = null
 
   constructor(tracker : GioABTestHost, options : GioABTestPluginOptions | null = null) {
@@ -114,8 +113,19 @@ export class GioABTestPlugin {
       ? `${serverUrl}/diversion/specified-layer-variables`
       : `https://${serverUrl}/diversion/specified-layer-variables`
 
-    const context = this.tracker.getContext()
-    this.visitSessionId = context != null ? context.sessionId : ''
+  }
+
+  // newDevice 判定：仅当首访 session 快照存在且仍等于当前 session 时为 true，对齐独立 SDK
+  // 的 `visitSids === getSessionId`。判为非新设备时清掉快照（对齐 web removeVisitSids；
+  // mp / app 内存清理为结果等价的空操作）。快照只在「全新设备」首访时被 tracker 写入，
+  // 故老设备恒为 false。
+  private resolveNewDevice(ctx : GioContext) : boolean {
+    const snapshot = this.tracker.readVisitSessionId()
+    const isNew = snapshot.length > 0 && snapshot == ctx.sessionId
+    if (!isNew) {
+      this.tracker.clearVisitSession()
+    }
+    return isNew
   }
 
   private getHashKey(layerId : any) : number {
@@ -226,6 +236,7 @@ export class GioABTestPlugin {
     }
     const opts = options as GioInitOptions
     const ctx = context as GioContext
+    const newDevice = this.resolveNewDevice(ctx)
     uni.request({
       url: this.url,
       header: {
@@ -237,7 +248,7 @@ export class GioABTestPlugin {
         datasourceId: opts.dataSourceId,
         distinctId: ctx.deviceId,
         layerId: `${layerId}`,
-        newDevice: this.visitSessionId == ctx.sessionId
+        newDevice: newDevice
       } as UTSJSONObject,
       timeout: this.requestTimeout,
       success: (res) => {

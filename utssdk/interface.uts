@@ -145,6 +145,10 @@ export interface GioABTestHost {
   getContext() : GioContext | null
   getOptions() : GioInitOptions | null
   trackPluginEvent(eventName : string, properties : UTSJSONObject | null) : boolean
+  // 首访 session 快照：只有「全新设备」首访时才被写入（见 tracker），插件据此判定 newDevice。
+  // 实际存储分平台（web 持久化 / mp·app 内存），插件不感知，对齐独立 SDK 的 visitSids。
+  readVisitSessionId() : string
+  clearVisitSession() : void
 }
 
 // 平台侧「分享 / 收藏」处理器所依赖的 host 能力，由 GioTracker 实现。把发事件、

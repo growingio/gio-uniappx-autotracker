@@ -33,11 +33,24 @@ type GioEventSender = {
   ) => void
 }
 
+// ABTest「首访 session 快照」的存储抽象。对齐独立 SDK 的 visitSids：
+// - mp / app（无页面刷新）放内存即可 —— 默认走下面的 builtinVisitSessionId；
+// - web 因为刷新会丢内存、且 session 自身持久化，必须把快照也持久化（见 web/runtime.uts
+//   registerVisitSessionStore，落 localStorage），才能复刻「首个 session 内刷新仍 newDevice=true」。
+type GioVisitSessionStore = {
+  record : (sessionId : string) => void
+  read : () => string
+  clear : () => void
+}
+
 let registeredStorageFactory : GioPlatformStorageFactory | null = null
 let registeredPageContextResolver : GioPageContextResolver | null = null
 let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
 let registeredEventShaper : GioEventShaper | null = null
 let registeredEventSender : GioEventSender | null = null
+let registeredVisitSessionStore : GioVisitSessionStore | null = null
+// 未注册平台存储时的内存兜底（mp / app 用），承载首访 session 快照。
+let builtinVisitSessionId : string = ''
 
 export function registerPlatformStorageFactory (
   factory : GioPlatformStorageFactory | null
@@ -71,6 +84,41 @@ export function registerEventSender (
 
 export function resolveEventSender () : GioEventSender | null {
   return registeredEventSender
+}
+
+export function registerVisitSessionStore (
+  store : GioVisitSessionStore | null
+) {
+  registeredVisitSessionStore = store
+}
+
+// 首访 session 快照的读 / 写 / 清，统一从 runtime 内部分发到「已注册平台存储」或内存兜底，
+// 调用方（tracker / 插件经 host）只见纯字符串，不必对 any 类型的 store 调方法（UTS 不允许）。
+// 与 dispatchViaEventSender 同思路。
+export function recordVisitSessionSnapshot (sessionId : string) {
+  const store = registeredVisitSessionStore
+  if (store == null) {
+    builtinVisitSessionId = sessionId
+    return
+  }
+  store.record(sessionId)
+}
+
+export function readVisitSessionSnapshot () : string {
+  const store = registeredVisitSessionStore
+  if (store == null) {
+    return builtinVisitSessionId
+  }
+  return store.read()
+}
+
+export function clearVisitSessionSnapshot () {
+  const store = registeredVisitSessionStore
+  if (store == null) {
+    builtinVisitSessionId = ''
+    return
+  }
+  store.clear()
 }
 
 // Dispatch through the registered sender from INSIDE runtime, where the

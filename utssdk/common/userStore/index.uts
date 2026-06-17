@@ -23,6 +23,10 @@ export class GioUserStore {
   private deviceId : string = ''
   private storage : GioStorageContainer | null = null
   private memorySessionId : string = ''
+  // 本次冷启动是否首次生成 deviceId（存储里原本没有）。对齐独立 SDK 的
+  // `!oldUId && newUId` —— 只有「全新设备」才允许后续把首访 session 记为 newDevice 快照；
+  // 老设备（deviceId 从存储读出）恒不算新设备。
+  private newDeviceFlag : boolean = false
 
   hydrate(options : GioInitOptions, storage : GioStorageContainer) {
     this.projectId = options.projectId
@@ -32,7 +36,12 @@ export class GioUserStore {
     if (this.deviceId.length == 0) {
       this.deviceId = guid()
       this.getMainStorage().setItem(this.getDeviceIdKey(), this.deviceId, null)
+      this.newDeviceFlag = true
     }
+  }
+
+  isNewDevice() : boolean {
+    return this.newDeviceFlag
   }
 
   private getMainStorage() : GioStorage {
