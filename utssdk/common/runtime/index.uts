@@ -38,41 +38,41 @@ let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
 let registeredEventShaper : GioEventShaper | null = null
 let registeredEventSender : GioEventSender | null = null
 
-export const registerPlatformStorageFactory = function (
+export function registerPlatformStorageFactory (
   factory : GioPlatformStorageFactory | null
 ) {
   registeredStorageFactory = factory
 }
 
-export const registerPageContextResolver = function (
+export function registerPageContextResolver (
   resolver : GioPageContextResolver | null
 ) {
   registeredPageContextResolver = resolver
 }
 
-export const registerRuntimeBehavior = function (
+export function registerRuntimeBehavior (
   behavior : GioRuntimeBehavior | null
 ) {
   registeredRuntimeBehavior = behavior
 }
 
-export const registerEventShaper = function (
+export function registerEventShaper (
   shaper : GioEventShaper | null
 ) {
   registeredEventShaper = shaper
 }
 
-export const registerEventSender = function (
+export function registerEventSender (
   sender : GioEventSender | null
 ) {
   registeredEventSender = sender
 }
 
-export const resolveEventSender = function () : GioEventSender | null {
+export function resolveEventSender () : GioEventSender | null {
   return registeredEventSender
 }
 
-export const resolveMainStorage = function (
+export function resolveMainStorage (
   options : GioInitOptions,
   fallback : GioStorage
 ) : GioStorage {
@@ -83,7 +83,7 @@ export const resolveMainStorage = function (
   return factory.createMainStorage(options, fallback)
 }
 
-export const resolveOriginalSourceStorage = function (
+export function resolveOriginalSourceStorage (
   options : GioInitOptions,
   fallback : GioStorage
 ) : GioStorage {
@@ -94,7 +94,7 @@ export const resolveOriginalSourceStorage = function (
   return factory.createOriginalSourceStorage(options, fallback)
 }
 
-export const resolvePageContext = function (
+export function resolvePageContext (
   pageContext : GioPageContext | null
 ) : GioPageContext | null {
   const resolver = registeredPageContextResolver
@@ -104,7 +104,7 @@ export const resolvePageContext = function (
   return resolver.resolvePageContext(pageContext)
 }
 
-export const scheduleVisitAndPage = function (dispatch : (() => void)) {
+export function scheduleVisitAndPage (dispatch : (() => void)) {
   const behavior = registeredRuntimeBehavior
   if (behavior == null) {
     dispatch()
@@ -113,7 +113,7 @@ export const scheduleVisitAndPage = function (dispatch : (() => void)) {
   behavior.scheduleVisitAndPage(dispatch)
 }
 
-export const shouldTrackAppClosed = function () : boolean {
+export function shouldTrackAppClosed () : boolean {
   const behavior = registeredRuntimeBehavior
   if (behavior == null) {
     return true
@@ -121,7 +121,7 @@ export const shouldTrackAppClosed = function () : boolean {
   return behavior.shouldTrackAppClosed()
 }
 
-export const shapeTrackEvent = function (
+export function shapeTrackEvent (
   event : GioTrackEvent
 ) : GioTrackEvent {
   const shaper = registeredEventShaper

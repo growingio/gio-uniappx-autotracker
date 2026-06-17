@@ -9,7 +9,7 @@ const tracker = GioTracker.getInstance()
 // (Kotlin/Swift) compile where the Vue global `defineMixin` is not in scope.
 // The app-facing root index.uts re-exports the plugin (in Vue context) instead.
 
-export const initialize = function (options : UTSJSONObject) : boolean {
+export function initialize (options : UTSJSONObject) : boolean {
   return tracker.initialize(normalizeInitOptions(options))
 }
 
@@ -21,23 +21,23 @@ export function setUserId(userId : string, userKey : string | null = null) : boo
   return tracker.setUserId(userId, userKey)
 }
 
-export const setUserAttributes = function (userAttributes : UTSJSONObject | null) : boolean {
+export function setUserAttributes (userAttributes : UTSJSONObject | null) : boolean {
   return tracker.setUserAttributes(userAttributes)
 }
 
-export const identify = function (assignmentId : any) : boolean {
+export function identify (assignmentId : any) : boolean {
   return tracker.identify(assignmentId)
 }
 
-export const clearUserId = function () : boolean {
+export function clearUserId () : boolean {
   return tracker.clearUserId()
 }
 
-export const setUserKey = function (userKey : string) : boolean {
+export function setUserKey (userKey : string) : boolean {
   return tracker.setUserKey(userKey)
 }
 
-export const registerPlugins = function (plugins : Array<any>) : boolean {
+export function registerPlugins (plugins : Array<any>) : boolean {
   return tracker.registerPlugins(plugins as Array<GioPluginItem>)
 }
 

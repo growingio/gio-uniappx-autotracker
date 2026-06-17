@@ -27,11 +27,11 @@ function shouldAttemptJsonParse(text : string) : boolean {
   )
 }
 
-export const getStorageKey = function (prefix : string, name : string) : string {
+export function getStorageKey (prefix : string, name : string) : string {
   return `${prefix}:${name}`
 }
 
-export const getActualStorageKey = function (key : string) : string {
+export function getActualStorageKey (key : string) : string {
   if (!key.endsWith(STORAGE_ENCRYPTED_SUFFIX)) {
     return key
   }
@@ -61,7 +61,7 @@ function decodeStorageValue(key : string, value : any | null) : any | null {
   return value
 }
 
-export const readDirectStorageValue = function (
+export function readDirectStorageValue (
   key : string,
   rawValue : any | null
 ) : any | null {
@@ -71,7 +71,7 @@ export const readDirectStorageValue = function (
   return parseStorageValue(decodeStorageValue(key, rawValue))
 }
 
-export const parseStorageValue = function (value : any | null) : any | null {
+export function parseStorageValue (value : any | null) : any | null {
   if (value == null) {
     return null
   }
@@ -92,11 +92,11 @@ export const parseStorageValue = function (value : any | null) : any | null {
   return text
 }
 
-export const getDefaultStorageExpiredAt = function () : number {
+export function getDefaultStorageExpiredAt () : number {
   return now() + DEFAULT_STORAGE_EXPIRE_MS
 }
 
-export const buildWrappedStorageValue = function (
+export function buildWrappedStorageValue (
   key : string,
   value : any,
   expiredAt : number | null
@@ -114,7 +114,7 @@ export const buildWrappedStorageValue = function (
   return JSON.stringify(storedValue)
 }
 
-export const readWrappedStorageValue = function (
+export function readWrappedStorageValue (
   key : string,
   rawValue : any | null
 ) : any | null {
@@ -155,7 +155,7 @@ export const readWrappedStorageValue = function (
   return parseStorageValue(decodeStorageValue(key, parsedValue))
 }
 
-export const readStructuredStorageValue = function (
+export function readStructuredStorageValue (
   key : string,
   rawValue : any | null
 ) : any | null {
@@ -194,7 +194,7 @@ export const readStructuredStorageValue = function (
   )
 }
 
-export const buildCookieStorageValue = function (
+export function buildCookieStorageValue (
   key : string,
   value : any
 ) : string {

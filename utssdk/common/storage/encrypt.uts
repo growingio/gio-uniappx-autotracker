@@ -32,14 +32,14 @@ function bitEncryptStorageValue(value : string) : string {
   return result
 }
 
-export const encryptStorageString = function (value : string) : string {
+export function encryptStorageString (value : string) : string {
   if (value.length == 0) {
     return value
   }
   return `${GIO_ENCRYPTED_PREFIX}${bitEncryptStorageValue(value)}`
 }
 
-export const decryptStorageString = function (value : string) : string {
+export function decryptStorageString (value : string) : string {
   if (!value.startsWith(GIO_ENCRYPTED_PREFIX)) {
     return value
   }
