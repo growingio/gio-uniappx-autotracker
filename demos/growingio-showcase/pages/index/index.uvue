@@ -97,7 +97,7 @@ export default {
 			this.lastNote = '已发送 home_quick_track，请查看请求体。'
 		},
 		onRefreshNote() {
-			this.lastNote = '当前公开 API 只保留 init / track / setUserId / setUserAttributes / identify / setUserKey / clearUserId / registerPlugins / getABTest。'
+			this.lastNote = '当前公开 API 只保留 initialize / track / setUserId / setUserAttributes / identify / setUserKey / clearUserId / registerPlugins / getABTest。'
 		},
 	},
 }

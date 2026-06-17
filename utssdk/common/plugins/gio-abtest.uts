@@ -23,11 +23,14 @@ const ABTEST_MIN_REQUEST_TIMEOUT = 100
 const ABTEST_SIGN_SUFFIX = '_gdp_abt_sign'
 const ABTEST_DATA_SUFFIX = '_gdp_abtd'
 
-function isEmptyLayerId(layerId : string | number) : boolean {
+function isEmptyLayerId(layerId : any) : boolean {
+  // Stringify before narrowing (see isValidIdentifyId): `${x}` inside a
+  // typeof-number branch becomes `\(x as! NSNumber)` which Swift rejects.
+  const text = `${layerId}`
   if (typeof layerId === 'number') {
-    return (layerId as number) <= 0
+    return parseFloat(text) <= 0
   }
-  return (layerId as string).length == 0
+  return text.length == 0
 }
 
 function readNullableString(source : UTSJSONObject, key : string) : string | null {
@@ -116,7 +119,7 @@ export class GioABTestPlugin {
     this.url = `https://${serverUrl}/diversion/specified-layer-variables`
   }
 
-  private getHashKey(layerId : string | number) : number {
+  private getHashKey(layerId : any) : number {
     const options = this.tracker.getOptions()
     const context = this.tracker.getContext()
     if (options == null || context == null) {
@@ -192,7 +195,7 @@ export class GioABTestPlugin {
   }
 
   getABTest(
-    layerId : string | number,
+    layerId : any,
     callback : GioABTestCallback | null = null
   ) {
     if (isEmptyLayerId(layerId)) {
@@ -211,7 +214,7 @@ export class GioABTestPlugin {
   }
 
   private initiateRequest(
-    layerId : string | number,
+    layerId : any,
     originData : UTSJSONObject,
     callback : GioABTestCallback | null,
     retryCount : number
@@ -268,7 +271,7 @@ export class GioABTestPlugin {
   }
 
   private experimentVerify(
-    layerId : string | number,
+    layerId : any,
     responseData : UTSJSONObject,
     originData : UTSJSONObject,
     callback : GioABTestCallback | null

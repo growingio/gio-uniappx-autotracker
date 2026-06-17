@@ -120,14 +120,18 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
   }
 }
 
-export const isValidIdentifyId = function (value : string | number | null) : boolean {
+export const isValidIdentifyId = function (value : any | null) : boolean {
   if (value == null) {
     return false
   }
-  if (typeof value === 'number') {
-    return value > 0
-  }
+  // Stringify BEFORE the typeof-number narrowing: inside a `typeof === 'number'`
+  // branch UTS casts `${value}` to `\(value as! NSNumber)`, which Swift rejects.
+  // Done on the un-narrowed value, `${value}` is `\(value)` and parseFloat takes
+  // a plain String.
   const text = `${value}`
+  if (typeof value === 'number') {
+    return parseFloat(text) > 0
+  }
   return text.length > 0 && text != '-' && text != 'null' && text != 'undefined'
 }
 

@@ -34,7 +34,6 @@ const REQUIRED_FILES = [
   'utssdk/web/package.json',
   'utssdk/mp-weixin/index.uts',
   'utssdk/mp-weixin/share.uts',
-  'utssdk/app-js/index.uts',
   'utssdk/app-android/index.uts',
   'utssdk/app-android/config.json',
   'utssdk/app-ios/index.uts',

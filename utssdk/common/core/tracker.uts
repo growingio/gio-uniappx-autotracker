@@ -82,7 +82,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       : 'Gio uni-app-x SDK 初始化完成！'
   }
 
-  init(options : GioInitOptions) : boolean {
+  initialize(options : GioInitOptions) : boolean {
     consoleText(this.getInitStartMessage(), 'info')
     if (
       isBlank(options.projectId) ||
@@ -490,7 +490,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   getABTest(
-    layerId : string | number,
+    layerId : any,
     callback : GioABTestCallback | null = null
   ) : boolean {
     if (!this.ensureReady()) {
@@ -523,7 +523,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return true
   }
 
-  identify(assignmentId : string | number) : boolean {
+  identify(assignmentId : any) : boolean {
     if (!this.ensureReady()) {
       return false
     }
