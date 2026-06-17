@@ -136,7 +136,7 @@ export class GioUserStore {
     // Stringify before the typeof-number narrowing (Swift rejects the
     // `\(value as! NSNumber)` that `${value}` becomes inside that branch).
     const text = `${value}`
-    if (typeof value === 'number') {
+    if (typeof value == 'number') {
       const numeric = parseFloat(text)
       return numeric >= 1 && numeric < 1000000000 ? numeric : 1
     }

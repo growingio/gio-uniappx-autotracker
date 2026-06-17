@@ -4,6 +4,18 @@ export function now () : number {
   return Date.now()
 }
 
+// Native `Date` has no getTimezoneOffset(); only web/mp (JS) do. Return 0 on
+// the app platform rather than emit an unresolved member that derails the
+// Swift type-checker.
+export function readTimezoneOffsetMinutes () : number {
+  // #ifdef APP
+  return 0
+  // #endif
+  // #ifndef APP
+  return new Date().getTimezoneOffset()
+  // #endif
+}
+
 export function guid () : string {
   const template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
   let result = ''
@@ -18,6 +30,13 @@ export function guid () : string {
     result += char
   }
   return result
+}
+
+// UTS-iOS types JSON.stringify as `string | null`; most call sites want a
+// non-null string. Centralize the coercion.
+export function jsonStringify (value : any) : string {
+  const text = JSON.stringify(value)
+  return text != null ? (text as string) : ''
 }
 
 export function hashCode(value : string, abs : boolean = false) : number {
@@ -167,7 +186,7 @@ export function normalizeTrackProperties (properties : UTSJSONObject | null) : U
       continue
     }
 
-    if (typeof value === 'object' || typeof value === 'function') {
+    if (typeof value == 'object' || typeof value == 'function') {
       continue
     }
 
@@ -256,18 +275,58 @@ export function consoleText(
 
 function stringifyDebugData(data : any) : string {
   try {
-    return JSON.stringify(data, null, 2)
+    // UTS-iOS JSON.stringify only takes the value arg (no replacer/space).
+    return jsonStringify(data)
   } catch (_error) {
     return `${data}`
   }
 }
 
-function formatDebugTimestamp() : string {
-  return new Date().toISOString()
+type GioCivilTime = {
+  year : number
+  month : number
+  day : number
+  hour : number
+  minute : number
+  second : number
+  milli : number
 }
 
-function buildDebugMessage(message : string) : string {
-  return `[GrowingIO Debug][${formatDebugTimestamp()}] ${message}`
+// Calendar fields from an epoch-millisecond value via pure integer math —
+// avoids JS `Date` instance methods (toISOString/getUTC*), which don't exist
+// on the native (Swift/Kotlin) `Date`. Algorithm: Howard Hinnant's
+// civil_from_days. Treats the input as the wall clock for whatever offset the
+// caller already baked into `ms` (UTC for ISO, +8h for Beijing).
+function epochMsToCivil(ms : number) : GioCivilTime {
+  const milli = ((ms % 1000) + 1000) % 1000
+  const totalSec = Math.floor(ms / 1000)
+  const second = ((totalSec % 60) + 60) % 60
+  const totalMin = Math.floor(totalSec / 60)
+  const minute = ((totalMin % 60) + 60) % 60
+  const totalHour = Math.floor(totalMin / 60)
+  const hour = ((totalHour % 24) + 24) % 24
+  const days = Math.floor(totalHour / 24)
+
+  const z = days + 719468
+  const era = Math.floor((z >= 0 ? z : z - 146096) / 146097)
+  const doe = z - era * 146097
+  const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365)
+  const y = yoe + era * 400
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100))
+  const mp = Math.floor((5 * doy + 2) / 153)
+  const day = doy - Math.floor((153 * mp + 2) / 5) + 1
+  const month = mp < 10 ? mp + 3 : mp - 9
+  const year = month <= 2 ? y + 1 : y
+
+  return {
+    year: year,
+    month: month,
+    day: day,
+    hour: hour,
+    minute: minute,
+    second: second,
+    milli: milli
+  } as GioCivilTime
 }
 
 function padDatePart(value : number, size : number = 2) : string {
@@ -278,10 +337,23 @@ function padDatePart(value : number, size : number = 2) : string {
   return text
 }
 
+function formatDebugTimestamp() : string {
+  const c = epochMsToCivil(now())
+  const datePart = `${c.year}-${padDatePart(c.month)}-${padDatePart(c.day)}`
+  const timePart = `${padDatePart(c.hour)}:${padDatePart(c.minute)}:${padDatePart(c.second)}.${padDatePart(c.milli, 3)}`
+  return `${datePart}T${timePart}Z`
+}
+
+function buildDebugMessage(message : string) : string {
+  return `[GrowingIO Debug][${formatDebugTimestamp()}] ${message}`
+}
+
 export function formatBeijingTimestamp(ts : number) : string {
   const beijingMs = ts + 480 * 60 * 1000
-  const beijingDate = new Date(beijingMs)
-  return `${beijingDate.getUTCFullYear()}-${padDatePart(beijingDate.getUTCMonth() + 1)}-${padDatePart(beijingDate.getUTCDate())} ${padDatePart(beijingDate.getUTCHours())}:${padDatePart(beijingDate.getUTCMinutes())}:${padDatePart(beijingDate.getUTCSeconds())}.${padDatePart(beijingDate.getUTCMilliseconds(), 3)} GMT+8`
+  const c = epochMsToCivil(beijingMs)
+  const datePart = `${c.year}-${padDatePart(c.month)}-${padDatePart(c.day)}`
+  const timePart = `${padDatePart(c.hour)}:${padDatePart(c.minute)}:${padDatePart(c.second)}.${padDatePart(c.milli, 3)}`
+  return `${datePart} ${timePart} GMT+8`
 }
 
 export function debugLog(enabled : boolean, message : string, data : any | null = null) {

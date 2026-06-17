@@ -337,7 +337,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   private recordEventContext(eventType : string, event : GioTrackEvent) {
     const path = event.path != null ? event.path as string : ''
     const query = event.query != null ? event.query as string : ''
-    const title = event.title
+    const title = event.title != null ? event.title as string : ''
     const referralPage = event.referralPage != null ? event.referralPage as string : ''
     this.dataStore.recordEvent(eventType, path, query, title, referralPage)
   }
@@ -462,10 +462,10 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     const requestTimeoutValue = rawOptions['requestTimeout']
     return {
       abServerUrl: abServerUrlValue != null ? `${abServerUrlValue}` : null,
-      requestInterval: typeof requestIntervalValue === 'number'
+      requestInterval: typeof requestIntervalValue == 'number'
         ? requestIntervalValue
         : null,
-      requestTimeout: typeof requestTimeoutValue === 'number'
+      requestTimeout: typeof requestTimeoutValue == 'number'
         ? requestTimeoutValue
         : null
     } as GioABTestPluginOptions
@@ -669,7 +669,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       'onUnload',
       pageContext != null ? pageContext : this.buildCurrentPageContext(null)
     )
-    const pagePath = pageContext != null ? pageContext.path : ''
+    const pagePath : string = pageContext != null ? (pageContext.path as string) : ''
     this.dataStore.resetCurrentPageShowAt(pagePath)
   }
 

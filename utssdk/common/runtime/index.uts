@@ -72,6 +72,23 @@ export function resolveEventSender () : GioEventSender | null {
   return registeredEventSender
 }
 
+// Dispatch through the registered sender from INSIDE runtime, where the
+// GioEventSender type is in scope. Callers (uploader) only see a boolean, so
+// they never have to call a method on an `any`-typed sender (UTS forbids that).
+export function dispatchViaEventSender (
+  url : string,
+  data : Array<UTSJSONObject>,
+  onSuccess : (() => void) | null,
+  onFail : (() => void) | null
+) : boolean {
+  const sender = registeredEventSender
+  if (sender == null) {
+    return false
+  }
+  sender.sendEvent(url, data, onSuccess, onFail)
+  return true
+}
+
 export function resolveMainStorage (
   options : GioInitOptions,
   fallback : GioStorage

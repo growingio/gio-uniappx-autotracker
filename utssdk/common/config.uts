@@ -22,15 +22,19 @@ function readNullableString(raw : UTSJSONObject, key : string) : string | null {
   return `${value}`
 }
 
-function readNullableBoolean(raw : UTSJSONObject, key : string) : boolean | null {
+// UTS-iOS collapses `boolean | null` to a non-null `Bool = false` (both in
+// struct fields and fn returns), so the tri-state "unspecified" can't survive.
+// Resolve every boolean default HERE against the raw object (the only place
+// that still sees whether a key was provided) and store plain `boolean`.
+function readBooleanWithDefault(raw : UTSJSONObject, key : string, fallback : boolean) : boolean {
   const value = raw[key]
   if (value == null) {
-    return null
+    return fallback
   }
-  if (typeof value === 'boolean') {
-    return value
+  if (typeof value == 'boolean') {
+    return value as boolean
   }
-  return null
+  return fallback
 }
 
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
@@ -39,6 +43,10 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
   // `||` is a boolean-only operator in UTS; can't use it for string fallback.
   const rawServerUrl = readRequiredString(raw, 'serverUrl')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
+  // followShare 仅小程序生效：mp-weixin 默认开启（用户未显式关闭时），其余端一律关闭，
+  // 分享 / 收藏事件本就只在小程序端产生。
+  const isMpWeixin = platformName() == 'mp-weixin'
+  const followShare = isMpWeixin ? readBooleanWithDefault(raw, 'followShare', true) : false
   return {
     projectId: readRequiredString(raw, 'projectId'),
     dataSourceId: readRequiredString(raw, 'dataSourceId'),
@@ -46,10 +54,10 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     serverUrl: serverUrl,
     appVersion: readNullableString(raw, 'appVersion'),
     cookieDomain: readNullableString(raw, 'cookieDomain'),
-    debug: readNullableBoolean(raw, 'debug'),
-    forceLogin: readNullableBoolean(raw, 'forceLogin'),
-    originalSource: readNullableBoolean(raw, 'originalSource'),
-    followShare: readNullableBoolean(raw, 'followShare'),
+    debug: readBooleanWithDefault(raw, 'debug', false),
+    forceLogin: readBooleanWithDefault(raw, 'forceLogin', false),
+    originalSource: readBooleanWithDefault(raw, 'originalSource', true),
+    followShare: followShare,
     storageType: readNullableString(raw, 'storageType')
   } as GioInitOptions
 }
@@ -69,24 +77,9 @@ class GioConfigData {
   private constructor() {}
 
   setOptions(options : GioInitOptions) {
-    if (options.debug == null) {
-      options.debug = false
-    }
-    if (options.forceLogin == null) {
-      options.forceLogin = false
-    }
-    if (options.originalSource == null) {
-      options.originalSource = true
-    }
-    // followShare 仅小程序生效：mp-weixin 默认开启（用户未显式关闭时），其余端一律关闭，
-    // 分享 / 收藏事件本就只在小程序端产生。
-    if (platformName() == 'mp-weixin') {
-      if (options.followShare == null) {
-        options.followShare = true
-      }
-    } else {
-      options.followShare = false
-    }
+    // debug/forceLogin/originalSource/followShare are now plain booleans whose
+    // defaults are resolved in normalizeInitOptions (see note there). Only the
+    // nullable-string fields still need defaulting here.
     if (options.cookieDomain == null) {
       options.cookieDomain = ''
     }

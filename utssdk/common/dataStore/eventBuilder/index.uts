@@ -5,7 +5,7 @@ import {
   GioTrackEvent
 } from '../../../interface.uts'
 import { SDK_VERSION } from '../../config.uts'
-import { GioSystemContext, now } from '../../utils.uts'
+import { GioSystemContext, now, readTimezoneOffsetMinutes } from '../../utils.uts'
 import {
   resolvePageContext as resolveRuntimePageContext,
   shapeTrackEvent
@@ -19,7 +19,10 @@ export class GioEventBuilder {
     this.userStore = userStore
   }
 
-  private resolvePageContext(
+  // Named distinctly from the imported runtime `resolvePageContext`: UTS-iOS
+  // ignores the import alias and module-qualifies the call, which collides with
+  // a same-named class method ("cannot find UTSSDKModules... in scope").
+  private composePageContext(
     eventType : string,
     pageContext : GioPageContext | null,
     originalSource : GioOriginalSource | null
@@ -49,7 +52,7 @@ export class GioEventBuilder {
   ) : GioTrackEvent {
     const userStore = this.userStore as GioUserStore
     const context = userStore.getContext()
-    const resolvedPageContext = this.resolvePageContext(
+    const resolvedPageContext = this.composePageContext(
       eventType,
       pageContext,
       originalSource
@@ -75,9 +78,20 @@ export class GioEventBuilder {
     ) {
       eventSequenceId = userStore.getNextEventSequenceId()
     }
+    // Extract only the expression-valued entries (cast / ternary / calls) into
+    // locals; the plain member accesses auto-unwrap fine inline. The big
+    // `{...} as GioTrackEvent` literal was "unable to type-check in reasonable
+    // time" mostly because of the unresolved `new Date().getTimezoneOffset()`
+    // (no native Date member) plus the inline cast/ternary. (Don't extract the
+    // String! member accesses — an untyped local decays them to String? and
+    // then fails assignment into the non-null event fields.)
+    const appVersionText : string = options.appVersion as string
+    const titleText : string = title != null ? (title as string) : ''
+    const timestamp : number = now()
+    const timezoneOffset : number = readTimezoneOffsetMinutes()
     return shapeTrackEvent({
       appChannel: appChannel,
-      appVersion: options.appVersion as string,
+      appVersion: appVersionText,
       dataSourceId: options.dataSourceId,
       deviceBrand: systemContext.deviceBrand,
       deviceId: context.deviceId,
@@ -101,9 +115,9 @@ export class GioEventBuilder {
       screenWidth: systemContext.screenWidth,
       sdkVersion: SDK_VERSION,
       sessionId: context.sessionId,
-      timestamp: now(),
-      timezoneOffset: new Date().getTimezoneOffset(),
-      title: title != null ? title : '',
+      timestamp: timestamp,
+      timezoneOffset: timezoneOffset,
+      title: titleText,
       userId: context.userId,
       userKey: context.userKey,
       attributes: properties

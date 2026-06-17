@@ -9,7 +9,7 @@ function stringifyRouteQuery(value : any | null) : string {
   if (value == null) {
     return ''
   }
-  if (typeof value === 'string') {
+  if (typeof value == 'string') {
     if (value.length == 0) {
       return ''
     }

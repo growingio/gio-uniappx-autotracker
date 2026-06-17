@@ -84,9 +84,12 @@ export class GioPageStore {
     const cachedQuery = path.length > 0 ? this.getCachedQuery(path) : null
     const lastEventQuery = path.length > 0 ? this.getQueryFromLastEvent(path) : null
     const routeInfo = resolvePageRoute(page, options, cachedQuery, lastEventQuery)
-    const nextPath = routeInfo.path
-    const nextQuery = routeInfo.query
-    const nextTitle = routeInfo.title
+    // GioResolvedRoute fields transpile to Swift `String!` (IUO); storing them
+    // in an untyped local decays to `String?`, breaking `.length` / assigning
+    // to the non-null currentPage* fields. Annotate to force non-null.
+    const nextPath : string = routeInfo.path
+    const nextQuery : string = routeInfo.query
+    const nextTitle : string = routeInfo.title
     if (nextPath.length == 0 && this.currentPagePath.length == 0) {
       return null
     }

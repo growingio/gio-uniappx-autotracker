@@ -10,6 +10,7 @@ import {
 import {
   consoleText,
   hashCode,
+  jsonStringify,
   niceCallback,
   now
 } from '../utils.uts'
@@ -27,7 +28,7 @@ function isEmptyLayerId(layerId : any) : boolean {
   // Stringify before narrowing (see isValidIdentifyId): `${x}` inside a
   // typeof-number branch becomes `\(x as! NSNumber)` which Swift rejects.
   const text = `${layerId}`
-  if (typeof layerId === 'number') {
+  if (typeof layerId == 'number') {
     const numeric = parseFloat(text)
     return numeric <= 0
   }
@@ -288,8 +289,8 @@ export class GioABTestPlugin {
       variables: variables != null ? variables : {} as UTSJSONObject
     } as UTSJSONObject
     const controlData = this.cloneComparisonData(originData)
-    const comparisonValue = hashCode(JSON.stringify(comparisonData))
-    const controlValue = hashCode(JSON.stringify(controlData))
+    const comparisonValue = hashCode(jsonStringify(comparisonData))
+    const controlValue = hashCode(jsonStringify(controlData))
 
     const result : GioABTestResult = {
       layerId: `${comparisonData['layerId']}`,

@@ -169,7 +169,9 @@ export class GioDataStore {
     }
     const userStore = this.userStore as GioUserStore
     const context = userStore.getContext()
-    const currentSessionId = context.sessionId
+    // sessionId is a non-null `string` → Swift `String!`; an untyped local
+    // decays to `String?` and breaks `.length`. Annotate to force non-null.
+    const currentSessionId : string = context.sessionId
     if (currentSessionId.length == 0) {
       return
     }
@@ -221,10 +223,12 @@ export class GioDataStore {
   handleFlushSuccess(events : Array<GioTrackEvent>) {
     for (let i = 0; i < events.length; i++) {
       const event = events[i]
-      if (event['eventType'] != 'VISIT') {
+      // Use typed field access, not `event['key']` subscript: the subscript
+      // returns Any?, and comparing Any? to a string literal fails on Swift.
+      if (event.eventType != 'VISIT') {
         continue
       }
-      const sessionId = event['sessionId'] != null ? `${event['sessionId']}` : ''
+      const sessionId = `${event.sessionId}`
       if (sessionId.length == 0) {
         continue
       }
