@@ -100,11 +100,15 @@ export const buildWrappedStorageValue = function (
   value : any,
   expiredAt : number | null
 ) : string {
+  // Compute a concrete number first: Swift can't compare a boxed NSNumber (the
+  // `number | null` cast) with `> 0` the way it compares a plain number.
+  let resolvedExpiredAt = getDefaultStorageExpiredAt()
+  if (expiredAt != null) {
+    resolvedExpiredAt = expiredAt
+  }
   const storedValue = {
     value: encodeStorageValue(key, value),
-    expiredAt: expiredAt != null && (expiredAt as number) > 0
-      ? expiredAt
-      : getDefaultStorageExpiredAt()
+    expiredAt: resolvedExpiredAt
   } as UTSJSONObject
   return JSON.stringify(storedValue)
 }
