@@ -52,10 +52,14 @@ export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
     if (nameValue == null) {
       continue
     }
-    const optionsValue = raw['options']
+    // Read the nested object with getJSON, NOT `raw['options'] as UTSJSONObject`:
+    // the bridge stores a nested value in a form the subscript can't force-cast
+    // to UTSJSONObject at runtime (swift_dynamicCastFailure → SIGABRT). getJSON
+    // returns a real UTSJSONObject | null (same accessor family as getNumber).
+    const optionsValue = raw.getJSON('options')
     items.push({
       name: `${nameValue}`,
-      options: optionsValue != null ? (optionsValue as UTSJSONObject) : null
+      options: optionsValue
     } as GioPluginItem)
   }
   return tracker.registerPlugins(items)
