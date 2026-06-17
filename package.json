@@ -23,6 +23,8 @@
     "dev:demo-harmony": "node ./scripts/dev-demo.mjs app-harmony",
     "demo:open": "open -a HBuilderX ./demos/growingio-showcase",
     "demo:debug": "node ./scripts/demo-debug.mjs",
+    "link-to-demo": "node ./scripts/link-to-demo.mjs",
+    "unlink-from-demo": "node ./scripts/link-to-demo.mjs --unlink",
     "install-to-demo": "node ./scripts/install-to-demo.mjs",
     "release": "node ./scripts/build.mjs && node ./scripts/verify-bundle.mjs && node ./scripts/release-pack.mjs"
   },

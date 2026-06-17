@@ -85,7 +85,19 @@ function writeUniModulesJson() {
   fs.writeFileSync(target, `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
 }
 
+function isLinkModeBundle() {
+  // link-to-demo.mjs symlinks utssdk straight at the source; if that link is
+  // present the showcase already tracks live source, so leave it untouched.
+  const linkedDir = path.join(SHOWCASE_BUNDLE, 'utssdk');
+  const stat = fs.lstatSync(linkedDir, { throwIfNoEntry: false });
+  return stat != null && stat.isSymbolicLink();
+}
+
 function syncShowcaseBundle() {
+  if (isLinkModeBundle()) {
+    log('showcase bundle is in link mode (utssdk symlinked); skipping copy sync');
+    return;
+  }
   fs.mkdirSync(path.dirname(SHOWCASE_BUNDLE), { recursive: true });
   removePath(SHOWCASE_BUNDLE);
   copyRecursive(DIST_BUNDLE, SHOWCASE_BUNDLE);
