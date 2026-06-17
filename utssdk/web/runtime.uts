@@ -504,6 +504,12 @@ registerPlatformStorageFactory({
       return createLocalStorageAdapter()
     }
     return fallback
+  },
+  createLocalStorage(_options : GioInitOptions, fallback : any) : any {
+    if (canUseLocalStorage()) {
+      return createLocalStorageAdapter()
+    }
+    return fallback
   }
 })
 

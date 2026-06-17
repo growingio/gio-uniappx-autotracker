@@ -1,6 +1,7 @@
 import { GioInitOptions, GioStorage, GioStorageProvider } from '../../interface.uts'
 import { now } from '../utils.uts'
 import {
+  resolveLocalStorage,
   resolveMainStorage,
   resolveOriginalSourceStorage
 } from '../runtime/index.uts'
@@ -260,15 +261,18 @@ export class GioStorageEngine implements GioStorage {
 export class GioStorageContainer implements GioStorageProvider {
   private mainStorage : GioStorage = new GioStorageEngine()
   private originalSourceStorage : GioStorage = new GioStorageEngine()
+  private localStorage : GioStorage = new GioStorageEngine()
 
   initialize(options : GioInitOptions) {
     const defaultMainStorage = new GioStorageEngine()
     const defaultOriginalSourceStorage = new GioStorageEngine()
+    const defaultLocalStorage = new GioStorageEngine()
     this.mainStorage = resolveMainStorage(options, defaultMainStorage)
     this.originalSourceStorage = resolveOriginalSourceStorage(
       options,
       defaultOriginalSourceStorage
     )
+    this.localStorage = resolveLocalStorage(options, defaultLocalStorage)
   }
 
   getMainStorage() : GioStorage {
@@ -277,5 +281,9 @@ export class GioStorageContainer implements GioStorageProvider {
 
   getOriginalSourceStorage() : GioStorage {
     return this.originalSourceStorage
+  }
+
+  getLocalStorage() : GioStorage {
+    return this.localStorage
   }
 }

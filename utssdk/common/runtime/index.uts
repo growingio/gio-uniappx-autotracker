@@ -8,6 +8,7 @@ import {
 type GioPlatformStorageFactory = {
   createMainStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
   createOriginalSourceStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
+  createLocalStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
 }
 
 type GioPageContextResolver = {
@@ -92,6 +93,17 @@ export const resolveOriginalSourceStorage = function (
     return fallback
   }
   return factory.createOriginalSourceStorage(options, fallback)
+}
+
+export const resolveLocalStorage = function (
+  options : GioInitOptions,
+  fallback : GioStorage
+) : GioStorage {
+  const factory = registeredStorageFactory
+  if (factory == null) {
+    return fallback
+  }
+  return factory.createLocalStorage(options, fallback)
 }
 
 export const resolvePageContext = function (

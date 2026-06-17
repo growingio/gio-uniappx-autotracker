@@ -75,7 +75,7 @@ export class GioABTestPlugin {
 
   constructor(tracker : GioABTestHost, options : GioABTestPluginOptions | null = null) {
     this.tracker = tracker
-    this.storage = tracker.getStorage().getMainStorage()
+    this.storage = tracker.getStorage().getLocalStorage()
     this.timeoutCheck(options)
     this.generateUrl(options != null ? options.abServerUrl : null)
     const context = this.tracker.getContext()
