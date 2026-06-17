@@ -486,7 +486,7 @@ function resolveBrowserPageContext(
 
 function readRawConfigField(key : string) : string | null {
   try {
-    const raw = window['_gio_raw_config'] as UTSJSONObject | null
+    const raw = window['vdsConfig'] as UTSJSONObject | null
     if (raw == null) {
       return null
     }

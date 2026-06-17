@@ -11,10 +11,10 @@ const tracker = GioTracker.getInstance()
 
 export function initialize (options : UTSJSONObject) : boolean {
   // #ifdef WEB
-  try { window['_gio_raw_config'] = options } catch (_error) {}
+  try { window['vdsConfig'] = options } catch (_error) {}
   // #endif
   // #ifdef MP-WEIXIN
-  try { globalThis['_gio_raw_config'] = options } catch (_error) {}
+  try { globalThis['vdsConfig'] = options } catch (_error) {}
   // #endif
   return tracker.initialize(normalizeInitOptions(options))
 }
