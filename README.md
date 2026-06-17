@@ -10,7 +10,7 @@
 
 当前对外 API 只有：
 
-- `init(options)`
+- `initialize(options)`
 - `track(eventName, properties = null)`
 - `setUserId(userId, userKey = null)`
 - `setUserAttributes(userAttributes)`

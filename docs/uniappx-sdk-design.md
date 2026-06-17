@@ -110,7 +110,7 @@ app.use(gioUniappxAutotracker, {
 
 ### 函数式 API
 
-- `init(options)`
+- `initialize(options)`
 - `track(eventName, properties = null)`
 - `identify(assignmentId)`
 - `setUserId(userId, userKey = null)`
@@ -524,7 +524,7 @@ UTS 约束说明：
 
 ## 13. 当前基线的验收标准
 
-- 应用可以通过 `plugin.uts` 或直接 `init` 初始化 SDK
+- 应用可以通过 `plugin.uts`（`app.use`）或直接 `initialize` 初始化 SDK
 - 新 session 创建时能发出 `VISIT`
 - 页面显示时能发出 `PAGE`
 - 应用退后台时能发出 `APP_CLOSED`
