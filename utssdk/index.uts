@@ -37,14 +37,17 @@ export function setUserKey (userKey : string) : boolean {
   return tracker.setUserKey(userKey)
 }
 
-export function registerPlugins (plugins : Array<any>) : boolean {
-  // The JS bridge passes plain objects (UTSJSONObject elements). Force-casting
-  // the whole array `as Array<GioPluginItem>` triggers Swift `_arrayForceCast`
-  // which fails at runtime (elements aren't GioPluginItem instances) → SIGABRT
-  // on startup. Convert element-by-element instead, reading the typed fields.
+export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
+  // Param MUST be typed `Array<UTSJSONObject>` (not `Array<any>`): the uni-app-x
+  // JS↔UTS bridge only marshals JS objects into real UTSJSONObject when the
+  // declared type says so (same as trackByJs's `UTSJSONObject?`). With
+  // `Array<any>` the elements arrive as raw bridge values, and reading them as
+  // UTSJSONObject (`plugins[i] as! UTSJSONObject`) crashes at runtime
+  // (swift_dynamicCastFailure → SIGABRT on startup). The whole-array
+  // `as Array<GioPluginItem>` cast was an even earlier form of the same crash.
   const items = [] as Array<GioPluginItem>
   for (let i = 0; i < plugins.length; i++) {
-    const raw = plugins[i] as UTSJSONObject
+    const raw = plugins[i]
     const nameValue = raw['name']
     if (nameValue == null) {
       continue
