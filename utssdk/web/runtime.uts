@@ -265,7 +265,7 @@ function getLocalKeys() : Array<string> {
     return [] as Array<string>
   }
   const keys = [] as Array<string>
-  const length = Number(storage.length != null ? storage.length : 0)
+  const length = storage.length != null ? (storage.length as number) : 0
   for (let i = 0; i < length; i++) {
     const key = storage.key(i)
     if (key != null) {
@@ -613,7 +613,7 @@ function isBeaconSupported() : boolean {
   try {
     const runtimeGlobal = window as any
     return runtimeGlobal.navigator != null &&
-      typeof runtimeGlobal.navigator.sendBeacon === 'function'
+      typeof runtimeGlobal.navigator.sendBeacon == 'function'
   } catch (_error) {
     return false
   }
