@@ -83,7 +83,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       : 'Gio uni-app-x SDK 初始化完成！'
   }
 
-  initialize(options : GioInitOptions) : boolean {
+  initialize(options : GioInitOptions, rawConfig : UTSJSONObject | null = null) : boolean {
     consoleText(this.getInitStartMessage(), 'info')
     if (
       isBlank(options.projectId) ||
@@ -100,7 +100,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       return false
     }
     this.options = resolvedOptions
-    syncConfigToGlobal(this.options)
+    syncConfigToGlobal(this.options, rawConfig)
     this.mpWeixinEnabled = isMpWeixinPlatform()
     this.storage.initialize(this.options)
     this.userStore.hydrate(this.options, this.storage)

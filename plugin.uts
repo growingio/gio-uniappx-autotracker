@@ -28,13 +28,8 @@ const lifecycle = defineMixin({
 
 export const gioUniappxAutotracker = definePlugin({
   install(app : VueApp, options : UTSJSONObject) {
-    // #ifdef WEB
-    try {
-      (globalThis as any)['_gio_raw_config'] = options
-    } catch (_error) {}
-    // #endif
     const initOptions = normalizeInitOptions(options)
-    tracker.initialize(initOptions)
+    tracker.initialize(initOptions, options)
     app.mixin(lifecycle)
   }
 })
