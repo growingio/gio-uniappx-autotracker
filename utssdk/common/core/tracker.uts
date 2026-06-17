@@ -22,7 +22,8 @@ import {
   isValidEventName,
   normalizeTrackProperties,
   now,
-  platformName
+  platformName,
+  verifyId
 } from '../utils.uts'
 import {
   isMpWeixinPlatform,
@@ -513,13 +514,20 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return false
     }
-    if (isBlank(userId)) {
+    if (!verifyId(userId)) {
+      consoleText('setUserId 参数不合法', 'error')
       return false
     }
+    const normalizedUserId = userId.trim().slice(0, 1000)
+    let normalizedUserKey = userKey != null ? (userKey as string).slice(0, 1000) : ''
+    if (!this.options!.idMapping && normalizedUserKey.length > 0) {
+      consoleText('您设置了 userKey ，请初始化开启 idMapping!', 'warn')
+      normalizedUserKey = ''
+    }
     const previousGioId = this.userStore.getGioId()
-    this.userStore.setUserId(userId)
-    this.userStore.setUserKey(userKey != null ? userKey : '')
-    if (previousGioId.length > 0 && previousGioId != userId) {
+    this.userStore.setUserId(normalizedUserId)
+    this.userStore.setUserKey(normalizedUserKey)
+    if (previousGioId.length > 0 && previousGioId != normalizedUserId) {
       this.userStore.renewSession(this.getSessionTimeoutMs())
     }
     return true

@@ -30,6 +30,7 @@ export type GioInitOptions = {
   forceLogin : boolean
   originalSource : boolean
   followShare : boolean
+  idMapping : boolean
 }
 }
 

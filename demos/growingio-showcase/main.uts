@@ -15,6 +15,7 @@ export function createApp() {
 			appVersion: '1.0.0',
 			debug: true,
 			forceLogin: false,
+			idMapping: false,
 		})
 		registerPlugins([
 			{

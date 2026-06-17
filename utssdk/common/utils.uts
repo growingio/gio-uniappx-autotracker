@@ -84,6 +84,22 @@ export function isBlank (value : string | null) : boolean {
   return value == null || value.length == 0
 }
 
+const INVALID_ID_VALUES = ['-', 'null', 'undefined']
+
+export function verifyId (value : string | null) : boolean {
+  if (isBlank(value)) {
+    return false
+  }
+  const trimmed = (value as string).trim()
+  if (trimmed.length == 0) {
+    return false
+  }
+  if (INVALID_ID_VALUES.includes(trimmed)) {
+    return false
+  }
+  return true
+}
+
 const EVENT_NAME_REG = /^[a-zA-Z_][0-9a-zA-Z_]{0,100}$/
 
 export function isValidEventName (eventName : string | null) : boolean {

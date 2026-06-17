@@ -56,7 +56,8 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     debug: readBooleanWithDefault(raw, 'debug', false),
     forceLogin: readBooleanWithDefault(raw, 'forceLogin', false),
     originalSource: readBooleanWithDefault(raw, 'originalSource', true),
-    followShare: followShare
+    followShare: followShare,
+    idMapping: readBooleanWithDefault(raw, 'idMapping', false)
   } as GioInitOptions
 }
 
