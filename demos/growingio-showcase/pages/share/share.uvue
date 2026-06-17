@@ -1,0 +1,83 @@
+<template>
+	<view class="page">
+		<text class="h2">分享 / 分享朋友圈 / 加收藏</text>
+		<text class="desc">
+			仅微信小程序端有效。本页用 SDK 的 wrap 包装器代理了自己的 onShareAppMessage /
+			onShareTimeline / onAddToFavorites，只有定义了这些钩子的页面才会被采集，
+			不会让其它页面平白多出转发菜单。
+		</text>
+
+		<view class="section">
+			<text class="section-title">操作建议</text>
+			<text class="step">1. 点右上角菜单「转发」，看请求里是否有 `$mp_on_share`。</text>
+			<text class="step">2. 点右上角菜单「分享到朋友圈」，看是否有 `$mp_share_timeline`。</text>
+			<text class="step">3. 点右上角菜单「收藏」，看是否有 `$mp_add_favorites`。</text>
+			<text class="step">4. 重点看 `$share_title` / `$share_path` / `$share_query`：handler 返回了就用返回值，否则兜底当前页。</text>
+		</view>
+
+		<!-- #ifdef MP-WEIXIN -->
+		<view class="section">
+			<text class="section-title">页面内转发按钮</text>
+			<button class="btn" open-type="share">转发给朋友（open-type=share）</button>
+			<text class="hint">{{ note }}</text>
+		</view>
+		<!-- #endif -->
+
+		<!-- #ifndef MP-WEIXIN -->
+		<view class="section">
+			<text class="hint">当前不是微信小程序端，分享 / 收藏能力不可用。</text>
+		</view>
+		<!-- #endif -->
+	</view>
+</template>
+
+<script lang="uts">
+// #ifdef MP-WEIXIN
+import { wrapShareAppMessage, wrapShareTimeline, wrapAddToFavorites } from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
+
+export default {
+	data() {
+		return {
+			note: '点右上角菜单或上面的按钮触发分享，去网络面板看事件。',
+		}
+	},
+	onLoad(options: any) {
+		const safeOptions = options != null ? options : ({} as UTSJSONObject)
+		console.log('[share] onLoad options=' + JSON.stringify(safeOptions))
+	},
+	// 仅微信小程序编译这三个钩子；用 SDK wrap 包装器代理本页自己的 handler，
+	// 既透传业务返回值给微信，又采集对应的分享 / 收藏事件。
+	// #ifdef MP-WEIXIN
+	onShareAppMessage: wrapShareAppMessage((options: any | null): any | null => {
+		return {
+			title: 'GrowingIO 分享演示',
+			path: '/pages/share/share?from=on_share',
+		} as UTSJSONObject
+	}),
+	onShareTimeline: wrapShareTimeline((): any | null => {
+		return {
+			title: 'GrowingIO 朋友圈演示',
+			query: 'from=on_timeline',
+		} as UTSJSONObject
+	}),
+	onAddToFavorites: wrapAddToFavorites((options: any | null): any | null => {
+		return {
+			title: 'GrowingIO 收藏演示',
+			path: '/pages/share/share?from=add_favorites',
+		} as UTSJSONObject
+	}),
+	// #endif
+}
+</script>
+
+<style>
+.page { padding: 20rpx; }
+.h2 { font-size: 32rpx; font-weight: bold; }
+.desc { font-size: 24rpx; color: #666; margin: 10rpx 0 20rpx; line-height: 1.6; }
+.section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.step { font-size: 24rpx; color: #555; line-height: 1.8; padding: 2rpx 0; }
+.btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx 32rpx; border-radius: 8rpx; margin: 6rpx 0; }
+.hint { font-size: 22rpx; color: #888; padding: 6rpx 0; }
+</style>

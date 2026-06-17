@@ -37,6 +37,12 @@
 					<text class="card-title">⑤ ABTest / registerPlugins / getABTest</text>
 					<text class="card-desc">当前插件层只考虑 gioABTest，先按小程序逻辑对齐。</text>
 				</view>
+				<!-- #ifdef MP-WEIXIN -->
+				<view class="card" @click="go('share')">
+					<text class="card-title">⑥ 分享 / 朋友圈 / 收藏（仅小程序）</text>
+					<text class="card-desc">wrap 包装本页 onShareAppMessage 等钩子，采集 $mp_on_share / $mp_share_timeline / $mp_add_favorites。</text>
+				</view>
+				<!-- #endif -->
 			</view>
 		</view>
 

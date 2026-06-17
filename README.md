@@ -19,6 +19,7 @@
 - `clearUserId()`
 - `registerPlugins(plugins)`
 - `getABTest(layerId, callback)`
+- `wrapShareAppMessage(handler)` / `wrapShareTimeline(handler)` / `wrapAddToFavorites(handler)`（仅 `mp-weixin`）
 
 当前允许的初始化配置只有：
 
@@ -29,7 +30,10 @@
 - `appVersion`
 - `debug`
 - `forceLogin`
+- `followShare`
 - `sessionExpires`
+
+`followShare` 控制小程序「分享 / 收藏」事件是否采集，**仅 `mp-weixin` 端生效**：初始化时 mp-weixin 默认 `true`（用户未显式关闭时），其余端一律置 `false`。
 
 其中 `sessionExpires` 单位为分钟，默认值如下：
 
@@ -39,6 +43,33 @@
 
 当前请求体已经按小程序独立 SDK 的核心风格对齐：上传时直接发送事件数组，请求 URL 带 `stm` / `compress` 查询参数，`CUSTOM` 事件使用 `eventName + attributes` 结构，`LOGIN_USER_ATTRIBUTES` 会单独作为用户属性事件发送，`sessionId` / `userId` / `userKey` 会在每次构建事件时直接从存储读取。
 其中 `mp-weixin` 会额外按独立 SDK 的思路补 `scene` 场景值读取，优先从启动上下文同步读取，并把结果写进事件的 `appChannel=scn:<scene>`。
+
+`mp-weixin` 还独有「分享 / 分享朋友圈 / 加收藏」三个事件。各端独有逻辑统一收敛到平台目录：实现与公开 API 都在 `utssdk/mp-weixin/share.uts`，公共层只通过 `GioShareHost` 暴露发事件 / 取页上下文 / 翻 `shareOut` / 读 `followShare` 等平台无关能力。
+
+对齐独立小程序 SDK「只代理已定义对应钩子的页面」：uni-app x 没有 `Page()` 构造拦截，而全局 mixin 注入 `onShareAppMessage` 会让**所有**页面都出现转发菜单。因此改为 **wrap 包装器**——业务页把自己的 handler 交给对应 wrap 函数，只有定义了钩子的页面才被代理、才采集，且能拿到业务方返回值：
+
+```ts
+// #ifdef MP-WEIXIN
+import { wrapShareAppMessage } from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
+export default {
+  // #ifdef MP-WEIXIN
+  onShareAppMessage: wrapShareAppMessage((options) => {
+    return { title: '...', path: '/pages/x/x?id=1' }
+  })
+  // #endif
+}
+```
+
+字段集对齐独立 SDK：
+
+- `onShareAppMessage` → `$mp_on_share`（`$from` / `$target` / `$share_title` / `$share_path` / `$share_query`），并置位 `shareOut`：分享给朋友往返期间 `onAppShow` 不重写 `originalSource` 首次来源，下一次 page `onShow` 复位。
+- `onShareTimeline` → `$mp_share_timeline`（`$target` / `$share_title` / `$share_path` / `$share_query`，无 `$from`）。
+- `onAddToFavorites` → `$mp_add_favorites`（`$share_title` / `$share_path` / `$share_query`）。
+
+`$share_title` / `$share_path` / `$share_query` 优先取业务方 handler 返回值（`path` 串按 `?` 拆出 path 与 query），**取不到则兜底当前页面**的 title / path / query；`$from` / `$target` 取自微信回传的 `options`。注：wrap 返回的包装函数不保留页面 `this`（与历史代理实现一致），handler 内请勿依赖 `this`。
+
+`demos/growingio-showcase` 有「分享 / 朋友圈 / 收藏」演示页（`pages/share/share`），入口仅在小程序端首页显示。
 
 以下旧能力已经不再对外透出，也不允许调用或传参：
 

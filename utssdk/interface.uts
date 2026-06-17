@@ -30,6 +30,7 @@ export type GioInitOptions = {
   debug : boolean | null
   forceLogin : boolean | null
   originalSource : boolean | null
+  followShare : boolean | null
   storageType : string | null
 }
 
@@ -140,4 +141,14 @@ export interface GioABTestHost {
   getContext() : GioContext | null
   getOptions() : GioInitOptions | null
   trackPluginEvent(eventName : string, properties : UTSJSONObject | null) : boolean
+}
+
+// 平台侧「分享 / 收藏」处理器所依赖的 host 能力，由 GioTracker 实现。把发事件、
+// 取当前页上下文、翻 shareOut、读 followShare 这些平台无关的能力暴露出去，使各端
+// 独有的事件名 / 字段集 / 翻转策略可以收敛到各自平台目录（如 mp-weixin），不进公共层。
+export interface GioShareHost {
+  isFollowShareEnabled() : boolean
+  getCurrentPageContext() : GioPageContext | null
+  setShareOut(value : boolean) : void
+  emitShareEvent(eventName : string, properties : UTSJSONObject | null) : void
 }

@@ -1,0 +1,170 @@
+import { GioPageContext, GioShareHost } from '../interface.uts'
+import { GioTracker } from '../common/core/tracker.uts'
+
+// 微信小程序独有的「分享 / 分享朋友圈 / 加收藏」采集。
+//
+// 对齐独立小程序 SDK「只代理已定义对应钩子的页面」：uni-app x 没有 Page() 构造拦截，
+// 且全局 mixin 注入 onShareAppMessage 会让**所有**页面都出现转发菜单——这与独立 SDK
+// 行为相悖。因此这里改为 wrap 包装器：业务页把自己的 onShareAppMessage / onShareTimeline /
+// onAddToFavorites 交给对应 wrap 函数，只有定义了钩子的页面才被代理、才采集，且能拿到
+// 业务方 handler 的返回值（title/path/query）。
+
+// 分享 / 收藏系统事件名 —— 与独立小程序 SDK 一致（带 `$` 前缀，属系统事件，
+// 不走 track() 的事件名校验，经 host.emitShareEvent 内部直发）。
+const MP_EVENT_ON_SHARE = '$mp_on_share'
+const MP_EVENT_SHARE_TIMELINE = '$mp_share_timeline'
+const MP_EVENT_ADD_FAVORITES = '$mp_add_favorites'
+
+function readShareString(source : any | null, key : string) : string | null {
+  if (source == null) {
+    return null
+  }
+  const value = (source as UTSJSONObject)[key]
+  if (value == null) {
+    return null
+  }
+  const text = `${value}`
+  return text.length > 0 ? text : null
+}
+
+// 安全读取 options.target.id —— options / target 任一为空都回 null，避免对 null 做下标访问。
+function readShareTargetId(options : any | null) : string | null {
+  if (options == null) {
+    return null
+  }
+  const target = (options as UTSJSONObject)['target']
+  return readShareString(target, 'id')
+}
+
+// 构建分享 / 收藏事件属性。字段集严格按 eventName 分支，对齐独立 SDK
+// `gio-miniprogram-autotracker/src/core/dataStore/index.ts:672-763`：
+//   - `$mp_on_share`        → $from / $target / $share_title / $share_path / $share_query
+//   - `$mp_share_timeline`  → $target / $share_title / $share_path / $share_query（无 $from）
+//   - `$mp_add_favorites`   → $share_title / $share_path / $share_query（无 $from / $target）
+//
+// 取数：$share_title / $share_path / $share_query 优先取业务方 handler 的返回值
+// （shareResult，对齐独立 `updateResult`：path 串按 `?` 拆出 path 与 query），取不到则
+// 兜底当前页面的 title / path / query。$from / $target 取自微信回传的 options（仅
+// onShareAppMessage 形如 { from, target }）。仅写入非空字段，遵循项目「显式 null」约定。
+function buildShareEventProps(
+  eventName : string,
+  shareResult : any | null,
+  options : any | null,
+  pageContext : GioPageContext | null
+) : UTSJSONObject {
+  const currentTitle = pageContext != null ? pageContext.title : null
+  const currentPath = pageContext != null ? pageContext.path : ''
+  const currentQuery = pageContext != null ? pageContext.query : null
+
+  const props = {} as UTSJSONObject
+
+  const resultTitle = readShareString(shareResult, 'title')
+  const shareTitle = resultTitle != null ? resultTitle : currentTitle
+  if (shareTitle != null) {
+    props['$share_title'] = shareTitle
+  }
+
+  // 业务返回的 path 可能带 query（`/pages/x?a=1`），按 `?` 拆开；拆不出则兜底当前页。
+  const resultPath = readShareString(shareResult, 'path')
+  let sharePath : string | null = null
+  let shareQuery : string | null = null
+  if (resultPath != null) {
+    const queryIndex = resultPath.indexOf('?')
+    if (queryIndex >= 0) {
+      sharePath = resultPath.slice(0, queryIndex)
+      const tail = resultPath.slice(queryIndex + 1)
+      shareQuery = tail.length > 0 ? tail : null
+    } else {
+      sharePath = resultPath
+    }
+  }
+  if (sharePath == null && currentPath.length > 0) {
+    sharePath = currentPath
+  }
+  if (shareQuery == null) {
+    shareQuery = currentQuery
+  }
+  if (sharePath != null) {
+    props['$share_path'] = sharePath
+  }
+  if (shareQuery != null && shareQuery.length > 0) {
+    props['$share_query'] = shareQuery
+  }
+
+  if (eventName == MP_EVENT_ON_SHARE) {
+    const from = readShareString(options, 'from')
+    if (from != null) {
+      props['$from'] = from
+    }
+    const target = readShareTargetId(options)
+    if (target != null) {
+      props['$target'] = target
+    }
+  } else if (eventName == MP_EVENT_SHARE_TIMELINE) {
+    const target = readShareTargetId(options)
+    if (target != null) {
+      props['$target'] = target
+    }
+  }
+  return props
+}
+
+// 翻转 shareOut（仅 onShareAppMessage）+ 按 followShare 门控后发事件。
+// 翻位发生在 followShare 检查之外 —— 对齐独立 SDK：用户分享给朋友离开小程序的事实与
+// 是否采集事件无关。
+function emitShare(
+  eventName : string,
+  shareResult : any | null,
+  options : any | null,
+  flipShareOut : boolean
+) {
+  const host : GioShareHost = GioTracker.getInstance()
+  if (flipShareOut) {
+    host.setShareOut(true)
+  }
+  if (!host.isFollowShareEnabled()) {
+    return
+  }
+  host.emitShareEvent(
+    eventName,
+    buildShareEventProps(eventName, shareResult, options, host.getCurrentPageContext())
+  )
+}
+
+export type GioShareAppMessageHandler = (options : any | null) => any | null
+export type GioShareTimelineHandler = () => any | null
+export type GioAddToFavoritesHandler = (options : any | null) => any | null
+
+// 包装页面的 onShareAppMessage：调用业务 handler 取返回值后采集 $mp_on_share，
+// 并原样透传返回值给微信（不改变实际转发内容）。
+export function wrapShareAppMessage(
+  handler : GioShareAppMessageHandler | null
+) : GioShareAppMessageHandler {
+  return (options : any | null) : any | null => {
+    const result = handler != null ? handler(options) : null
+    emitShare(MP_EVENT_ON_SHARE, result, options, true)
+    return result
+  }
+}
+
+// 包装页面的 onShareTimeline：朋友圈不离开小程序进程，不翻 shareOut。
+export function wrapShareTimeline(
+  handler : GioShareTimelineHandler | null
+) : GioShareTimelineHandler {
+  return () : any | null => {
+    const result = handler != null ? handler() : null
+    emitShare(MP_EVENT_SHARE_TIMELINE, result, null, false)
+    return result
+  }
+}
+
+// 包装页面的 onAddToFavorites：收藏不离开小程序进程，不翻 shareOut。
+export function wrapAddToFavorites(
+  handler : GioAddToFavoritesHandler | null
+) : GioAddToFavoritesHandler {
+  return (options : any | null) : any | null => {
+    const result = handler != null ? handler(options) : null
+    emitShare(MP_EVENT_ADD_FAVORITES, result, options, false)
+    return result
+  }
+}

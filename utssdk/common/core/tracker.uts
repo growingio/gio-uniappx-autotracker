@@ -6,6 +6,7 @@ import {
   GioInitOptions,
   GioPluginItem,
   GioPageContext,
+  GioShareHost,
   GioStorageProvider,
   GioTrackEvent
 } from '../../interface.uts'
@@ -38,7 +39,7 @@ import {
 import { GioStorageContainer } from '../storage/index.uts'
 import { resolvePageRoute } from '../route.uts'
 
-export class GioTracker implements GioABTestHost {
+export class GioTracker implements GioABTestHost, GioShareHost {
   static sharedInstance : GioTracker | null = null
 
   static getInstance() : GioTracker {
@@ -61,6 +62,11 @@ export class GioTracker implements GioABTestHost {
   private mpWeixinEnabled : boolean = false
   private miniProgramScene : string = ''
   private currentPageShown : boolean = false
+  // 分享往返标记：平台侧分享包装器在「分享给朋友」时经 setShareOut(true) 置位
+  // （见 mp-weixin/share.uts）。对齐独立 SDK appEffects.ts:59 —— 置位期间 onAppShow
+  // 不重写 originalSource，避免分享回流入口被当作首次来源；每次 page onShow 复位。
+  // 非小程序端不会置位，恒为 false，守门为空操作。
+  private shareOut : boolean = false
 
   private constructor() {}
 
@@ -410,6 +416,37 @@ export class GioTracker implements GioABTestHost {
     return true
   }
 
+  // ── GioShareHost：分享 / 收藏的平台无关能力 ──
+  // 具体的事件名、字段集、shareOut 翻转策略由平台侧分享包装器决定
+  // （见 utssdk/mp-weixin/share.uts），公共层只暴露这些通用能力并保存 shareOut 状态。
+
+  isFollowShareEnabled() : boolean {
+    return this.options != null && this.options.followShare == true
+  }
+
+  getCurrentPageContext() : GioPageContext | null {
+    return this.buildCurrentPageContext(null)
+  }
+
+  setShareOut(value : boolean) {
+    this.shareOut = value
+  }
+
+  emitShareEvent(eventName : string, properties : UTSJSONObject | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const pageContext = this.buildCurrentPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      eventName,
+      'CUSTOM',
+      normalizeTrackProperties(properties),
+      pageContext,
+      true
+    )
+  }
+
   private resolveABTestOptions(
     rawOptions : UTSJSONObject | null
   ) : GioABTestPluginOptions {
@@ -614,6 +651,8 @@ export class GioTracker implements GioABTestHost {
       return
     }
     this.currentPageShown = true
+    // 对齐独立 SDK pageEffects.ts:154：每次 page onShow 复位 shareOut。
+    this.shareOut = false
     const pageContext = this.updateCurrentPage(page, null)
     this.logLifecycle('page', 'onShow', pageContext)
     this.dispatchFirstPageWhenReady(pageContext)
@@ -644,7 +683,11 @@ export class GioTracker implements GioABTestHost {
       return
     }
     this.currentPageShown = true
-    this.dataStore.maybeStoreOriginalSource(this.buildCurrentPageContext(null))
+    // 对齐独立 SDK appEffects.ts:59：分享往返 (shareOut) 期间不重写 originalSource，
+    // 避免「分享给朋友」回流的入口信息覆盖首次来源。
+    if (!this.shareOut) {
+      this.dataStore.maybeStoreOriginalSource(this.buildCurrentPageContext(null))
+    }
     this.maybeEmitVisit(this.buildCurrentPageContext(null))
     this.flushPendingEvents()
   }
