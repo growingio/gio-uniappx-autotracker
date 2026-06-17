@@ -38,7 +38,24 @@ export function setUserKey (userKey : string) : boolean {
 }
 
 export function registerPlugins (plugins : Array<any>) : boolean {
-  return tracker.registerPlugins(plugins as Array<GioPluginItem>)
+  // The JS bridge passes plain objects (UTSJSONObject elements). Force-casting
+  // the whole array `as Array<GioPluginItem>` triggers Swift `_arrayForceCast`
+  // which fails at runtime (elements aren't GioPluginItem instances) → SIGABRT
+  // on startup. Convert element-by-element instead, reading the typed fields.
+  const items = [] as Array<GioPluginItem>
+  for (let i = 0; i < plugins.length; i++) {
+    const raw = plugins[i] as UTSJSONObject
+    const nameValue = raw['name']
+    if (nameValue == null) {
+      continue
+    }
+    const optionsValue = raw['options']
+    items.push({
+      name: `${nameValue}`,
+      options: optionsValue != null ? (optionsValue as UTSJSONObject) : null
+    } as GioPluginItem)
+  }
+  return tracker.registerPlugins(items)
 }
 
 export function getABTest(
