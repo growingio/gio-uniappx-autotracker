@@ -7,6 +7,7 @@
 - UTS 官方文档：<https://doc.dcloud.net.cn/uni-app-x/uts/>
 - UTS 与 TypeScript 差异：<https://doc.dcloud.net.cn/uni-app-x/uts/uts_diff_ts.html>
 - UTS 插件开发规范：<https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html>
+- 项目 UTS 编码规范：[docs/uts-coding-guidelines.md](docs/uts-coding-guidelines.md)
 
 以上文档是本项目的强约束来源。实现、重构、修复、补 demo、补文档时，都必须优先服从这些规则，不能按普通 TypeScript / JavaScript 习惯自行放宽。
 
