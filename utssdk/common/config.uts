@@ -1,5 +1,4 @@
 import { GioInitOptions } from '../interface.uts'
-import { platformName } from './utils.uts'
 
 export const SDK_VERSION = '0.1.0'
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
@@ -53,12 +52,10 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     appId: readRequiredString(raw, 'appId'),
     serverUrl: serverUrl,
     appVersion: readNullableString(raw, 'appVersion'),
-    cookieDomain: readNullableString(raw, 'cookieDomain'),
     debug: readBooleanWithDefault(raw, 'debug', false),
     forceLogin: readBooleanWithDefault(raw, 'forceLogin', false),
     originalSource: readBooleanWithDefault(raw, 'originalSource', true),
-    followShare: followShare,
-    storageType: readNullableString(raw, 'storageType')
+    followShare: followShare
   } as GioInitOptions
 }
 
@@ -77,17 +74,6 @@ class GioConfigData {
   private constructor() {}
 
   setOptions(options : GioInitOptions) {
-    // debug/forceLogin/originalSource/followShare are now plain booleans whose
-    // defaults are resolved in normalizeInitOptions (see note there). Only the
-    // nullable-string fields still need defaulting here.
-    if (options.cookieDomain == null) {
-      options.cookieDomain = ''
-    }
-    if (options.storageType == null || options.storageType.length == 0) {
-      options.storageType = platformName() == 'web' ? 'cookie' : 'localstorage'
-    } else {
-      options.storageType = options.storageType.toLowerCase()
-    }
     if (options.appVersion == null || options.appVersion.length == 0) {
       options.appVersion = DEFAULT_APP_VERSION
     }
