@@ -1,6 +1,7 @@
 import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
 import { buildCollectUrl, debugLog } from '../utils.uts'
+import { resolveEventSender } from '../runtime/index.uts'
 
 export class GioUploader {
   private options : GioInitOptions | null = null
@@ -165,8 +166,37 @@ export class GioUploader {
     this.inflight = true
     debugLog(options.debug as boolean, 'request payload', requestData)
 
+    const collectUrl = `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`
+    const sender = resolveEventSender()
+    if (sender != null) {
+      (sender as any).sendEvent(
+        collectUrl,
+        requestData,
+        () => {
+          if (this.onFlushSuccess != null) {
+            this.onFlushSuccess(batch)
+          }
+          this.pending.splice(0, batch.length)
+          if (success != null) {
+            success()
+          }
+          this.inflight = false
+          if (this.pending.length > 0) {
+            this.flush(null, null)
+          }
+        },
+        () => {
+          this.inflight = false
+          if (fail != null) {
+            fail()
+          }
+        }
+      )
+      return true
+    }
+
     uni.request({
-      url: `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`,
+      url: collectUrl,
       method: 'POST',
       dataType: 'text',
       timeout: DEFAULT_REQUEST_TIMEOUT_MS,

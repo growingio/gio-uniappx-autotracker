@@ -23,10 +23,20 @@ type GioEventShaper = {
   shapeTrackEvent : (event : GioTrackEvent) => GioTrackEvent
 }
 
+type GioEventSender = {
+  sendEvent : (
+    url : string,
+    data : Array<UTSJSONObject>,
+    onSuccess : (() => void) | null,
+    onFail : (() => void) | null
+  ) => void
+}
+
 let registeredStorageFactory : GioPlatformStorageFactory | null = null
 let registeredPageContextResolver : GioPageContextResolver | null = null
 let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
 let registeredEventShaper : GioEventShaper | null = null
+let registeredEventSender : GioEventSender | null = null
 
 export const registerPlatformStorageFactory = function (
   factory : GioPlatformStorageFactory | null
@@ -50,6 +60,16 @@ export const registerEventShaper = function (
   shaper : GioEventShaper | null
 ) {
   registeredEventShaper = shaper
+}
+
+export const registerEventSender = function (
+  sender : GioEventSender | null
+) {
+  registeredEventSender = sender
+}
+
+export const resolveEventSender = function () : GioEventSender | null {
+  return registeredEventSender
 }
 
 export const resolveMainStorage = function (
