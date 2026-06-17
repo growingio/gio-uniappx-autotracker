@@ -252,11 +252,21 @@ export class GioABTestPlugin {
       } as UTSJSONObject,
       timeout: this.requestTimeout,
       success: (res) => {
+        // 4xx/5xx：uni.request 各端都走 success（带 statusCode），与独立 web 裸 XHR 走 fail
+        // 不同。按 ADR-014/015，传输层失败一律回 stale（上一次存储的实验数据），且仍写 sign
+        // 节流（复刻独立 web xhr.onload 的节流）。无缓存时 originData 已是 {}，首访失败不变。
+        if (res.statusCode >= 400) {
+          consoleText(`获取ABTest数据失败! 请求状态码 ${res.statusCode}!`, 'error')
+          niceCallback(callback, originData)
+          this.updateSign(this.getHashKey(layerId))
+          return
+        }
         const data = readObject(res.data)
         const code = data.getNumber('code', -1)
         if (code == 0) {
           this.experimentVerify(layerId, data, originData, callback)
         } else {
+          // 业务失败（2xx 但 code!=0）：有意保持回 {}（ADR-014 §80：业务失败仍回 {}）。
           const errorMsg = data['errorMsg'] != null ? `${data['errorMsg']}` : ''
           consoleText(`获取ABTest数据失败! ${errorMsg}!`, 'error')
           niceCallback(callback, {} as UTSJSONObject)
@@ -265,17 +275,21 @@ export class GioABTestPlugin {
       },
       fail: (err) => {
         const errMsg = readRequestErrorMessage(err)
+        // 有意偏离 standalone（独立 web/mp 超时回 {}）：本仓库回 stale，让接口超时不丢已生效
+        // 实验配置（ADR-015 §F）。超时不写 sign（对齐独立 xhr.ontimeout 不节流）。
         if (errMsg.indexOf('timeout') >= 0) {
           consoleText('获取ABTest数据失败! 请求超时!', 'error')
-          niceCallback(callback, {} as UTSJSONObject)
+          niceCallback(callback, originData)
           return
         }
+        // 网络错误：按单次请求链路重试，不写 sign（对齐独立 xhr.onerror）。
         if (retryCount < 2) {
           this.initiateRequest(layerId, originData, callback, retryCount + 1)
           return
         }
+        // 有意偏离 standalone（独立重试耗尽回 {}）：本仓库回 stale（ADR-015 §F）。
         consoleText(`获取ABTest数据失败! ${errMsg.slice(0, 30)}!`, 'error')
-        niceCallback(callback, {} as UTSJSONObject)
+        niceCallback(callback, originData)
       }
     })
   }
