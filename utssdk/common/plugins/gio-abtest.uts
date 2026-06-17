@@ -237,7 +237,7 @@ export class GioABTestPlugin {
     const opts = options as GioInitOptions
     const ctx = context as GioContext
     const newDevice = this.resolveNewDevice(ctx)
-    uni.request({
+    uni.request<UTSJSONObject>({
       url: this.url,
       header: {
         'Content-Type': 'application/x-www-form-urlencoded'
@@ -251,7 +251,13 @@ export class GioABTestPlugin {
         newDevice: newDevice
       } as UTSJSONObject,
       timeout: this.requestTimeout,
-      success: (res) => {
+      // error17: uni.request's generic T (RequestOptions<T>, T only on `success`) must
+      // be pinned with a CONCRETE type, not `any` — `RequestSuccess<any>` still infers
+      // RequestOptions<String> and is rejected on Android. The json default returns an
+      // object, so pin T = UTSJSONObject on BOTH the call (`uni.request<UTSJSONObject>`)
+      // and the success param. (uploader.uts uses the concrete <string> because its
+      // dataType:'text' returns text.) res.data is then a real UTSJSONObject.
+      success: (res : RequestSuccess<UTSJSONObject>) => {
         // 4xx/5xx：uni.request 各端都走 success（带 statusCode），与独立 web 裸 XHR 走 fail
         // 不同。按 ADR-014/015，传输层失败一律回 stale（上一次存储的实验数据），且仍写 sign
         // 节流（复刻独立 web xhr.onload 的节流）。无缓存时 originData 已是 {}，首访失败不变。
