@@ -34,7 +34,7 @@ const SPECIAL_TOP_DOMAIN_PREFIXES = [
 
 function getRuntimeDocument() : any | null {
   try {
-    const runtimeGlobal = globalThis as any
+    const runtimeGlobal = window as any
     return runtimeGlobal.document != null ? runtimeGlobal.document : null
   } catch (_error) {
     return null
@@ -43,7 +43,7 @@ function getRuntimeDocument() : any | null {
 
 function getRuntimeLocation() : any | null {
   try {
-    const runtimeGlobal = globalThis as any
+    const runtimeGlobal = window as any
     return runtimeGlobal.location != null ? runtimeGlobal.location : null
   } catch (_error) {
     return null
@@ -52,7 +52,7 @@ function getRuntimeLocation() : any | null {
 
 function getRuntimeLocalStorage() : any | null {
   try {
-    const runtimeGlobal = globalThis as any
+    const runtimeGlobal = window as any
     return runtimeGlobal.localStorage != null ? runtimeGlobal.localStorage : null
   } catch (_error) {
     return null
@@ -487,7 +487,7 @@ function resolveBrowserPageContext(
 
 function readRawConfigField(key : string) : string | null {
   try {
-    const raw = (globalThis as any)['_gio_raw_config'] as UTSJSONObject | null
+    const raw = window['vdsConfig'] as UTSJSONObject | null
     if (raw == null) {
       return null
     }
@@ -574,7 +574,7 @@ registerRuntimeBehavior({
 registerConfigSyncer({
   syncConfig(options : GioInitOptions) {
     try {
-      const runtimeGlobal = globalThis as any
+      const runtimeGlobal = window as any
       const rawDomain = readRawConfigField('cookieDomain')
       const rawStorageType = readRawConfigField('storageType')
       runtimeGlobal['vds'] = {
@@ -611,7 +611,7 @@ registerEventShaper({
 
 function isBeaconSupported() : boolean {
   try {
-    const runtimeGlobal = globalThis as any
+    const runtimeGlobal = window as any
     return runtimeGlobal.navigator != null &&
       typeof runtimeGlobal.navigator.sendBeacon === 'function'
   } catch (_error) {
@@ -629,7 +629,7 @@ registerEventSender({
     const payload = JSON.stringify(data)
     if (isBeaconSupported()) {
       try {
-        const runtimeGlobal = globalThis as any
+        const runtimeGlobal = window as any
         const accepted = runtimeGlobal.navigator.sendBeacon(url, payload)
         if (accepted) {
           if (onSuccess != null) {

@@ -95,9 +95,10 @@ export function registerConfigSyncer (
 
 export function syncConfigToGlobal (options : GioInitOptions) {
   const syncer = registeredConfigSyncer
-  if (syncer != null) {
-    syncer.syncConfig(options)
+  if (syncer == null) {
+    return
   }
+  syncer.syncConfig(options)
 }
 
 export function resolveEventSender () : GioEventSender | null {

@@ -9,9 +9,9 @@
 			<view class="btn-row">
 				<button class="btn" @click="onSetUserId">setUserId(userId)</button>
 				<button class="btn" @click="onSetUserIdWithKey">setUserId(userId, userKey)</button>
-				<button class="btn subtle" @click="onSetUserKey">setUserKey(userKey)</button>
 				<button class="btn danger" @click="onClearUserId">clearUserId</button>
 			</view>
+			<text class="hint">当前 demo 初始化配置 `idMapping: false`，传入 userKey 只会打印 warning，不会写入后续事件。</text>
 		</view>
 
 		<view class="section">
@@ -74,7 +74,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { clearUserId, identify, setUserAttributes, setUserId, setUserKey } from '@/uni_modules/gio-uniappx-autotracker'
+import { clearUserId, identify, setUserAttributes, setUserId } from '@/uni_modules/gio-uniappx-autotracker'
 const userIdInput = ref('demo_user_001')
 const userKeyInput = ref('mobile')
 const identifyValidInput = ref('demo_openid_001')
@@ -94,11 +94,6 @@ function onSetUserId() {
 function onSetUserIdWithKey() {
 	const ok = setUserId(userIdInput.value, userKeyInput.value)
 	note('setUserId(' + userIdInput.value + ', ' + userKeyInput.value + ') → ' + ok)
-}
-
-function onSetUserKey() {
-	const ok = setUserKey(userKeyInput.value)
-	note('setUserKey(' + userKeyInput.value + ') → ' + ok)
 }
 
 function onClearUserId() {

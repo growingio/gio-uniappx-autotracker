@@ -104,6 +104,7 @@ app.use(gioUniappxAutotracker, {
   serverUrl,
   debug,
   forceLogin,
+  idMapping,
   sessionExpires
 })
 ```
@@ -115,7 +116,6 @@ app.use(gioUniappxAutotracker, {
 - `identify(assignmentId)`
 - `setUserId(userId, userKey = null)`
 - `setUserAttributes(userAttributes)`
-- `setUserKey(userKey)`
 - `clearUserId()`
 - `registerPlugins(plugins)`
 - `getABTest(layerId, callback = null)`
@@ -124,6 +124,7 @@ UTS 约束说明：
 
 - 为了避免落入 `undefined` 语义，所有“非必填”字段统一显式声明为 `| null`
 - 对外传入的配置对象不再依赖 `?` 可选属性
+- `idMapping` 默认 `false`；只有显式开启后，`setUserId(userId, userKey)` 里的 `userKey` 才会持久化并参与后续事件上报
 - `track` 直接按独立 SDK 风格使用 `track(eventName, properties)`
 - `flush`、`autoTrackLifecycle`、`requestTimeoutMs`、`maxQueueSize`、`storagePrefix`、`header` 都不再对外透出，也不允许传入初始化配置
 - 当前插件层只支持 `gioABTest`
@@ -477,7 +478,8 @@ UTS 约束说明：
 
 - 当前上报 body 已经按独立 SDK 的核心结构对齐为“事件数组直传”，不再包一层 `{ events: [...] }`
 - `CUSTOM` 事件会使用 `eventName + attributes` 结构；`VISIT` / `PAGE` / `APP_CLOSED` 不再额外带 `eventName`
-- `setUserId()` 不会单独发一条身份事件，而是更新存储中的 `userId` / `userKey`，必要时切换 session
+- `setUserId()` 不会单独发一条身份事件，而是更新存储中的 `userId`，并在 `idMapping = true` 时更新 `userKey`；必要时切换 session
+- 非法 `userId`（如空串、`null`、`undefined`、`-`）直接返回 `false`，不会借失败路径隐式清空当前登录态
 - `query` 当前按普通 query string 上报，不再序列化为 JSON 字符串
 - 设备信息和网络信息字段在事件构建前会先等待异步上下文 ready
 - `mp-weixin` 会优先读取启动上下文里的 `scene` / `wxShoppingListScene`，并把它映射到 `appChannel`
