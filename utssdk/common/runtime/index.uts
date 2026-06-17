@@ -43,6 +43,10 @@ type GioVisitSessionStore = {
   clear : () => void
 }
 
+type GioConfigSyncer = {
+  syncConfig : (options : GioInitOptions) => void
+}
+
 let registeredStorageFactory : GioPlatformStorageFactory | null = null
 let registeredPageContextResolver : GioPageContextResolver | null = null
 let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
@@ -51,6 +55,7 @@ let registeredEventSender : GioEventSender | null = null
 let registeredVisitSessionStore : GioVisitSessionStore | null = null
 // 未注册平台存储时的内存兜底（mp / app 用），承载首访 session 快照。
 let builtinVisitSessionId : string = ''
+let registeredConfigSyncer : GioConfigSyncer | null = null
 
 export function registerPlatformStorageFactory (
   factory : GioPlatformStorageFactory | null
@@ -80,6 +85,19 @@ export function registerEventSender (
   sender : GioEventSender | null
 ) {
   registeredEventSender = sender
+}
+
+export function registerConfigSyncer (
+  syncer : GioConfigSyncer | null
+) {
+  registeredConfigSyncer = syncer
+}
+
+export function syncConfigToGlobal (options : GioInitOptions) {
+  const syncer = registeredConfigSyncer
+  if (syncer != null) {
+    syncer.syncConfig(options)
+  }
 }
 
 export function resolveEventSender () : GioEventSender | null {

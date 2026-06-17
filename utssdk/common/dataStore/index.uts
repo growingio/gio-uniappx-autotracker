@@ -100,12 +100,10 @@ export class GioDataStore {
       appId: '',
       serverUrl: '',
       appVersion: null,
-      cookieDomain: null,
-      debug: null,
-      forceLogin: null,
-      originalSource: null,
-      followShare: null,
-      storageType: null,
+      debug: false,
+      forceLogin: false,
+      originalSource: true,
+      followShare: false
     } as GioInitOptions
   }
 

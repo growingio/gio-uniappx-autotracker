@@ -26,15 +26,10 @@ export type GioInitOptions = {
   appId : string
   serverUrl : string
   appVersion : string | null
-  cookieDomain : string | null
-  // UTS-iOS can't represent a nullable boolean (collapses `boolean | null` to a
-  // non-null `Bool = false`), so these stay plain booleans; their "unspecified"
-  // defaults are resolved in normalizeInitOptions (config.uts).
   debug : boolean
   forceLogin : boolean
   originalSource : boolean
   followShare : boolean
-  storageType : string | null
 }
 
 export type GioPluginItem = {

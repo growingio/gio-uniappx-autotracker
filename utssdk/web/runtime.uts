@@ -4,6 +4,7 @@ import {
   GioTrackEvent
 } from '../interface.uts'
 import {
+  registerConfigSyncer,
   registerEventShaper,
   registerEventSender,
   registerPageContextResolver,
@@ -60,7 +61,8 @@ function getRuntimeLocalStorage() : any | null {
 
 function decodeCookieValue(value : string) : string {
   try {
-    return decodeURIComponent(value)
+    const decoded = decodeURIComponent(value)
+    return decoded != null ? decoded : value
   } catch (_error) {
     return value
   }
@@ -68,7 +70,8 @@ function decodeCookieValue(value : string) : string {
 
 function encodeCookieValue(value : string) : string {
   try {
-    return encodeURIComponent(value)
+    const encoded = encodeURIComponent(value)
+    return encoded != null ? encoded : value
   } catch (_error) {
     return value
   }
@@ -482,14 +485,33 @@ function resolveBrowserPageContext(
   } as GioPageContext
 }
 
+function readRawConfigField(key : string) : string | null {
+  try {
+    const raw = (globalThis as any)['_gio_raw_config'] as UTSJSONObject | null
+    if (raw == null) {
+      return null
+    }
+    const value = raw[key]
+    if (value == null) {
+      return null
+    }
+    const text = `${value}`
+    return text.length > 0 ? text : null
+  } catch (_error) {
+    return null
+  }
+}
+
 registerPlatformStorageFactory({
-  createMainStorage(options : GioInitOptions, fallback : any) : any {
-    const requestedStorageType = options.storageType != null
-      ? options.storageType.toLowerCase()
+  createMainStorage(_options : GioInitOptions, fallback : any) : any {
+    const storageType = readRawConfigField('storageType')
+    const requestedStorageType = storageType != null
+      ? storageType.toLowerCase()
       : 'cookie'
     if (requestedStorageType == 'cookie') {
+      const rawDomain = readRawConfigField('cookieDomain')
       const cookieDomain = resolveCookieDomain(
-        options.cookieDomain != null ? options.cookieDomain : ''
+        rawDomain != null ? rawDomain : ''
       )
       if (cookieDomain.length > 0) {
         return createCookieStorage(cookieDomain)
@@ -549,6 +571,29 @@ registerRuntimeBehavior({
   }
 })
 
+registerConfigSyncer({
+  syncConfig(options : GioInitOptions) {
+    try {
+      const runtimeGlobal = globalThis as any
+      const rawDomain = readRawConfigField('cookieDomain')
+      const rawStorageType = readRawConfigField('storageType')
+      runtimeGlobal['vds'] = {
+        projectId: options.projectId,
+        dataSourceId: options.dataSourceId,
+        appId: options.appId,
+        serverUrl: options.serverUrl,
+        appVersion: options.appVersion,
+        cookieDomain: rawDomain != null ? rawDomain : '',
+        debug: options.debug,
+        forceLogin: options.forceLogin,
+        originalSource: options.originalSource,
+        followShare: options.followShare,
+        storageType: rawStorageType != null ? rawStorageType : 'cookie'
+      } as UTSJSONObject
+    } catch (_error) {}
+  }
+})
+
 registerEventShaper({
   shapeTrackEvent(event : GioTrackEvent) : GioTrackEvent {
     event.appChannel = null
@@ -557,7 +602,9 @@ registerEventShaper({
     event.networkState = null
     event.operatingSystem = null
     event.platform = 'web'
-    event.platformVersion = null
+    // Keep the web payload behavior of omitting platformVersion without
+    // widening the shared event contract used by mobile platforms.
+    event.platformVersion = ''
     return event
   }
 })

@@ -37,7 +37,8 @@ import {
   readVisitSessionSnapshot,
   recordVisitSessionSnapshot,
   scheduleVisitAndPage,
-  shouldTrackAppClosed
+  shouldTrackAppClosed,
+  syncConfigToGlobal
 } from '../runtime/index.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 import { resolvePageRoute } from '../route.uts'
@@ -102,6 +103,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       return false
     }
     this.options = resolvedOptions
+    syncConfigToGlobal(this.options)
     this.mpWeixinEnabled = isMpWeixinPlatform()
     this.storage.initialize(this.options)
     this.userStore.hydrate(this.options, this.storage)
