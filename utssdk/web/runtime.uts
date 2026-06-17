@@ -4,6 +4,7 @@ import {
   GioTrackEvent
 } from '../interface.uts'
 import {
+  registerConfigSyncer,
   registerEventShaper,
   registerEventSender,
   registerPageContextResolver,
@@ -59,7 +60,8 @@ function getRuntimeLocalStorage() : any | null {
 
 function decodeCookieValue(value : string) : string {
   try {
-    return decodeURIComponent(value)
+    const decoded = decodeURIComponent(value)
+    return decoded != null ? decoded : value
   } catch (_error) {
     return value
   }
@@ -67,7 +69,8 @@ function decodeCookieValue(value : string) : string {
 
 function encodeCookieValue(value : string) : string {
   try {
-    return encodeURIComponent(value)
+    const encoded = encodeURIComponent(value)
+    return encoded != null ? encoded : value
   } catch (_error) {
     return value
   }
@@ -530,6 +533,15 @@ registerRuntimeBehavior({
   }
 })
 
+registerConfigSyncer({
+  syncConfig(options : GioInitOptions) {
+    try {
+      const runtimeGlobal = globalThis as any
+      runtimeGlobal['_vds_config'] = options
+    } catch (_error) {}
+  }
+})
+
 registerEventShaper({
   shapeTrackEvent(event : GioTrackEvent) : GioTrackEvent {
     event.appChannel = null
@@ -538,7 +550,9 @@ registerEventShaper({
     event.networkState = null
     event.operatingSystem = null
     event.platform = 'web'
-    event.platformVersion = null
+    // Keep the web payload behavior of omitting platformVersion without
+    // widening the shared event contract used by mobile platforms.
+    event.platformVersion = ''
     return event
   }
 })
