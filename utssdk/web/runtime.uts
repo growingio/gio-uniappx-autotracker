@@ -484,14 +484,13 @@ function resolveBrowserPageContext(
   } as GioPageContext
 }
 
-let rawConfigStore : UTSJSONObject | null = null
-
 function readRawConfigField(key : string) : string | null {
   try {
-    if (rawConfigStore == null) {
+    const raw = window['_gio_raw_config'] as UTSJSONObject | null
+    if (raw == null) {
       return null
     }
-    const value = (rawConfigStore as UTSJSONObject)[key]
+    const value = raw[key]
     if (value == null) {
       return null
     }
@@ -573,9 +572,6 @@ registerConfigSyncer({
         storageType: rawStorageType != null ? rawStorageType : 'cookie'
       } as UTSJSONObject
     } catch (_error) {}
-  },
-  syncRawConfig(raw : UTSJSONObject) {
-    rawConfigStore = raw
   }
 })
 

@@ -10,7 +10,13 @@ const tracker = GioTracker.getInstance()
 // The app-facing root index.uts re-exports the plugin (in Vue context) instead.
 
 export function initialize (options : UTSJSONObject) : boolean {
-  return tracker.initialize(normalizeInitOptions(options), options)
+  // #ifdef WEB
+  try { window['_gio_raw_config'] = options } catch (_error) {}
+  // #endif
+  // #ifdef MP-WEIXIN
+  try { globalThis['_gio_raw_config'] = options } catch (_error) {}
+  // #endif
+  return tracker.initialize(normalizeInitOptions(options))
 }
 
 export function track(eventName : string, properties : UTSJSONObject | null = null) : boolean {

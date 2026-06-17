@@ -35,7 +35,6 @@ type GioEventSender = {
 
 type GioConfigSyncer = {
   syncConfig : (options : GioInitOptions) => void
-  syncRawConfig : (raw : UTSJSONObject) => void
 }
 
 let registeredStorageFactory : GioPlatformStorageFactory | null = null
@@ -81,15 +80,12 @@ export function registerConfigSyncer (
   registeredConfigSyncer = syncer
 }
 
-export function syncConfigToGlobal (options : GioInitOptions, raw : UTSJSONObject | null) {
+export function syncConfigToGlobal (options : GioInitOptions) {
   const syncer = registeredConfigSyncer
   if (syncer == null) {
     return
   }
   syncer.syncConfig(options)
-  if (raw != null) {
-    syncer.syncRawConfig(raw)
-  }
 }
 
 export function resolveEventSender () : GioEventSender | null {
