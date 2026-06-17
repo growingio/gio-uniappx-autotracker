@@ -81,44 +81,41 @@ export class GioABTestPlugin {
   constructor(tracker : GioABTestHost, options : GioABTestPluginOptions | null = null) {
     this.tracker = tracker
     this.storage = tracker.getStorage().getMainStorage()
-    this.timeoutCheck(options)
-    this.generateUrl(options != null ? options.abServerUrl : null)
-    const context = this.tracker.getContext()
-    this.visitSessionId = context != null ? context.sessionId : ''
-  }
 
-  private timeoutCheck(options : GioABTestPluginOptions | null) {
-    if (options == null) {
-      return
-    }
-    const requestInterval = options.requestInterval
-    if (requestInterval != null) {
-      const value = requestInterval as number
-      if (value >= 0 && value <= ABTEST_MAX_REQUEST_INTERVAL) {
-        this.requestInterval = value
+    // Inlined from the former timeoutCheck/generateUrl methods: Swift forbids
+    // calling an instance's OWN methods in a constructor before super.init(),
+    // and UTS emits those calls before it ("'self' used … before 'super.init'").
+    // Plain field assignments (and calls on the `tracker` field) are allowed.
+    if (options != null) {
+      const intervalValue = options.requestInterval
+      if (intervalValue != null) {
+        const value = intervalValue as number
+        if (value >= 0 && value <= ABTEST_MAX_REQUEST_INTERVAL) {
+          this.requestInterval = value
+        }
+      }
+      const timeoutValue = options.requestTimeout
+      if (timeoutValue != null) {
+        const value = timeoutValue as number
+        if (
+          value >= ABTEST_MIN_REQUEST_TIMEOUT &&
+          value <= ABTEST_MAX_REQUEST_TIMEOUT
+        ) {
+          this.requestTimeout = value
+        }
       }
     }
-    const requestTimeout = options.requestTimeout
-    if (requestTimeout != null) {
-      const value = requestTimeout as number
-      if (
-        value >= ABTEST_MIN_REQUEST_TIMEOUT &&
-        value <= ABTEST_MAX_REQUEST_TIMEOUT
-      ) {
-        this.requestTimeout = value
-      }
-    }
-  }
 
-  private generateUrl(abServerUrl : string | null) {
+    const abServerUrl = options != null ? options.abServerUrl : null
     const serverUrl = abServerUrl != null && abServerUrl.length > 0
       ? abServerUrl
       : ABTEST_DEFAULT_SERVER_URL
-    if (serverUrl.startsWith('http')) {
-      this.url = `${serverUrl}/diversion/specified-layer-variables`
-      return
-    }
-    this.url = `https://${serverUrl}/diversion/specified-layer-variables`
+    this.url = serverUrl.startsWith('http')
+      ? `${serverUrl}/diversion/specified-layer-variables`
+      : `https://${serverUrl}/diversion/specified-layer-variables`
+
+    const context = this.tracker.getContext()
+    this.visitSessionId = context != null ? context.sessionId : ''
   }
 
   private getHashKey(layerId : any) : number {
