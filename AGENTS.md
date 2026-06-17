@@ -23,7 +23,7 @@
 - 能用 `type` 明确表达的数据结构，不要为了 TS 习惯随手写 `interface` 并直接承接对象字面量。
 - 跨端公共逻辑优先收敛在 `utssdk/common`，平台入口只做必要的薄封装，不要无序分叉实现。
 - 用户身份相关字段 `sessionId`、`userId`、`userKey` 必须持久化到存储里，并且每次构建事件时都要从存储重新读取，不能只靠内存态维护。
-- 关键事件与公开能力基线必须保留：`VISIT`、`PAGE`、`APP_CLOSED`、`track`、`setUserId`、`setUserKey`、`clearUserId`、`identify`、`registerPlugins`、`getABTest`。
+- 关键事件与公开能力基线必须保留：`VISIT`、`PAGE`、`APP_CLOSED`、`track`、`setUserId`、`clearUserId`、`identify`、`registerPlugins`、`getABTest`。
 
 ## 验证规则
 

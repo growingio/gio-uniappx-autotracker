@@ -15,7 +15,6 @@
 - `setUserId(userId, userKey = null)`
 - `setUserAttributes(userAttributes)`
 - `identify(assignmentId)`
-- `setUserKey(userKey)`
 - `clearUserId()`
 - `registerPlugins(plugins)`
 - `getABTest(layerId, callback)`
@@ -30,8 +29,11 @@
 - `appVersion`
 - `debug`
 - `forceLogin`
+- `idMapping`
 - `followShare`
 - `sessionExpires`
+
+`idMapping` 控制 `setUserId(userId, userKey)` 里的 `userKey` 是否真正生效，默认 `false`。未开启时如果仍传入 `userKey`，SDK 只打印 warning，不会持久化，也不会带进后续事件。
 
 `followShare` 控制小程序「分享 / 收藏」事件是否采集，**仅 `mp-weixin` 端生效**：初始化时 mp-weixin 默认 `true`（用户未显式关闭时），其余端一律置 `false`。
 

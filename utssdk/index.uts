@@ -39,10 +39,6 @@ export function clearUserId () : boolean {
   return tracker.clearUserId()
 }
 
-export function setUserKey (userKey : string) : boolean {
-  return tracker.setUserKey(userKey)
-}
-
 export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
   // Param MUST be typed `Array<UTSJSONObject>` (not `Array<any>`): the uni-app-x
   // JS↔UTS bridge only marshals JS objects into real UTSJSONObject when the

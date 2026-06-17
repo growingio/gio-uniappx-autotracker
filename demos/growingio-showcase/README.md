@@ -8,7 +8,6 @@
 - `track`
 - `setUserId`
 - `setUserAttributes`
-- `setUserKey`
 - `clearUserId`
 - `identify`
 - `registerPlugins`
@@ -23,6 +22,7 @@
 - `appVersion`
 - `debug`
 - `forceLogin`
+- `idMapping`
 - `sessionExpires`
 
 对应源码见 [main.uts](/Users/anoiv/Workspace/gio-uniappx-autotracker/demos/growingio-showcase/main.uts)。
