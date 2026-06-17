@@ -25,7 +25,7 @@ const ABTEST_DATA_SUFFIX = '_gdp_abtd'
 
 function isEmptyLayerId(layerId : string | number) : boolean {
   if (typeof layerId === 'number') {
-    return (layerId as number) <= 0
+    return parseFloat(`${layerId}`) <= 0
   }
   return (layerId as string).length == 0
 }
