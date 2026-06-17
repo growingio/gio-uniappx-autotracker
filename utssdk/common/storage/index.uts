@@ -244,6 +244,10 @@ export class GioStorageEngine implements GioStorage {
     writeUniStorageRaw(key, wrappedValue)
   }
 
+  setRawItem(key : string, value : any) {
+    writeUniStorageRaw(key, `${value}`)
+  }
+
   removeItem(key : string) {
     removeUniStorageRaw(key)
   }

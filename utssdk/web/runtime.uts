@@ -274,22 +274,30 @@ function getCookieKeys() : Array<string> {
   return Object.keys(readCookieMap())
 }
 
-function createCookieStorage(domain : string) : any {
+function createCookieStorage(domain : string) : GioStorage {
   return {
-    getItem(key : string) : any {
+    getItem(key : string) : any | null {
       const cookieValue = readCookieMap()[getActualStorageKey(key)]
       if (cookieValue == null) {
         return null
       }
       return readDirectStorageValue(key, `${cookieValue}`)
     },
-    setItem(key : string, value : any, expiredAt : number | null = null) {
+    setItem(key : string, value : any, expiredAt : number | null) {
       writeCookie(
         getActualStorageKey(key),
         buildCookieStorageValue(key, value),
         expiredAt != null && expiredAt > 0
           ? expiredAt
           : getDefaultStorageExpiredAt(),
+        domain
+      )
+    },
+    setRawItem(key : string, value : any) {
+      writeCookie(
+        getActualStorageKey(key),
+        `${value}`,
+        getDefaultStorageExpiredAt(),
         domain
       )
     },
@@ -305,19 +313,22 @@ function createCookieStorage(domain : string) : any {
   }
 }
 
-function createLocalStorageAdapter() : any {
+function createLocalStorageAdapter() : GioStorage {
   return {
-    getItem(key : string) : any {
+    getItem(key : string) : any | null {
       return readStructuredStorageValue(
         key,
         readLocalItem(getActualStorageKey(key))
       )
     },
-    setItem(key : string, value : any, expiredAt : number | null = null) {
+    setItem(key : string, value : any, expiredAt : number | null) {
       writeLocalItem(
         getActualStorageKey(key),
         buildWrappedStorageValue(key, value, expiredAt)
       )
+    },
+    setRawItem(key : string, value : any) {
+      writeLocalItem(getActualStorageKey(key), `${value}`)
     },
     removeItem(key : string) {
       removeLocalItem(getActualStorageKey(key))

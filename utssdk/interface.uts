@@ -63,6 +63,7 @@ export type GioABTestCallback = (result : GioABTestResult | UTSJSONObject) => vo
 export interface GioStorage {
   getItem(key : string) : any | null
   setItem(key : string, value : any, expiredAt : number | null) : void
+  setRawItem(key : string, value : any) : void
   removeItem(key : string) : void
   hasItem(key : string) : boolean
   getKeys() : Array<string>
