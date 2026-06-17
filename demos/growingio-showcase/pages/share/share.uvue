@@ -34,6 +34,27 @@
 <script lang="uts">
 // #ifdef MP-WEIXIN
 import { wrapShareAppMessage, wrapShareTimeline, wrapAddToFavorites } from '@/uni_modules/gio-uniappx-autotracker'
+
+const handleShareAppMessage = wrapShareAppMessage((options: any | null): any | null => {
+	return {
+		title: 'GrowingIO 分享演示',
+		path: '/pages/share/share?from=on_share',
+	} as UTSJSONObject
+})
+
+const handleShareTimeline = wrapShareTimeline((): any | null => {
+	return {
+		title: 'GrowingIO 朋友圈演示',
+		query: 'from=on_timeline',
+	} as UTSJSONObject
+})
+
+const handleAddToFavorites = wrapAddToFavorites((options: any | null): any | null => {
+	return {
+		title: 'GrowingIO 收藏演示',
+		path: '/pages/share/share?from=add_favorites',
+	} as UTSJSONObject
+})
 // #endif
 
 export default {
@@ -49,24 +70,15 @@ export default {
 	// 仅微信小程序编译这三个钩子；用 SDK wrap 包装器代理本页自己的 handler，
 	// 既透传业务返回值给微信，又采集对应的分享 / 收藏事件。
 	// #ifdef MP-WEIXIN
-	onShareAppMessage: wrapShareAppMessage((options: any | null): any | null => {
-		return {
-			title: 'GrowingIO 分享演示',
-			path: '/pages/share/share?from=on_share',
-		} as UTSJSONObject
-	}),
-	onShareTimeline: wrapShareTimeline((): any | null => {
-		return {
-			title: 'GrowingIO 朋友圈演示',
-			query: 'from=on_timeline',
-		} as UTSJSONObject
-	}),
-	onAddToFavorites: wrapAddToFavorites((options: any | null): any | null => {
-		return {
-			title: 'GrowingIO 收藏演示',
-			path: '/pages/share/share?from=add_favorites',
-		} as UTSJSONObject
-	}),
+	onShareAppMessage(options: any | null): any | null {
+		return handleShareAppMessage(options)
+	},
+	onShareTimeline(): any | null {
+		return handleShareTimeline()
+	},
+	onAddToFavorites(options: any | null): any | null {
+		return handleAddToFavorites(options)
+	},
 	// #endif
 }
 </script>

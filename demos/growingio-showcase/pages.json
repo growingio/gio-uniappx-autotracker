@@ -36,6 +36,15 @@
 				"navigationBarTitleText": "ABTest / getABTest"
 			}
 		}
+		// #ifdef MP-WEIXIN
+		,
+		{
+			"path": "pages/share/share",
+			"style": {
+				"navigationBarTitleText": "分享 / 朋友圈 / 收藏"
+			}
+		}
+		// #endif
 	],
 	"globalStyle": {
 		"navigationBarTextStyle": "black",
