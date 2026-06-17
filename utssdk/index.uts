@@ -25,7 +25,7 @@ export const setUserAttributes = function (userAttributes : UTSJSONObject | null
   return tracker.setUserAttributes(userAttributes)
 }
 
-export const identify = function (assignmentId : string | number) : boolean {
+export const identify = function (assignmentId : any) : boolean {
   return tracker.identify(assignmentId)
 }
 
@@ -42,7 +42,7 @@ export const registerPlugins = function (plugins : Array<any>) : boolean {
 }
 
 export function getABTest(
-  layerId : string | number,
+  layerId : any,
   callback : ((result : any) => void) | null = null
 ) : boolean {
   return tracker.getABTest(layerId, callback)

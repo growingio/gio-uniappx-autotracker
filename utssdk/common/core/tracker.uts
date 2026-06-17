@@ -490,7 +490,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   getABTest(
-    layerId : string | number,
+    layerId : any,
     callback : GioABTestCallback | null = null
   ) : boolean {
     if (!this.ensureReady()) {
@@ -523,7 +523,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return true
   }
 
-  identify(assignmentId : string | number) : boolean {
+  identify(assignmentId : any) : boolean {
     if (!this.ensureReady()) {
       return false
     }
