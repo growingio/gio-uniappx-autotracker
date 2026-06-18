@@ -58,7 +58,9 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     forceLogin: readBooleanWithDefault(raw, 'forceLogin', false),
     originalSource: readBooleanWithDefault(raw, 'originalSource', true),
     followShare: followShare,
-    idMapping: readBooleanWithDefault(raw, 'idMapping', false)
+    idMapping: readBooleanWithDefault(raw, 'idMapping', false),
+    storageType: readNullableString(raw, 'storageType'),
+    cookieDomain: readNullableString(raw, 'cookieDomain')
   } as GioInitOptions
 }
 

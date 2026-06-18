@@ -1,0 +1,139 @@
+import {
+  clearUserId,
+  getABTest,
+  identify,
+  registerPlugins,
+  setOptions,
+  setUserAttributes,
+  setUserId,
+  track
+} from './utssdk/index.uts'
+import { GioGdpInitOptions } from './utssdk/interface.uts'
+import { consoleText } from './utssdk/common/utils.uts'
+import {
+  initializeGioTracker,
+  installGioLifecycle
+} from './plugin.uts'
+
+function isObjectArgument(value : any | null) : boolean {
+  return value != null && typeof value == 'object' && !Array.isArray(value)
+}
+
+function asJSONObject(value : any | null) : UTSJSONObject | null {
+  return isObjectArgument(value) ? value as UTSJSONObject : null
+}
+
+function asPluginItems(value : any | null) : Array<UTSJSONObject> | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+  return value as Array<UTSJSONObject>
+}
+
+function asCallback(
+  value : any | null
+) : ((result : any) => void) | null {
+  return typeof value == 'function'
+    ? value as (result : any) => void
+    : null
+}
+
+function handleInit(options : any | null) : boolean {
+  if (!isObjectArgument(options)) {
+    consoleText(
+      'gdp("init") 参数不合法，请传入包含 app 的初始化对象',
+      'error'
+    )
+    return false
+  }
+  const initOptions = options as GioGdpInitOptions
+  if (initOptions.app == null) {
+    consoleText('gdp("init") 缺少 app 参数', 'error')
+    return false
+  }
+  const rawOptions = {} as UTSJSONObject
+  rawOptions['projectId'] = initOptions.projectId
+  rawOptions['dataSourceId'] = initOptions.dataSourceId
+  rawOptions['appId'] = initOptions.appId
+  rawOptions['serverUrl'] = initOptions.serverUrl
+  rawOptions['appVersion'] = initOptions.appVersion
+  rawOptions['dataCollect'] = initOptions.dataCollect
+  rawOptions['debug'] = initOptions.debug
+  rawOptions['forceLogin'] = initOptions.forceLogin
+  rawOptions['originalSource'] = initOptions.originalSource
+  rawOptions['followShare'] = initOptions.followShare
+  rawOptions['idMapping'] = initOptions.idMapping
+  rawOptions['storageType'] = initOptions.storageType
+  rawOptions['cookieDomain'] = initOptions.cookieDomain
+  const initialized = initializeGioTracker(rawOptions)
+  if (!initialized) {
+    return false
+  }
+  return installGioLifecycle(initOptions.app)
+}
+
+export function gdp(
+  command : string,
+  arg0 : any | null = null,
+  arg1 : any | null = null,
+  arg2 : any | null = null
+) : any {
+  if (command == 'init') {
+    return handleInit(arg0)
+  }
+  if (command == 'track') {
+    if (typeof arg0 != 'string') {
+      consoleText('gdp("track") 第一个参数必须是事件名字符串', 'error')
+      return false
+    }
+    if (arg1 != null && !isObjectArgument(arg1)) {
+      consoleText('gdp("track") properties 必须是对象或 null', 'error')
+      return false
+    }
+    return track(arg0 as string, asJSONObject(arg1))
+  }
+  if (command == 'setUserId') {
+    if (typeof arg0 != 'string') {
+      consoleText('gdp("setUserId") 第一个参数必须是 userId 字符串', 'error')
+      return false
+    }
+    if (arg1 != null && typeof arg1 != 'string') {
+      consoleText('gdp("setUserId") 第二个参数必须是 userKey 字符串或 null', 'error')
+      return false
+    }
+    return setUserId(arg0 as string, arg1 != null ? `${arg1}` : null)
+  }
+  if (command == 'setOptions') {
+    if (!isObjectArgument(arg0)) {
+      consoleText('gdp("setOptions") 必须传入对象参数', 'error')
+      return false
+    }
+    return setOptions(arg0 as UTSJSONObject)
+  }
+  if (command == 'setUserAttributes') {
+    if (arg0 != null && !isObjectArgument(arg0)) {
+      consoleText('gdp("setUserAttributes") 必须传入对象或 null', 'error')
+      return false
+    }
+    return setUserAttributes(asJSONObject(arg0))
+  }
+  if (command == 'identify') {
+    return identify(arg0)
+  }
+  if (command == 'clearUserId') {
+    return clearUserId()
+  }
+  if (command == 'registerPlugins') {
+    const plugins = asPluginItems(arg0)
+    if (plugins == null) {
+      consoleText('gdp("registerPlugins") 必须传入插件数组', 'error')
+      return false
+    }
+    return registerPlugins(plugins)
+  }
+  if (command == 'getABTest') {
+    return getABTest(arg0, asCallback(arg1))
+  }
+  consoleText(`不存在名为 ${command} 的方法调用!`, 'error')
+  return false
+}

@@ -15,7 +15,7 @@ const SHOWCASE_BUNDLE = path.join(
   BUNDLE_NAME,
 );
 
-const ROOT_FILES = ['index.uts', 'plugin.uts', 'package.json', 'README.md', 'readme.md'];
+const ROOT_FILES = ['gdp.uts', 'index.uts', 'plugin.uts', 'package.json', 'README.md', 'readme.md'];
 const ROOT_DIRS = ['utssdk'];
 
 function log(message) {

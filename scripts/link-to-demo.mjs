@@ -15,7 +15,7 @@ const SHOWCASE_BUNDLE = path.join(
 // Files/dirs linked straight at the live source so HBuilderX always compiles
 // the latest code without a build step. uni_modules.json is derived from
 // package.json, so it is generated as a real file instead of linked.
-const LINK_FILES = ['index.uts', 'plugin.uts', 'package.json', 'README.md'];
+const LINK_FILES = ['gdp.uts', 'index.uts', 'plugin.uts', 'package.json', 'README.md'];
 const LINK_DIRS = ['utssdk'];
 
 function log(message) {

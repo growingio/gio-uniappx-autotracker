@@ -25,6 +25,7 @@ function ensureBundle() {
   }
 
   const required = [
+    'gdp.uts',
     'index.uts',
     'plugin.uts',
     'package.json',

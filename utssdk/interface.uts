@@ -32,6 +32,25 @@ export type GioInitOptions = {
   originalSource : boolean
   followShare : boolean
   idMapping : boolean
+  storageType : string | null
+  cookieDomain : string | null
+}
+
+export type GioGdpInitOptions = {
+  app : VueApp
+  projectId : string
+  dataSourceId : string
+  appId : string
+  serverUrl : string
+  appVersion : string | null
+  dataCollect : boolean
+  debug : boolean
+  forceLogin : boolean
+  originalSource : boolean
+  followShare : boolean
+  idMapping : boolean
+  storageType : string | null
+  cookieDomain : string | null
 }
 
 export type GioPluginItem = {
@@ -111,6 +130,7 @@ export type GioTrackEvent = {
   path : string | null
   platform : string
   platformVersion : string
+  protocolType : string | null
   query : string | null
   referralPage : string | null
   screenHeight : number

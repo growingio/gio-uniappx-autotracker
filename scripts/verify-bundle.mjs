@@ -11,6 +11,7 @@ const DIST_BUNDLE = path.join(
 );
 
 const REQUIRED_FILES = [
+  'gdp.uts',
   'index.uts',
   'plugin.uts',
   'package.json',

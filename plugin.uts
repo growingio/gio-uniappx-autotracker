@@ -2,6 +2,7 @@ import { normalizeInitOptions } from './utssdk/common/config.uts'
 import { GioTracker } from './utssdk/common/core/tracker.uts'
 
 const tracker = GioTracker.getInstance()
+let lifecycleInstalled = false
 
 const lifecycle = defineMixin({
   // @ts-ignore
@@ -26,16 +27,33 @@ const lifecycle = defineMixin({
   }
 })
 
-export const gioUniappxAutotracker = definePlugin({
+function bindInitOptions(rawOptions : UTSJSONObject) {
+  // #ifdef WEB
+  try { window['vdsConfig'] = rawOptions } catch (_error) {}
+  // #endif
+  // #ifdef MP-WEIXIN
+  try { globalThis['vdsConfig'] = rawOptions } catch (_error) {}
+  // #endif
+}
+
+export function installGioLifecycle(app : VueApp) : boolean {
+  if (lifecycleInstalled) {
+    return true
+  }
+  app.mixin(lifecycle)
+  lifecycleInstalled = true
+  return true
+}
+
+export function initializeGioTracker(rawOptions : UTSJSONObject) : boolean {
+  bindInitOptions(rawOptions)
+  const initOptions = normalizeInitOptions(rawOptions)
+  return tracker.initialize(initOptions)
+}
+
+const gioUniappxAutotracker = definePlugin({
   install(app : VueApp, options : UTSJSONObject) {
-    // #ifdef WEB
-    try { window['vdsConfig'] = options } catch (_error) {}
-    // #endif
-    // #ifdef MP-WEIXIN
-    try { globalThis['vdsConfig'] = options } catch (_error) {}
-    // #endif
-    const initOptions = normalizeInitOptions(options)
-    tracker.initialize(initOptions)
-    app.mixin(lifecycle)
+    initializeGioTracker(options)
+    installGioLifecycle(app)
   }
 })

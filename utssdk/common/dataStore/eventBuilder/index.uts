@@ -109,6 +109,7 @@ export class GioEventBuilder {
       path: path,
       platform: systemContext.platform,
       platformVersion: systemContext.platformVersion,
+      protocolType: null,
       query: query,
       referralPage: referralPage,
       screenHeight: systemContext.screenHeight,
