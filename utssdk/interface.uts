@@ -26,6 +26,7 @@ export type GioInitOptions = {
   appId : string
   serverUrl : string
   appVersion : string | null
+  dataCollect : boolean
   debug : boolean
   forceLogin : boolean
   originalSource : boolean

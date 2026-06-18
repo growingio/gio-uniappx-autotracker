@@ -338,6 +338,10 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return
     }
+    const options = this.options
+    if (options == null || options.dataCollect != true) {
+      return
+    }
     // 所有事件都必须等异步系统上下文 ready 后才能真正构建；
     // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
     this.dataStore.ensureSystemReady(() => {
@@ -367,6 +371,44 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       this.maybeEmitVisit(pageContext)
       this.emitPageEvent(pageContext)
     })
+  }
+
+  private normalizeSetOptions(raw : UTSJSONObject) : boolean | null {
+    const dataCollectValue = raw['dataCollect']
+    if (dataCollectValue == null) {
+      return null
+    }
+    if (typeof dataCollectValue == 'boolean') {
+      return dataCollectValue as boolean
+    }
+    return null
+  }
+
+  setOptions(raw : UTSJSONObject) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const dataCollect = this.normalizeSetOptions(raw)
+    if (dataCollect == null) {
+      consoleText(
+        'setOptions 参数不合法，请传入 { dataCollect: boolean }',
+        'error'
+      )
+      return false
+    }
+    if (this.options == null) {
+      return false
+    }
+    if (this.options.dataCollect == dataCollect) {
+      return true
+    }
+    this.options.dataCollect = dataCollect
+    this.dataStore.setDataCollect(dataCollect)
+    if (dataCollect) {
+      this.userStore.renewSession(this.getSessionTimeoutMs())
+    }
+    syncConfigToGlobal(this.options)
+    return true
   }
 
   private dispatchFirstPageWhenReady(pageContext : GioPageContext | null) {

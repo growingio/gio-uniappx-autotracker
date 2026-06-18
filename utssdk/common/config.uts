@@ -53,6 +53,7 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     appId: readRequiredString(raw, 'appId'),
     serverUrl: serverUrl,
     appVersion: readNullableString(raw, 'appVersion'),
+    dataCollect: readBooleanWithDefault(raw, 'dataCollect', true),
     debug: readBooleanWithDefault(raw, 'debug', false),
     forceLogin: readBooleanWithDefault(raw, 'forceLogin', false),
     originalSource: readBooleanWithDefault(raw, 'originalSource', true),

@@ -27,6 +27,10 @@ export function setUserId(userId : string, userKey : string | null = null) : boo
   return tracker.setUserId(userId, userKey)
 }
 
+export function setOptions (options : UTSJSONObject) : boolean {
+  return tracker.setOptions(options)
+}
+
 export function setUserAttributes (userAttributes : UTSJSONObject | null) : boolean {
   return tracker.setUserAttributes(userAttributes)
 }

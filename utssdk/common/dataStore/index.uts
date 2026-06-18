@@ -11,7 +11,8 @@ import {
   GioSessionIdUpdatePayload
 } from '../events.uts'
 import {
-  platformName
+  platformName,
+  consoleText
 } from '../utils.uts'
 import { resolvePageContext } from '../runtime/index.uts'
 import { GioUserStore } from '../userStore/index.uts'
@@ -100,11 +101,24 @@ export class GioDataStore {
       appId: '',
       serverUrl: '',
       appVersion: null,
+      dataCollect: true,
       debug: false,
       forceLogin: false,
       originalSource: true,
       followShare: false
     } as GioInitOptions
+  }
+
+  setDataCollect(dataCollect : boolean) {
+    if (this.options == null) {
+      return
+    }
+    this.options.dataCollect = dataCollect
+    if (dataCollect) {
+      consoleText('已开启数据采集', 'info')
+    } else {
+      consoleText('已关闭数据采集', 'info')
+    }
   }
 
   isSystemReady() : boolean {
