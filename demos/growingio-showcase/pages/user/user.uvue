@@ -11,12 +11,12 @@
 				<button class="btn" @click="onSetUserIdWithKey">setUserId(userId, userKey)</button>
 				<button class="btn danger" @click="onClearUserId">clearUserId</button>
 			</view>
-			<text class="hint">当前 demo 初始化配置 `idMapping: false`，传入 userKey 只会打印 warning，不会写入后续事件。</text>
+			<text class="hint">当前 demo 初始化配置 `idMapping: false`，通过 `gdp('setUserId', userId, userKey)` 传入 userKey 只会打印 warning，不会写入后续事件。</text>
 		</view>
 
 		<view class="section">
 			<text class="section-title">identify (forceLogin 模式)</text>
-			<text class="hint">identify 仅在初始化配置 forceLogin: true 时可用，用于将匿名访客绑定到已知用户 ID。当前初始化配置 forceLogin: false，下方用例预期全部失败。</text>
+			<text class="hint">identify 仅在初始化配置 forceLogin: true 时可用，用于将匿名访客绑定到已知用户 ID。当前初始化配置 forceLogin: false，下方 `gdp('identify', ...)` 用例预期全部失败。</text>
 			<text class="hint">如需测试正确场景，请先在 main.uts 中将 forceLogin 改为 true。</text>
 
 			<view class="sub-section">
@@ -62,7 +62,7 @@
 			<view class="btn-row">
 				<button class="btn subtle" @click="onSetUserAttributes">setUserAttributes({ key: value })</button>
 			</view>
-			<text class="hint">该调用会单独发送一条 LOGIN_USER_ATTRIBUTES 类型事件。</text>
+			<text class="hint">该调用会通过 `gdp('setUserAttributes', ...)` 单独发送一条 LOGIN_USER_ATTRIBUTES 类型事件。</text>
 		</view>
 
 		<view class="result">
@@ -74,7 +74,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { clearUserId, identify, setUserAttributes, setUserId } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
 const userIdInput = ref('demo_user_001')
 const userKeyInput = ref('mobile')
 const identifyValidInput = ref('demo_openid_001')
@@ -87,68 +87,68 @@ function note(msg: string) {
 }
 
 function onSetUserId() {
-	const ok = setUserId(userIdInput.value)
+	const ok = gdp('setUserId', userIdInput.value) as boolean
 	note('setUserId(' + userIdInput.value + ') → ' + ok)
 }
 
 function onSetUserIdWithKey() {
-	const ok = setUserId(userIdInput.value, userKeyInput.value)
+	const ok = gdp('setUserId', userIdInput.value, userKeyInput.value) as boolean
 	note('setUserId(' + userIdInput.value + ', ' + userKeyInput.value + ') → ' + ok)
 }
 
 function onClearUserId() {
-	const ok = clearUserId()
+	const ok = gdp('clearUserId') as boolean
 	note('clearUserId() → ' + ok)
 }
 
 function onIdentifyValid() {
-	const ok = identify(identifyValidInput.value)
+	const ok = gdp('identify', identifyValidInput.value) as boolean
 	note('identify(' + identifyValidInput.value + ') → ' + ok)
 }
 
 function onIdentifyNumber() {
-	const ok = identify(88001234)
+	const ok = gdp('identify', 88001234) as boolean
 	note('identify(88001234) → ' + ok)
 }
 
 function onIdentifyEmpty() {
-	const ok = identify('')
+	const ok = gdp('identify', '') as boolean
 	note("identify('') → " + ok)
 }
 
 function onIdentifyDash() {
-	const ok = identify('-')
+	const ok = gdp('identify', '-') as boolean
 	note("identify('-') → " + ok)
 }
 
 function onIdentifyNullStr() {
-	const ok = identify('null')
+	const ok = gdp('identify', 'null') as boolean
 	note("identify('null') → " + ok)
 }
 
 function onIdentifyUndefinedStr() {
-	const ok = identify('undefined')
+	const ok = gdp('identify', 'undefined') as boolean
 	note("identify('undefined') → " + ok)
 }
 
 function onIdentifyZero() {
-	const ok = identify(0)
+	const ok = gdp('identify', 0) as boolean
 	note('identify(0) → ' + ok)
 }
 
 function onIdentifyNegative() {
-	const ok = identify(-1)
+	const ok = gdp('identify', -1) as boolean
 	note('identify(-1) → ' + ok)
 }
 
 function onIdentifyRepeat() {
-	const first = identify('repeat_test_id')
-	const second = identify('repeat_test_id_2')
+	const first = gdp('identify', 'repeat_test_id') as boolean
+	const second = gdp('identify', 'repeat_test_id_2') as boolean
 	note('identify 第一次 → ' + first + '，第二次 → ' + second + '（预期第二次 false）')
 }
 
 function onIdentifyWhenDisabled() {
-	const ok = identify('should_fail')
+	const ok = gdp('identify', 'should_fail') as boolean
 	note('forceLogin=false 时 identify → ' + ok + '（预期 false）')
 }
 
@@ -160,7 +160,7 @@ function onSetUserAttributes() {
 	}
 	const attributes = {} as UTSJSONObject
 	attributes[key] = attributeValueInput.value
-	setUserAttributes(attributes)
+	gdp('setUserAttributes', attributes)
 	note('setUserAttributes({ ' + key + ': ' + attributeValueInput.value + ' })')
 }
 </script>

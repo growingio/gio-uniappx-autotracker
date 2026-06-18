@@ -8,17 +8,17 @@
 - `forceLogin` / `identify` 最小链路
 - `VISIT`、`PAGE`、`APP_CLOSED` 三个关键事件的基础上报
 
-当前对外 API 只有：
+当前对外 API 已收口为：
 
-- `initialize(options)`
-- `setOptions(options)`
-- `track(eventName, properties = null)`
-- `setUserId(userId, userKey = null)`
-- `setUserAttributes(userAttributes)`
-- `identify(assignmentId)`
-- `clearUserId()`
-- `registerPlugins(plugins)`
-- `getABTest(layerId, callback)`
+- `gdp('init', { app, ...options })`
+- `gdp('setOptions', options)`
+- `gdp('track', eventName, properties = null)`
+- `gdp('setUserId', userId, userKey = null)`
+- `gdp('setUserAttributes', userAttributes)`
+- `gdp('identify', assignmentId)`
+- `gdp('clearUserId')`
+- `gdp('registerPlugins', plugins)`
+- `gdp('getABTest', layerId, callback)`
 - `wrapShareAppMessage(handler)` / `wrapShareTimeline(handler)` / `wrapAddToFavorites(handler)`（仅 `mp-weixin`）
 
 当前允许的初始化配置只有：
@@ -30,20 +30,20 @@
 - `appVersion`
 - `debug`
 - `forceLogin`
+- `originalSource`
 - `idMapping`
 - `followShare`
-- `sessionExpires`
+- `storageType`
+- `cookieDomain`
 - `dataCollect`
 
 `idMapping` 控制 `setUserId(userId, userKey)` 里的 `userKey` 是否真正生效，默认 `false`。未开启时如果仍传入 `userKey`，SDK 只打印 warning，不会持久化，也不会带进后续事件。
 
 `followShare` 控制小程序「分享 / 收藏」事件是否采集，**仅 `mp-weixin` 端生效**：初始化时 mp-weixin 默认 `true`（用户未显式关闭时），其余端一律置 `false`。
 
-其中 `sessionExpires` 单位为分钟，默认值如下：
+`sessionExpires` 不再作为初始化配置对外暴露，session 过期策略由 SDK 内部按平台默认规则处理。
 
-- `web`：`30`
-- `mp-weixin`：`5`
-- `app-android` / `app-ios` / `app-harmony`：`0.5`
+`storageType` / `cookieDomain` 目前是 `web` 端专用的初始化项：`storageType` 默认 `cookie`，`cookieDomain` 只在 cookie 存储模式下生效。
 
 当前请求体已经按小程序独立 SDK 的核心风格对齐：上传时直接发送事件数组，请求 URL 带 `stm` / `compress` 查询参数，`CUSTOM` 事件使用 `eventName + attributes` 结构，`LOGIN_USER_ATTRIBUTES` 会单独作为用户属性事件发送，`sessionId` / `userId` / `userKey` 会在每次构建事件时直接从存储读取。
 其中 `mp-weixin` 会额外按独立 SDK 的思路补 `scene` 场景值读取，优先从启动上下文同步读取，并把结果写进事件的 `appChannel=scn:<scene>`。
@@ -85,12 +85,12 @@ export default {
 - `header`
 
 当前插件层只考虑 `gioABTest`，并且对外注册思路先按小程序独立 SDK 对齐。
-当前 `gioABTest` 只按单实例场景收敛，不考虑 `trackingId` 多实例能力；对外调用方式保持为 `registerPlugins([{ name: 'gioABTest', options }]) + getABTest(layerId, callback)`。
-当前不会额外提供 `createGioABTestPlugin(options)` 这类插件项工厂函数，注册入口只保留 `registerPlugins([...])`。
+当前 `gioABTest` 只按单实例场景收敛，不考虑 `trackingId` 多实例能力；对外调用方式保持为 `gdp('registerPlugins', [{ name: 'gioABTest', options }]) + gdp('getABTest', layerId, callback)`。
+当前不会额外提供 `createGioABTestPlugin(options)` 这类插件项工厂函数，注册入口只保留 `gdp('registerPlugins', [...])`。
 
 首屏 `VISIT` 和 `PAGE` 事件不会在上下文未就绪时抢先发送。设备信息和网络信息必须先通过官方异步 API 回来，事件才会真正构建并进入发送队列。
 
-当前源码已经补齐 `web`、`app-js`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 的 `utssdk` 平台入口，公共采集逻辑统一复用一份实现。
+当前源码已经补齐 `web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 的 `utssdk` 平台入口，公共采集逻辑统一复用一份实现。
 
 为了贴合官方 UTS 硬性规则，SDK 源码层已经去掉 `?` 可选参数 / 可选属性语义；所有非必填配置项统一显式使用 `null` 占位，不依赖 `undefined`。
 
@@ -139,7 +139,6 @@ dist/
       uni_modules.json
       utssdk/
         index.uts
-        app-js/
         web/
           package.json
         app-android/

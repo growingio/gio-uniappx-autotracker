@@ -1,13 +1,30 @@
 import { createSSRApp } from 'vue'
 import App from './App.uvue'
-import { gioUniappxAutotracker } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
-import { registerPlugins } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
+
+type GioDemoInitOptions = {
+	app: VueApp
+	projectId: string
+	dataSourceId: string
+	appId: string
+	serverUrl: string
+	appVersion: string | null
+	dataCollect: boolean
+	debug: boolean
+	forceLogin: boolean
+	originalSource: boolean
+	followShare: boolean
+	idMapping: boolean
+	storageType: string | null
+	cookieDomain: string | null
+}
 
 export function createApp() {
 	const app = createSSRApp(App)
 
 	try {
-		app.use(gioUniappxAutotracker, {
+		gdp('init', {
+			app: app,
 			projectId: '0a1b4118dd954ec3bcc69da5138bdb96',
 			dataSourceId: '87b895fe7505e4b3',
 			appId: 'wx03fed32794143578',
@@ -16,17 +33,17 @@ export function createApp() {
 			debug: true,
 			forceLogin: false,
 			idMapping: false,
-		})
-		registerPlugins([
+		} as GioDemoInitOptions)
+		gdp('registerPlugins', [
 			{
 				name: 'gioABTest',
 				options: {
 					abServerUrl: 'https://ab.growingio.com',
 				} as UTSJSONObject,
 			},
-		])
+		] as Array<UTSJSONObject>)
 	} catch (error) {
-		console.error('[showcase] failed to initialize gioUniappxAutotracker', error)
+		console.error('[showcase] failed to initialize gdp sdk', error)
 	}
 
 	return {

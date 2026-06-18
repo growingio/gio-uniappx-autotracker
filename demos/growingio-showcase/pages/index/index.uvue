@@ -10,8 +10,8 @@
 			<text class="hint">1. 首次进入或 session 过期后，会自动发 `VISIT`。</text>
 			<text class="hint">2. 每次页面显示，会自动发 `PAGE`，并尽量带 `path/query/title/referralPage`。</text>
 			<text class="hint">3. 应用退后台时，会自动发 `APP_CLOSED`，并尽量带当前页停留时长。</text>
-			<text class="hint">4. 业务事件可以通过 `track()` 发送；调用层传 `properties`，请求体里会映射成 `attributes`。</text>
-			<text class="hint">5. 用户属性可以通过 `setUserAttributes()` 发送；请求体里会生成单独的 `LOGIN_USER_ATTRIBUTES` 事件。</text>
+			<text class="hint">4. 业务事件可以通过 `gdp('track', ...)` 发送；调用层传 `properties`，请求体里会映射成 `attributes`。</text>
+			<text class="hint">5. 用户属性可以通过 `gdp('setUserAttributes', ...)` 发送；请求体里会生成单独的 `LOGIN_USER_ATTRIBUTES` 事件。</text>
 		</view>
 
 		<view class="section">
@@ -63,7 +63,7 @@
 </template>
 
 <script lang="uts">
-import { track } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
 
 export default {
 	data() {
@@ -94,14 +94,14 @@ export default {
 			})
 		},
 		onTrackQuick() {
-			track('home_quick_track', {
+			gdp('track', 'home_quick_track', {
 				from: 'index',
 				tick: Date.now(),
 			} as UTSJSONObject)
 			this.lastNote = '已发送 home_quick_track，请查看请求体。'
 		},
 		onRefreshNote() {
-			this.lastNote = '当前公开 API 只保留 initialize / track / setUserId / setUserAttributes / identify / clearUserId / registerPlugins / getABTest。'
+			this.lastNote = '当前公开 API 已收口为 gdp(...)，分享相关仍按 wrapShareAppMessage / wrapShareTimeline / wrapAddToFavorites 导出。'
 		},
 	},
 }

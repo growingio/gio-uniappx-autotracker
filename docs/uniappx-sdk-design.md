@@ -27,7 +27,7 @@
 参考的 `uni-stat` 模块主要提供了目录组织方式：
 
 - 使用 `uni_modules` 风格的包结构
-- 暴露 `plugin.uts` 作为插件安装入口
+- 对外收口 `gdp(...)` 作为统一调用入口，`plugin.uts` 仅保留内部生命周期桥接实现
 - 对外 API 放在 `utssdk/index.uts`
 - 共享运行时代码放在 `utssdk/common`
 - 平台编译入口需要落到 `utssdk/<platform>/index.uts`
@@ -63,8 +63,6 @@ gio-uniappx-autotracker/
   utssdk/
     index.uts
     interface.uts
-    app-js/
-      index.uts
     web/
       package.json
       index.uts
@@ -92,43 +90,31 @@ gio-uniappx-autotracker/
 
 ## 5. 对外 API
 
-### 插件式接入
-
-当应用希望自动接入 `VISIT` / `PAGE` / `APP_CLOSED` 生命周期事件时，使用插件方式：
-
-```ts
-app.use(gioUniappxAutotracker, {
-  projectId,
-  dataSourceId,
-  appId,
-  serverUrl,
-  debug,
-  forceLogin,
-  idMapping,
-  sessionExpires
-})
-```
-
 ### 函数式 API
 
-- `initialize(options)`
-- `track(eventName, properties = null)`
-- `identify(assignmentId)`
-- `setUserId(userId, userKey = null)`
-- `setUserAttributes(userAttributes)`
-- `clearUserId()`
-- `registerPlugins(plugins)`
-- `getABTest(layerId, callback = null)`
+- `gdp('init', { app, ...options })`
+- `gdp('track', eventName, properties = null)`
+- `gdp('identify', assignmentId)`
+- `gdp('setUserId', userId, userKey = null)`
+- `gdp('setUserAttributes', userAttributes)`
+- `gdp('clearUserId')`
+- `gdp('registerPlugins', plugins)`
+- `gdp('getABTest', layerId, callback = null)`
+
+web 端额外支持两个初始化项：
+
+- `storageType`：浏览器存储策略，默认 `cookie`
+- `cookieDomain`：cookie 域名，仅在 `storageType = cookie` 时生效
 
 UTS 约束说明：
 
 - 为了避免落入 `undefined` 语义，所有“非必填”字段统一显式声明为 `| null`
 - 对外传入的配置对象不再依赖 `?` 可选属性
 - `idMapping` 默认 `false`；只有显式开启后，`setUserId(userId, userKey)` 里的 `userKey` 才会持久化并参与后续事件上报
-- `track` 直接按独立 SDK 风格使用 `track(eventName, properties)`
+- `track` 直接按独立 SDK 风格使用 `gdp('track', eventName, properties)`
 - `flush`、`autoTrackLifecycle`、`requestTimeoutMs`、`maxQueueSize`、`storagePrefix`、`header` 都不再对外透出，也不允许传入初始化配置
 - 当前插件层只支持 `gioABTest`
-- 插件注册方式先按小程序独立 SDK 思路对齐：先 `registerPlugins([...])`，再调用 `getABTest(...)`
+- 插件注册方式先按小程序独立 SDK 思路对齐：先 `gdp('registerPlugins', [...])`，再调用 `gdp('getABTest', ...)`
 
 ## 6. 运行时架构
 
@@ -148,6 +134,8 @@ UTS 约束说明：
 - 调用路由解析模块，统一维护 `path` / `query` / `title` / `referralPage`
 - 等待异步设备信息和网络信息就绪后，再真正构建事件并入队
 - 首屏 `VISIT` / `PAGE` 也不能例外，必须等上下文 ready 后才能发送
+
+web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选择浏览器存储实现和 cookie 域名。
 
 ### 6.2 `GioUserStore`
 
@@ -225,11 +213,11 @@ UTS 约束说明：
 
 对外约束：
 
-- 只支持通过 `registerPlugins([{ name: 'gioABTest', options }])` 注册
+- 只支持通过 `gdp('registerPlugins', [{ name: 'gioABTest', options }])` 注册
 - 不提供 `createGioABTestPlugin(options)` 这类先生成插件项、再二次注册的包装入口
-- 注册成功后，通过 `getABTest(layerId, callback)` 获取实验数据
-- 如果没有注册插件就调用 `getABTest`，会按小程序 SDK 的方向报错并回调空对象
-- 当前只考虑单实例场景，不支持 `getABTest(trackingId, layerId, callback)` 这类多实例调用方式
+- 注册成功后，通过 `gdp('getABTest', layerId, callback)` 获取实验数据
+- 如果没有注册插件就调用 `gdp('getABTest', ...)`，会按小程序 SDK 的方向报错并回调空对象
+- 当前只考虑单实例场景，不支持 `gdp('getABTest', trackingId, layerId, callback)` 这类多实例调用方式
 
 当前对齐到的小程序核心逻辑：
 
@@ -318,7 +306,9 @@ UTS 约束说明：
 同时，设备信息和网络信息不会在 `init` 后立即同步写死到内存事件模板中，而是先等待异步 API 回调完成，再参与事件构建。这样请求体里看到的字段值会更接近真实端能力返回结果。
 其中首屏 `VISIT` 和首个 `PAGE` 事件也不会提前发出，必须在这些异步上下文回填后才允许真正入队和上报。
 
-对外 API 直接按独立 SDK 风格使用 `track(eventName, properties)`。业务传入的 `properties` 在真正构建请求体时会被归一化后映射到独立 SDK 风格的 `attributes` 字段。
+其中 `protocolType` 按独立 web SDK 的行为对齐：只在 `web` 端的 `PAGE` 事件上报，例如 `http`、`https`；其他事件和其他平台都不带这个字段。
+
+对外 API 直接按独立 SDK 风格使用 `gdp('track', eventName, properties)`。业务传入的 `properties` 在真正构建请求体时会被归一化后映射到独立 SDK 风格的 `attributes` 字段。
 
 其中 `query` 的当前契约是“普通字符串”，例如 `from=banner&source=home`，不会上报成 JSON 字符串。
 
@@ -393,12 +383,7 @@ UTS 约束说明：
 - 自定义 `track` 也会重新检查 session，避免漏掉新的访问边界
 - `sessionId`、`userId`、`userKey` 的最终取值始终以存储中的值为准，不依赖内存态缓存
 
-默认值：
-
-- `sessionExpires` 单位为分钟
-- `web` 默认 `30`
-- `mp-weixin` 默认 `5`
-- `app-android` / `app-ios` / `app-harmony` 默认 `0.5`
+`sessionExpires` 不作为对外初始化配置暴露，session 过期策略由 SDK 内部按平台默认规则处理。
 
 ## 10. 上报协议
 
@@ -526,13 +511,13 @@ UTS 约束说明：
 
 ## 13. 当前基线的验收标准
 
-- 应用可以通过 `plugin.uts`（`app.use`）或直接 `initialize` 初始化 SDK
+- 应用通过 `gdp('init', { app, ...options })` 初始化 SDK
 - 新 session 创建时能发出 `VISIT`
 - 页面显示时能发出 `PAGE`
 - 应用退后台时能发出 `APP_CLOSED`
-- 业务事件可通过 `track` 上报
+- 业务事件可通过 `gdp('track', eventName, properties)` 上报
 - `userId` 和 `userKey` 可在运行时更新
-- 待发送事件可通过 `flush` 主动上报
+- 待发送事件会按 SDK 内部发送策略自动上报
 
 ## 14. 当前已知缺口
 

@@ -40,7 +40,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { setOptions, track } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
 
 const dataCollectOn = ref(true)
 const logs = ref<string[]>([])
@@ -50,30 +50,30 @@ function appendLog(msg: string) {
 }
 
 function onEnable() {
-	const ok = setOptions({ dataCollect: true } as UTSJSONObject)
+	const ok = gdp('setOptions', { dataCollect: true } as UTSJSONObject) as boolean
 	dataCollectOn.value = true
 	appendLog('setOptions({ dataCollect: true }) => ' + (ok ? 'success' : 'fail'))
 }
 
 function onDisable() {
-	const ok = setOptions({ dataCollect: false } as UTSJSONObject)
+	const ok = gdp('setOptions', { dataCollect: false } as UTSJSONObject) as boolean
 	dataCollectOn.value = false
 	appendLog('setOptions({ dataCollect: false }) => ' + (ok ? 'success' : 'fail'))
 }
 
 function onTestTrack() {
-	const ok = track('datacollect_test_event', {
+	const ok = gdp('track', 'datacollect_test_event', {
 		toggle: dataCollectOn.value ? 'on' : 'off',
 		tick: Date.now(),
-	} as UTSJSONObject)
+	} as UTSJSONObject) as boolean
 	appendLog('track(datacollect_test_event) => ' + (ok ? 'success' : 'fail') + ' (dataCollect=' + dataCollectOn.value + ')')
 }
 
 function onInvalidParams() {
-	const r1 = setOptions({} as UTSJSONObject)
+	const r1 = gdp('setOptions', {} as UTSJSONObject) as boolean
 	appendLog('setOptions({}) => ' + (r1 ? 'success' : 'fail') + ' (缺少 dataCollect 字段)')
 
-	const r2 = setOptions({ dataCollect: 'yes' } as UTSJSONObject)
+	const r2 = gdp('setOptions', { dataCollect: 'yes' } as UTSJSONObject) as boolean
 	appendLog("setOptions({ dataCollect: 'yes' }) => " + (r2 ? 'success' : 'fail') + ' (类型不是 boolean)')
 }
 </script>

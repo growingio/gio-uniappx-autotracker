@@ -2,7 +2,7 @@
 	<view class="page">
 		<view class="section">
 			<text class="h2">自定义事件 · track</text>
-			<text class="desc">参考 develop showcase 补齐了常见 track 测试面，但只保留当前公开 API 能稳定验证的场景。</text>
+			<text class="desc">参考 develop showcase 补齐了常见 track 测试面，但只保留当前公开 API 能稳定验证的场景，调用方式统一为 `gdp('track', ...)`。</text>
 			<button class="btn" @click="onSimpleTrack">简单事件 / custom_simple_click</button>
 			<button class="btn" @click="onPurchaseTrack">下单提交 / purchase_submit</button>
 			<button class="btn" @click="onEmojiTrack">多语言与 emoji</button>
@@ -38,7 +38,7 @@
 		<view class="section">
 			<text class="h2">推荐观察点</text>
 			<text class="hint">1. 进入本页时，应先看到自动 `PAGE`。</text>
-			<text class="hint">2. 点按钮后，`track()` 应带上当前页的 `path`、`query`、`title`。</text>
+			<text class="hint">2. 点按钮后，`gdp('track', ...)` 应带上当前页的 `path`、`query`、`title`。</text>
 			<text class="hint">3. `properties` 最终会映射成请求体里的 `attributes`。</text>
 			<text class="hint">4. 从本页跳去路由页，再回来时，后续 `PAGE` 应带 `referralPage`。</text>
 			<view class="btn-row">
@@ -55,7 +55,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { track } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
 
 const lastAction = ref('(none)')
 
@@ -68,7 +68,7 @@ function sendTrack(
 	properties: UTSJSONObject | null = null,
 	label: string | null = null
 ) {
-	const success = track(eventName, properties)
+	const success = gdp('track', eventName, properties) as boolean
 	const text = label != null ? label : eventName
 	note(text + ' => ' + (success ? 'success' : 'blocked'))
 }
@@ -140,10 +140,10 @@ function onEmptyNameTrack() {
 }
 
 function onInvalidNameTrack() {
-	const first = track('1bad_prefix', null)
-	const second = track('bad-name', null)
-	const third = track('bad name', null)
-	const fourth = track(buildTooLongEventName(), null)
+	const first = gdp('track', '1bad_prefix', null) as boolean
+	const second = gdp('track', 'bad-name', null) as boolean
+	const third = gdp('track', 'bad name', null) as boolean
+	const fourth = gdp('track', buildTooLongEventName(), null) as boolean
 	note(
 		'invalid names => ' +
 		(first ? '1' : '0') +

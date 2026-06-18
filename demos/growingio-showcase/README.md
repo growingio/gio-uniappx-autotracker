@@ -2,16 +2,17 @@
 
 这是当前最小版 `gio-uniappx-autotracker` 的 demo。页面结构参考了 `develop` 分支的 showcase 首页，但这里只保留当前 SDK 真正已经支持的能力：
 
+- `gdp('init', { app, ...options })`
 - `VISIT`
 - `PAGE`
 - `APP_CLOSED`
-- `track`
-- `setUserId`
-- `setUserAttributes`
-- `clearUserId`
-- `identify`
-- `registerPlugins`
-- `getABTest`
+- `gdp('track', ...)`
+- `gdp('setUserId', ...)`
+- `gdp('setUserAttributes', ...)`
+- `gdp('clearUserId')`
+- `gdp('identify', ...)`
+- `gdp('registerPlugins', ...)`
+- `gdp('getABTest', ...)`
 
 当前 demo 初始化时只会传这几个配置：
 
@@ -22,12 +23,12 @@
 - `appVersion`
 - `debug`
 - `forceLogin`
+- `originalSource`
 - `idMapping`
-- `sessionExpires`
 
 对应源码见 [main.uts](/Users/anoiv/Workspace/gio-uniappx-autotracker/demos/growingio-showcase/main.uts)。
 
-当前 demo 会默认通过 `registerPlugins([{ name: 'gioABTest', options }])` 注册 `gioABTest` 插件，并额外提供一个 ABTest 页面做最小联调入口。该页面按单实例方式演示 `getABTest(layerId, callback)`，不包含 `trackingId` 多实例调用。
+当前 demo 会默认通过 `gdp('registerPlugins', [{ name: 'gioABTest', options }])` 注册 `gioABTest` 插件，并额外提供一个 ABTest 页面做最小联调入口。该页面按单实例方式演示 `gdp('getABTest', layerId, callback)`，不包含 `trackingId` 多实例调用。
 
 如果本地的 `uni_modules/gio-uniappx-autotracker` 没有同步到当前仓库产物，先执行一次构建，让 demo 里的模块目录刷新成最新副本，再在 HBuilderX 中运行。
 
