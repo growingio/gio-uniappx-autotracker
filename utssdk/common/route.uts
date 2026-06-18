@@ -98,24 +98,18 @@ function normalizeQueryString(queryText : string) : string {
 }
 
 // UTS forbids dot-access of arbitrary members on an `any` value; read fields
-// through a UTSJSONObject index instead. Page instances (e.g. GenPagesIndexIndex)
-// cannot be directly cast to UTSJSONObject at runtime, so serialize first.
+// through direct index access with fallback protection.
 function readAnyField(source : any | null, key : string) : any | null {
-  if (source == null) {
-    return null
-  }
-  const jsonStr = JSON.stringify(source)
-  if (jsonStr == null) {
-    return null
-  }
-  // Swift: jsonStr is still String? after nil check; must explicitly unwrap
-  // before passing to JSON.parseObject (expects non-optional String).
-  const safeStr = jsonStr as string
-  const obj = JSON.parseObject(safeStr)
-  if (obj == null) {
-    return null
-  }
-  return obj[key]
+	if (source == null) {
+		return null
+	}
+	try {
+		const record = source as UTSJSONObject
+		const value = (record as any)[key]
+		return value != null ? value : null
+	} catch (_error) {
+		return null
+	}
 }
 
 function getPageUrl(page : any | null) : string {
