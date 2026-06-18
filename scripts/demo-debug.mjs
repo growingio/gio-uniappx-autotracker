@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
-const DEFAULT_DEMO = path.join(PROJECT_ROOT, 'demos/growingio-showcase');
+const DEFAULT_DEMO = PROJECT_ROOT;
 const DEFAULT_UNPACKAGE = path.join(DEFAULT_DEMO, 'unpackage');
 
 function log(message) {
@@ -46,14 +46,6 @@ function parseArgs(argv) {
   };
 }
 
-function runNodeScript(scriptName, extraArgs = []) {
-  const scriptPath = path.join(PROJECT_ROOT, 'scripts', scriptName);
-  execFileSync(process.execPath, [scriptPath, ...extraArgs], {
-    cwd: PROJECT_ROOT,
-    stdio: 'inherit',
-  });
-}
-
 function ensureDemoExists(demoPath) {
   if (!fs.existsSync(demoPath)) {
     fail(`demo path does not exist: ${demoPath}`);
@@ -61,9 +53,7 @@ function ensureDemoExists(demoPath) {
 }
 
 function clearDemoUnpackage(demoPath) {
-  const target = demoPath === DEFAULT_DEMO
-    ? DEFAULT_UNPACKAGE
-    : path.join(demoPath, 'unpackage');
+  const target = demoPath === DEFAULT_DEMO ? DEFAULT_UNPACKAGE : path.join(demoPath, 'unpackage');
 
   if (!fs.existsSync(target)) {
     return;
@@ -73,15 +63,6 @@ function clearDemoUnpackage(demoPath) {
   log(`cleared ${path.relative(PROJECT_ROOT, target)}`);
 }
 
-function ensureDemoBundle(demoPath) {
-  if (demoPath === DEFAULT_DEMO) {
-    log('default showcase demo uses the copied dist bundle from build output');
-    return;
-  }
-
-  runNodeScript('install-to-demo.mjs', [`--demo=${demoPath}`]);
-}
-
 function openInHBuilderX(demoPath) {
   try {
     execFileSync('open', ['-a', 'HBuilderX', demoPath], {
@@ -89,7 +70,7 @@ function openInHBuilderX(demoPath) {
       stdio: 'inherit',
     });
     log(`opened demo in HBuilderX: ${path.relative(PROJECT_ROOT, demoPath)}`);
-  } catch (error) {
+  } catch (_error) {
     log('could not auto-open HBuilderX; please open the demo project manually');
   }
 }
@@ -107,14 +88,9 @@ function main() {
   const options = parseArgs(process.argv.slice(2));
   ensureDemoExists(options.demoPath);
 
-  runNodeScript('build.mjs');
-  runNodeScript('verify-bundle.mjs');
-
   if (options.clearUnpackage) {
     clearDemoUnpackage(options.demoPath);
   }
-
-  ensureDemoBundle(options.demoPath);
 
   if (options.openEditor) {
     openInHBuilderX(options.demoPath);

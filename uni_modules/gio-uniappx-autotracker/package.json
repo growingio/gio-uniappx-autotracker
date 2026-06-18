@@ -1,0 +1,70 @@
+{
+  "name": "gio-uniappx-autotracker",
+  "id": "gio-uniappx-autotracker",
+  "displayName": "GrowingIO uni-app x Autotracker Lite",
+  "version": "0.1.0",
+  "description": "A minimal uni-app x cross-platform tracking SDK with init, track, user identity management, session management, and reporting.",
+  "keywords": [
+    "growingio",
+    "analytics",
+    "tracking",
+    "uni-app-x",
+    "uts"
+  ],
+  "repository": "https://github.com/growingio/gio-uniappx-autotracker",
+  "private": true,
+  "engines": {
+    "HBuilderX": "^4.33",
+    "uni-app-x": "^4.62"
+  },
+  "dcloudext": {
+    "type": "uts",
+    "sale": {
+      "regular": {
+        "price": "0.00"
+      },
+      "sourcecode": {
+        "price": "0.00"
+      }
+    },
+    "contact": {
+      "qq": ""
+    },
+    "declaration": {
+      "ads": "none",
+      "data": "collects basic app lifecycle events, custom events, and user identity fields",
+      "permissions": "network, local storage"
+    }
+  },
+  "uni_modules": {
+    "dependencies": [],
+    "encrypt": [],
+    "platforms": {
+      "client": {
+        "uni-app-x": {
+          "web": {
+            "safari": "√",
+            "chrome": "√"
+          },
+          "app": {
+            "android": {
+              "minVersion": "21",
+              "extVersion": ""
+            },
+            "ios": {
+              "minVersion": "12",
+              "extVersion": ""
+            },
+            "harmony": {
+              "minVersion": "",
+              "extVersion": "1.0.15"
+            }
+          },
+          "mp": {
+            "weixin": {}
+          }
+        }
+      }
+    }
+  }
+}

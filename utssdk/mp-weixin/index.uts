@@ -1,3 +1,0 @@
-export * from './share.uts'
-
-export * from '../index.uts'

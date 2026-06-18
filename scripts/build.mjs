@@ -5,15 +5,9 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
+const PACKAGE_ROOT = path.join(PROJECT_ROOT, 'uni_modules/gio-uniappx-autotracker');
 const BUNDLE_NAME = 'gio-uniappx-autotracker';
-const DIST_ROOT = path.join(PROJECT_ROOT, 'dist');
-const DIST_UNI_MODULES = path.join(DIST_ROOT, 'uni_modules');
-const DIST_BUNDLE = path.join(DIST_UNI_MODULES, BUNDLE_NAME);
-const SHOWCASE_BUNDLE = path.join(
-  PROJECT_ROOT,
-  'demos/growingio-showcase/uni_modules',
-  BUNDLE_NAME,
-);
+const DIST_BUNDLE = path.join(PROJECT_ROOT, 'dist/uni_modules', BUNDLE_NAME);
 
 const ROOT_FILES = ['gdp.uts', 'index.uts', 'plugin.uts', 'package.json', 'README.md', 'readme.md'];
 const ROOT_DIRS = ['utssdk'];
@@ -40,18 +34,6 @@ function removeIfExists(target) {
   fs.rmSync(target, { recursive: true, force: true });
 }
 
-function removePath(target) {
-  if (!fs.existsSync(target)) {
-    return;
-  }
-  const stat = fs.lstatSync(target);
-  if (stat.isSymbolicLink()) {
-    fs.unlinkSync(target);
-    return;
-  }
-  fs.rmSync(target, { recursive: true, force: true });
-}
-
 function copyRecursive(src, dest) {
   const stat = fs.statSync(src);
   if (stat.isDirectory()) {
@@ -66,8 +48,7 @@ function copyRecursive(src, dest) {
 }
 
 function buildUniModulesMeta() {
-  const pkgPath = path.join(PROJECT_ROOT, 'package.json');
-  const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8'));
   return {
     id: pkg.id,
     displayName: pkg.displayName,
@@ -85,46 +66,25 @@ function writeUniModulesJson() {
   fs.writeFileSync(target, `${JSON.stringify(meta, null, 2)}\n`, 'utf8');
 }
 
-function isLinkModeBundle() {
-  // link-to-demo.mjs symlinks utssdk straight at the source; if that link is
-  // present the showcase already tracks live source, so leave it untouched.
-  const linkedDir = path.join(SHOWCASE_BUNDLE, 'utssdk');
-  const stat = fs.lstatSync(linkedDir, { throwIfNoEntry: false });
-  return stat != null && stat.isSymbolicLink();
-}
-
-function syncShowcaseBundle() {
-  if (isLinkModeBundle()) {
-    log('showcase bundle is in link mode (utssdk symlinked); skipping copy sync');
-    return;
-  }
-  fs.mkdirSync(path.dirname(SHOWCASE_BUNDLE), { recursive: true });
-  removePath(SHOWCASE_BUNDLE);
-  copyRecursive(DIST_BUNDLE, SHOWCASE_BUNDLE);
-  log(`synced showcase bundle: ${path.relative(PROJECT_ROOT, SHOWCASE_BUNDLE)}`);
-}
-
 function main() {
   for (const file of ROOT_FILES) {
-    ensureExists(path.join(PROJECT_ROOT, file));
+    ensureExists(path.join(PACKAGE_ROOT, file));
   }
   for (const dir of ROOT_DIRS) {
-    ensureExists(path.join(PROJECT_ROOT, dir));
+    ensureExists(path.join(PACKAGE_ROOT, dir));
   }
 
   removeIfExists(DIST_BUNDLE);
   fs.mkdirSync(DIST_BUNDLE, { recursive: true });
 
   for (const file of ROOT_FILES) {
-    copyRecursive(path.join(PROJECT_ROOT, file), path.join(DIST_BUNDLE, file));
+    copyRecursive(path.join(PACKAGE_ROOT, file), path.join(DIST_BUNDLE, file));
   }
   for (const dir of ROOT_DIRS) {
-    copyRecursive(path.join(PROJECT_ROOT, dir), path.join(DIST_BUNDLE, dir));
+    copyRecursive(path.join(PACKAGE_ROOT, dir), path.join(DIST_BUNDLE, dir));
   }
 
   writeUniModulesJson();
-  syncShowcaseBundle();
-
   log(`bundle ready: ${path.relative(PROJECT_ROOT, DIST_BUNDLE)}`);
 }
 

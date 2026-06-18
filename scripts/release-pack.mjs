@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const PROJECT_ROOT = path.resolve(__dirname, '..');
+const PACKAGE_ROOT = path.join(PROJECT_ROOT, 'uni_modules/gio-uniappx-autotracker');
 const BUNDLE_NAME = 'gio-uniappx-autotracker';
 const DIST_BUNDLE = path.join(PROJECT_ROOT, 'dist/uni_modules', BUNDLE_NAME);
 const RELEASE_DIR = path.join(PROJECT_ROOT, 'dist/release');
@@ -41,7 +42,7 @@ function ensureBundle() {
 }
 
 function readVersion() {
-  const pkg = JSON.parse(fs.readFileSync(path.join(PROJECT_ROOT, 'package.json'), 'utf8'));
+  const pkg = JSON.parse(fs.readFileSync(path.join(PACKAGE_ROOT, 'package.json'), 'utf8'));
   if (typeof pkg.version !== 'string' || pkg.version.length === 0) {
     fail('package.json version is missing');
   }

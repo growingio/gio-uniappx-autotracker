@@ -391,8 +391,8 @@ uni.request({
 
 遇到编译问题时，查看各端编译产物辅助判断：
 
-- iOS Swift: `demos/growingio-showcase/unpackage/dist/dev/app-ios/uni_modules/gio-uniappx-autotracker/utssdk/app-ios/index.swift`
-- Android Kotlin: `demos/growingio-showcase/unpackage/dist/dev/app-android/uni_modules/gio-uniappx-autotracker/utssdk/app-android/index.kt`
+- iOS Swift: `unpackage/dist/dev/app-ios/uni_modules/gio-uniappx-autotracker/utssdk/app-ios/index.swift`
+- Android Kotlin: `unpackage/dist/dev/app-android/uni_modules/gio-uniappx-autotracker/utssdk/app-android/index.kt`
 
 ---
 
