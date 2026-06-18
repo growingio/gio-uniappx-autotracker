@@ -4,6 +4,19 @@
 
 来源：[UTS 官方文档](https://doc.dcloud.net.cn/uni-app-x/uts/)、[UTS 与 TS 差异](https://doc.dcloud.net.cn/uni-app-x/uts/uts_diff_ts.html)、[UTSJSONObject 文档](https://doc.dcloud.net.cn/uni-app-x/uts/buildin-object-api/utsjsonobject.html)、项目踩坑经验。
 
+## 本地 UTS 知识库
+
+本地知识库根目录：`.codebuddy/knowledges`（下文用 `{KB}` 代指）。
+
+| 文档 | 路径 |
+|------|------|
+| UTS 与 TS 差异 | `{KB}/uni-app-x/docs/uts/uts_diff_ts.md` |
+| UTSJSONObject API | `{KB}/uni-app-x/docs/uts/buildin-object-api/utsjsonobject.md` |
+| 编译器已知问题 | `{KB}/uni-app-x/docs/uts/compiler-known-issues.md` |
+| uni-app-x 类型定义 | `{KB}/uni-app-x/types/` |
+
+遇到任何 UTS 语法或编译问题时，优先查询上述文档。
+
 ---
 
 ## 1. 类型选择
@@ -179,6 +192,51 @@ let debug : boolean = raw.getBoolean('debug', false)
 let timeout : number = raw.getNumber('timeout', 3000)
 ```
 
+### 5.3 原始类型 → UTSJSONObject：禁止直接 `as`（存储场景）
+
+在存储场景中，绝不能将 string 或 number 直接 `as UTSJSONObject`：
+
+```uts
+// ✗ 错误：Kotlin 中 String/Number 不是 UTSJSONObject 的子类，抛 ClassCastException
+storage.setItem(key, "hello" as UTSJSONObject, null)
+storage.setItem(key, 123 as UTSJSONObject, null)
+
+// ✓ 正确：包装为真正的 UTSJSONObject
+const wrapper: UTSJSONObject = {}
+wrapper['v'] = "hello"  // 或 wrapper['v'] = 123
+storage.setItem(key, wrapper, null)
+
+// 读取时解包
+const wrapper = storage.getItem(key)
+if (wrapper == null) return ''
+const v = wrapper['v']
+return v != null ? `${v}` : ''
+```
+
+### 5.4 原生存储 API 的坑
+
+`uni.getStorageSync()` 在 Android/iOS 返回原始 `String`，不能直接 `as UTSJSONObject`：
+
+```uts
+// ✗ 错误：value 是 String，不是 UTSJSONObject
+const value = uni.getStorageSync(key) as UTSJSONObject
+
+// ✓ 正确：先判断类型再处理
+const value = uni.getStorageSync(key)
+if (value == null) return null
+if (typeof value == 'string') {
+    // 字符串：尝试 JSON.parse，失败则包装
+    try {
+        return JSON.parse(value as string) as UTSJSONObject
+    } catch (_) {
+        const w: UTSJSONObject = {}
+        w['v'] = value as string
+        return w
+    }
+}
+return value as UTSJSONObject  // 非字符串类型安全
+```
+
 ---
 
 ## 6. 条件语句
@@ -294,9 +352,42 @@ import { wrapShareAppMessage } from './mp-weixin/share.uts'
 
 ---
 
-## 9. 调试辅助
+## 9. uni.request() 显式类型标注
 
-### 9.1 查看编译产物辅助排查
+在 uts 插件环境中，编译器无法默认推断 `uni.request()` 的泛型参数，必须显式标注泛型、回调参数类型，并对整个 options 对象做类型断言。
+
+```uts
+// ✓ 正确：完整显式类型标注
+uni.request<any>({
+    url: 'http://xxx',
+    method: 'GET',
+    success: (res : RequestSuccess<any>) => {
+        // ...
+    },
+    fail(e : RequestFail) {
+        // ...
+    },
+} as RequestOptions<any>)
+
+// ✗ 错误：缺少泛型参数和 options 类型断言
+uni.request({
+    url: 'http://xxx',
+    success: (res) => { ... },
+    fail: (err) => { ... },
+})
+```
+
+**要点：**
+- `uni.request<T>({ ... })` — 必须显式指定泛型 `<T>`，否则 Swift 报 `generic parameter 'T' could not be inferred`
+- `success: (res : RequestSuccess<T>)` — 回调参数必须注明类型
+- `fail(e : RequestFail)` — 失败回调使用简写语法 + 类型标注
+- `} as RequestOptions<T>)` — 整个 options 对象末尾做类型断言，避免 `RequestOptions<String>` vs `RequestOptions<Any>` 的泛型冲突
+
+---
+
+## 10. 调试辅助
+
+### 10.1 查看编译产物辅助排查
 
 遇到编译问题时，查看各端编译产物辅助判断：
 
@@ -305,7 +396,7 @@ import { wrapShareAppMessage } from './mp-weixin/share.uts'
 
 ---
 
-## 10. Checklist
+## 11. Checklist
 
 写完 UTS 代码后，自检以下项：
 
@@ -317,7 +408,10 @@ import { wrapShareAppMessage } from './mp-weixin/share.uts'
 - [ ] 数值属性赋值使用了 `as number`
 - [ ] 没有使用 Swift/Kotlin 关键字命名
 - [ ] UTSJSONObject 没有直接 `as` 转自定义 type
+- [ ] 原始类型（string/number）没有直接 `as UTSJSONObject`（存储场景用包装对象）
+- [ ] 原生存储 API 返回值先判类型再处理
 - [ ] 条件语句使用布尔表达式，不用 truthy/falsy
 - [ ] 没有 `typeof + ===` 组合
 - [ ] 对象字面量用 `type` 而非 `interface` 承接
 - [ ] 公共逻辑没有依赖单端 API
+- [ ] `uni.request()` 调用有完整泛型 + `as RequestOptions<T>` 标注
