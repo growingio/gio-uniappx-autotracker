@@ -11,6 +11,7 @@
 当前对外 API 只有：
 
 - `initialize(options)`
+- `setOptions(options)`
 - `track(eventName, properties = null)`
 - `setUserId(userId, userKey = null)`
 - `setUserAttributes(userAttributes)`
@@ -32,6 +33,7 @@
 - `idMapping`
 - `followShare`
 - `sessionExpires`
+- `dataCollect`
 
 `idMapping` 控制 `setUserId(userId, userKey)` 里的 `userKey` 是否真正生效，默认 `false`。未开启时如果仍传入 `userKey`，SDK 只打印 warning，不会持久化，也不会带进后续事件。
 
