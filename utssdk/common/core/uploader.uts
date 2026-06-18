@@ -196,15 +196,13 @@ export class GioUploader {
       return true
     }
 
-    uni.request({
+    uni.request<string>({
       url: collectUrl,
       method: 'POST',
       dataType: 'text',
       timeout: DEFAULT_REQUEST_TIMEOUT_MS,
       header: this.buildRequestHeader(),
       data: requestData,
-      // Annotate res so uni.request's generic T (response body type) is pinned;
-      // otherwise Swift reports "generic parameter 'T' could not be inferred".
       success: (res : RequestSuccess<string>) => {
         const statusCode = parseFloat(`${res.statusCode}`)
         if (statusCode == 200 || statusCode == 204) {
@@ -227,13 +225,13 @@ export class GioUploader {
         }
         this.inflight = false
       },
-      fail: (_) => {
+      fail(_ : RequestFail) {
         this.inflight = false
         if (fail != null) {
           fail()
         }
       }
-    })
+    } as RequestOptions<string>)
 
     return true
   }

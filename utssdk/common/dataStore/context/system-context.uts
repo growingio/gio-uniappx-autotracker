@@ -87,7 +87,18 @@ export class GioSystemContextManager {
   private debugEnabled : boolean = false
   private systemInfo : any | null = null
   private networkState : string = ''
-  private context : GioSystemContext = buildSystemContext(null, '')
+  private context : GioSystemContext = {
+    deviceBrand: '',
+    deviceModel: '',
+    deviceType: '',
+    language: '',
+    networkState: '',
+    operatingSystem: '',
+    platform: 'unknown',
+    platformVersion: '',
+    screenHeight: 0,
+    screenWidth: 0
+  } as GioSystemContext
   private initialized : boolean = false
   private listenerBound : boolean = false
   private systemReady : boolean = false
@@ -158,7 +169,7 @@ export class GioSystemContextManager {
     if (systemSnapshot != null) {
       this.systemInfo = systemSnapshot
     } else {
-      debugLog(this.debugEnabled, 'system info snapshot is empty')
+      debugLog(this.debugEnabled, 'system info snapshot is empty', null)
     }
     this.markSystemReady()
   }
@@ -172,12 +183,12 @@ export class GioSystemContextManager {
           this.markNetworkReady()
         },
         fail: (_) => {
-          debugLog(this.debugEnabled, 'getNetworkType failed')
+          debugLog(this.debugEnabled, 'getNetworkType failed', null)
           this.markNetworkReady()
         }
       })
     } catch (_error) {
-      debugLog(this.debugEnabled, 'getNetworkType threw synchronously')
+      debugLog(this.debugEnabled, 'getNetworkType threw synchronously', null)
       this.markNetworkReady()
     }
   }
@@ -196,7 +207,7 @@ export class GioSystemContextManager {
         }
       })
     } catch (_error) {
-      debugLog(this.debugEnabled, 'onNetworkStatusChange threw synchronously')
+      debugLog(this.debugEnabled, 'onNetworkStatusChange threw synchronously', null)
     }
   }
 }

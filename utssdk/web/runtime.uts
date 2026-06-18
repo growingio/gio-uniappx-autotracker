@@ -594,7 +594,7 @@ function isBeaconSupported() : boolean {
   try {
     const runtimeGlobal = window as any
     return runtimeGlobal.navigator != null &&
-      typeof runtimeGlobal.navigator.sendBeacon === 'function'
+      typeof runtimeGlobal.navigator.sendBeacon == 'function'
   } catch (_error) {
     return false
   }

@@ -1,0 +1,61 @@
+/**
+ * 
+ */
+export type OnAppCrashCallback = () => void
+
+/**
+ * 监听应用崩溃
+ */
+export type OnAppCrash = (callback : OnAppCrashCallback) => void
+
+/**
+ * 取消监听应用崩溃
+ */
+export type OffAppCrash = () => void
+
+export type AppCrashInfo = {
+	/**
+	 * 唯一标识符
+	 */
+	id : string,
+	/**
+	 * 崩溃的堆栈信息
+	 */
+	file : string,
+	/**
+	 * 崩溃发生的时间
+	 */
+	time : string
+}
+
+/**
+ * 获取所有的崩溃信息
+ */
+// #ifdef APP-IOS
+export type GetAppCrashInfoIOS = () => Array<Map<string, any>>
+// #endif
+
+// #ifdef APP-ANDROID
+export type GetAppCrashInfo = () => Array<AppCrashInfo> | null
+// #endif
+
+/**
+ * 删除指定的崩溃信息，id为空则删除所有的崩溃信息
+ */
+export type DeleteAppCrashInfo = (id : string | null) => void
+
+export type CreatAppCrash = () => void
+
+
+export interface Uni {
+	__onAppCrash(callback : OnAppCrashCallback | null) : void,
+	__offAppCrash() : void,
+	// #ifdef APP-IOS
+	__getAppCrashInfo() :  Array<Map<string, any>> | null,
+	// #endif
+	// #ifdef APP-ANDROID
+	__getAppCrashInfo() : Array<AppCrashInfo> | null,
+	// #endif
+	__deleteAppCrashInfo(id : string | null) : void,
+	__creatAppCrash() : void
+}
