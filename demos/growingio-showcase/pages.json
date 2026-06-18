@@ -35,6 +35,12 @@
 			"style": {
 				"navigationBarTitleText": "ABTest / getABTest"
 			}
+		},
+		{
+			"path": "pages/datacollect/datacollect",
+			"style": {
+				"navigationBarTitleText": "数据采集开关 / setOptions"
+			}
 		}
 		// #ifdef MP-WEIXIN
 		,

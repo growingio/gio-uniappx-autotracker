@@ -2,7 +2,7 @@
 	<view class="container">
 		<view class="header">
 			<text class="title">GrowingIO uni-app-x SDK</text>
-			<text class="subtitle">Minimal showcase · VISIT / PAGE / APP_CLOSED / ABTest</text>
+			<text class="subtitle">Minimal showcase · VISIT / PAGE / APP_CLOSED / ABTest / setOptions</text>
 		</view>
 
 		<view class="section">
@@ -15,7 +15,7 @@
 		</view>
 
 		<view class="section">
-			<text class="section-title">功能演示（4 个子页）</text>
+			<text class="section-title">功能演示（6 个子页）</text>
 			<view class="card-list">
 				<view class="card" @click="go('custom-event')">
 					<text class="card-title">① 自定义事件 / track</text>
@@ -36,6 +36,10 @@
 				<view class="card" @click="go('abtest')">
 					<text class="card-title">⑤ ABTest / registerPlugins / getABTest</text>
 					<text class="card-desc">当前插件层只考虑 gioABTest，先按小程序逻辑对齐。</text>
+				</view>
+				<view class="card" @click="go('datacollect')">
+					<text class="card-title">⑥ 数据采集开关 / setOptions</text>
+					<text class="card-desc">动态切换 dataCollect，控制 SDK 是否采集数据。关闭后事件不上报，开启后恢复。</text>
 				</view>
 				<!-- #ifdef MP-WEIXIN -->
 				<view class="card" @click="go('share')">
