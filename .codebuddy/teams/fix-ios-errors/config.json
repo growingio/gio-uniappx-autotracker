@@ -1,0 +1,18 @@
+{
+  "name": "fix-ios-errors",
+  "leadAgentId": "1383f183d0e14e89ad157a853d858f0b",
+  "workspacePath": "/Users/styluo/Downloads/startdt/gio-uniappx-autotracker",
+  "createdAt": "2026-06-17T08:28:11.498Z",
+  "options": {
+    "workspacePath": "/Users/styluo/Downloads/startdt/gio-uniappx-autotracker",
+    "isAutoTeam": false
+  },
+  "members": [
+    {
+      "memberId": "team-lead@fix-ios-errors",
+      "name": "team-lead",
+      "role": "Team Lead - coordinates the team and interacts with the user"
+    }
+  ],
+  "isAutoTeam": false
+}

@@ -3,12 +3,21 @@
     "configurations" : [
         {
             "customPlaygroundType" : "device",
-            "playground" : "standard",
+            "playground" : "custom",
             "type" : "uni-app:app-ios_simulator"
         },
         {
             "playground" : "standard",
             "type" : "uni-app:app-android"
+        },
+        {
+            "bundleId" : "uni.app.UNI39F4117",
+            "certificateFile" : "/Users/styluo/Desktop/Certificates.p12",
+            "certificateProfileFile" : "/Users/styluo/Desktop/eeb4449d-150b-4a18-abef-3fc59c3cbfef.mobileprovision",
+            "customPlaygroundType" : "device",
+            "playground" : "standard",
+            "runSignStatus" : 1,
+            "type" : "uni-app:app-ios"
         }
     ]
 }

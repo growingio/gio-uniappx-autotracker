@@ -1,0 +1,27 @@
+// 本文件为自动构建生成
+  export {
+    CameraErrorCode,
+  CameraContextFail,
+  CameraContextCameraFrameListenerStartOptions,
+  CameraContextCameraFrameListenerStopOptions,
+  CameraContextCameraFrameListener,
+  CameraContextOnCameraFrame,
+  CameraContextSetZoomOptions,
+  CameraContextTakePhotoResult,
+  CameraContextTakePhotoOptions,
+  CameraContextStartRecordTimeoutResult,
+  CameraContextStartRecordOptions,
+  CameraContextStopRecordResult,
+  CameraContextStopRecordOptions,
+  CameraContext,
+  CreateCameraContext,
+  BarcodeInformation,
+  ScreenShot,
+  AndroidScannerListener,
+  AndroidFrameScannerOptions,
+  AndroidPhotoScannerOptions,
+  AndroidScanner,
+  initAndroidScanner,
+  getAndroidScanner,
+  } from './interface'
+  

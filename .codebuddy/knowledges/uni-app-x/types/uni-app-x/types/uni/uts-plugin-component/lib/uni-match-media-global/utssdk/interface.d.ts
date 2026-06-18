@@ -1,0 +1,2 @@
+export class UniMatchMediaElement extends UniElementImpl {
+}

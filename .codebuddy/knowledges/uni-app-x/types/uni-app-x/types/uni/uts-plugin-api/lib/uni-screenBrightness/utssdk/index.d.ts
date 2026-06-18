@@ -1,0 +1,28 @@
+// 本文件为自动构建生成
+  export {
+    SetScreenBrightness,
+  SetScreenBrightnessSuccess,
+  SetScreenBrightnessSuccessCallback,
+  SetScreenBrightnessFail,
+  SetScreenBrightnessFailCallback,
+  SetScreenBrightnessComplete,
+  SetScreenBrightnessCompleteCallback,
+  SetScreenBrightnessOptions,
+  GetScreenBrightness,
+  GetScreenBrightnessSuccess,
+  GetScreenBrightnessSuccessCallback,
+  GetScreenBrightnessFail,
+  GetScreenBrightnessFailCallback,
+  GetScreenBrightnessComplete,
+  GetScreenBrightnessCompleteCallback,
+  GetScreenBrightnessOptions,
+  SetKeepScreenOn,
+  SetKeepScreenOnSuccess,
+  SetKeepScreenOnSuccessCallback,
+  SetKeepScreenOnFail,
+  SetKeepScreenOnFailCallback,
+  SetKeepScreenOnComplete,
+  SetKeepScreenOnCompleteCallback,
+  SetKeepScreenOnOptions,
+  } from './interface'
+  

@@ -237,19 +237,19 @@ export class GioABTestPlugin {
     const opts = options as GioInitOptions
     const ctx = context as GioContext
     const newDevice = this.resolveNewDevice(ctx)
+    const requestHeader = {} as UTSJSONObject
+    requestHeader['Content-Type'] = 'application/x-www-form-urlencoded'
+    const requestData = {} as UTSJSONObject
+    requestData['accountId'] = opts.projectId
+    requestData['datasourceId'] = opts.dataSourceId
+    requestData['distinctId'] = ctx.deviceId
+    requestData['layerId'] = `${layerId}`
+    requestData['newDevice'] = newDevice
     uni.request<UTSJSONObject>({
       url: this.url,
-      header: {
-        'Content-Type': 'application/x-www-form-urlencoded'
-      } as UTSJSONObject,
+      header: requestHeader,
       method: 'POST',
-      data: {
-        accountId: opts.projectId,
-        datasourceId: opts.dataSourceId,
-        distinctId: ctx.deviceId,
-        layerId: `${layerId}`,
-        newDevice: newDevice
-      } as UTSJSONObject,
+      data: requestData,
       timeout: this.requestTimeout,
       // error17: uni.request's generic T (RequestOptions<T>, T only on `success`) must
       // be pinned with a CONCRETE type, not `any` — `RequestSuccess<any>` still infers
@@ -279,8 +279,8 @@ export class GioABTestPlugin {
         }
         this.updateSign(this.getHashKey(layerId))
       },
-      fail: (err) => {
-        const errMsg = readRequestErrorMessage(err)
+      fail(e : RequestFail) {
+        const errMsg = readRequestErrorMessage(e)
         // 有意偏离 standalone（独立 web/mp 超时回 {}）：本仓库回 stale，让接口超时不丢已生效
         // 实验配置（ADR-015 §F）。超时不写 sign（对齐独立 xhr.ontimeout 不节流）。
         if (errMsg.indexOf('timeout') >= 0) {
@@ -297,7 +297,7 @@ export class GioABTestPlugin {
         consoleText(`获取ABTest数据失败! ${errMsg.slice(0, 30)}!`, 'error')
         niceCallback(callback, originData)
       }
-    })
+    } as RequestOptions<UTSJSONObject>)
   }
 
   private experimentVerify(
@@ -332,8 +332,10 @@ export class GioABTestPlugin {
 
     this.writeCachedData(this.getHashKey(layerId), result)
 
+    // Swift: number → NSNumber, and NSNumber does not conform to Equatable;
+    // `comparisonValue != controlValue` is ambiguous. Compare via string.
     if (
-      comparisonValue != controlValue &&
+      `${comparisonValue}` != `${controlValue}` &&
       result.strategyId.length > 0 &&
       result.experimentId.length > 0
     ) {
