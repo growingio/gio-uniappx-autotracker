@@ -26,7 +26,9 @@ import {
   verifyId
 } from '../utils.uts'
 import {
+  GioMiniProgramEntryInfo,
   isMpWeixinPlatform,
+  resolveMiniProgramEntryInfo,
   resolveMiniProgramScene
 } from '../miniprogram.uts'
 import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
@@ -72,6 +74,8 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   // 不重写 originalSource，避免分享回流入口被当作首次来源；每次 page onShow 复位。
   // 非小程序端不会置位，恒为 false，守门为空操作。
   private shareOut : boolean = false
+  private lastAppHideAt : number = 0
+  private lastAppScene : string = ''
 
   private constructor() {}
 
@@ -250,6 +254,29 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return this.dataStore.updateCurrentPage(page, options)
   }
 
+  private buildStartupPageContext(entryInfo : GioMiniProgramEntryInfo | null) : GioPageContext | null {
+    if (entryInfo == null || entryInfo.path.length == 0) {
+      return null
+    }
+    return {
+      path: entryInfo.path,
+      query: entryInfo.query.length > 0 ? entryInfo.query : null,
+      title: null,
+      referralPage: entryInfo.referralPage,
+      duration: null
+    } as GioPageContext
+  }
+
+  private syncMiniProgramEntry(entryInfo : GioMiniProgramEntryInfo | null) {
+    if (entryInfo == null) {
+      return
+    }
+    if (entryInfo.scene.length > 0) {
+      this.miniProgramScene = entryInfo.scene
+    }
+    this.dataStore.setStartupPageContext(this.buildStartupPageContext(entryInfo))
+  }
+
   private emitVisitEvent(pageContext : GioPageContext | null) {
     this.dataStore.maybeStoreOriginalSource(pageContext)
     this.pushInternalEvent('visit', 'VISIT', null, pageContext)
@@ -322,10 +349,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.mpWeixinEnabled) {
       return
     }
-    const scene = resolveMiniProgramScene()
-    if (scene.length > 0) {
-      this.miniProgramScene = scene
-    }
+    this.syncMiniProgramEntry(resolveMiniProgramEntryInfo(null))
   }
 
   private pushInternalEvent(
@@ -349,7 +373,11 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       this.recordEventContext(eventType, event)
       this.uploader.enqueue(event, this.getMaxQueueSize())
       if (flushAfter) {
-        this.uploader.flush(null, null)
+        if (eventType == 'APP_CLOSED') {
+          this.uploader.flush(null, null)
+        } else {
+          this.uploader.requestFlush()
+        }
       }
     })
   }
@@ -628,7 +656,10 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       consoleText('setUserAttributes 参数不合法，必须传入非空对象', 'error')
       return false
     }
-    const pageContext = this.buildCurrentPageContext(null)
+    let pageContext = this.buildCurrentPageContext(null)
+    if (pageContext == null || pageContext.path.length == 0) {
+      pageContext = this.dataStore.buildLastVisitPageContext()
+    }
     this.maybeEmitVisit(pageContext)
     this.pushInternalEvent(
       'setUserAttributes',
@@ -680,7 +711,14 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     }
   }
 
-  onShow(target : any | null) {
+  onLaunch(options : any | null = null) {
+    if (!this.ensureReady() || !this.mpWeixinEnabled) {
+      return
+    }
+    this.syncMiniProgramEntry(resolveMiniProgramEntryInfo(options))
+  }
+
+  onShow(target : any | null, options : any | null = null) {
     if (!this.ensureReady()) {
       return
     }
@@ -688,7 +726,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       this.onPageShow(target)
       return
     }
-    this.onAppShow()
+    this.onAppShow(options)
   }
 
   onHide(target : any | null) {
@@ -742,12 +780,24 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.dataStore.resetCurrentPageShowAt(pagePath)
   }
 
-  onAppShow() {
+  onAppShow(options : any | null = null) {
     if (!this.ensureReady()) {
       return
     }
-    this.refreshMiniProgramScene()
+    const entryInfo = this.mpWeixinEnabled
+      ? resolveMiniProgramEntryInfo(options)
+      : null
+    this.syncMiniProgramEntry(entryInfo)
     this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))
+    if (
+      entryInfo != null &&
+      this.lastAppHideAt > 0 &&
+      entryInfo.scene.length > 0 &&
+      this.lastAppScene.length > 0 &&
+      entryInfo.scene != this.lastAppScene
+    ) {
+      this.userStore.renewSession(this.getSessionTimeoutMs())
+    }
     if (!this.dataStore.hasCurrentPage()) {
       return
     }
@@ -781,6 +831,8 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!shouldTrackAppClosed()) {
       return
     }
+    this.lastAppHideAt = now()
+    this.lastAppScene = this.miniProgramScene
     this.userStore.touchSession(this.getSessionTimeoutMs())
     this.pushInternalEvent(
       'close',

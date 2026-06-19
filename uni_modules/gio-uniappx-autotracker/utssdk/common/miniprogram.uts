@@ -1,5 +1,12 @@
 import { platformName } from './utils.uts'
 
+export type GioMiniProgramEntryInfo = {
+  path : string
+  query : string
+  referralPage : string | null
+  scene : string
+}
+
 function readSceneFromQuery(source : any | null) : string {
   if (source == null) {
     return ''
@@ -28,6 +35,197 @@ function readSceneFromOptions(source : any | null) : string {
   return `${scene}`
 }
 
+function normalizeEntryPath(raw : string | null) : string {
+  if (raw == null || raw.length == 0) {
+    return ''
+  }
+  let value : string = raw as string
+  while (value.startsWith('/')) {
+    value = value.slice(1)
+  }
+  const queryIndex = value.indexOf('?')
+  if (queryIndex >= 0) {
+    value = value.slice(0, queryIndex)
+  }
+  return value
+}
+
+function normalizeEntryQuery(queryText : string) : string {
+  if (queryText.length == 0) {
+    return ''
+  }
+  let normalized = queryText
+  if (normalized.startsWith('?') || normalized.startsWith('&')) {
+    normalized = normalized.slice(1)
+  }
+  if (normalized.length == 0) {
+    return ''
+  }
+  const segments = normalized.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    let key = segment
+    let value = ''
+    const equalIndex = segment.indexOf('=')
+    if (equalIndex >= 0) {
+      key = segment.slice(0, equalIndex)
+      value = segment.slice(equalIndex + 1)
+    }
+    if (key.length == 0 || key == 'gdpCircleRoomCollectUrl') {
+      continue
+    }
+    parts.push(`${key}=${value}`)
+  }
+  return parts.join('&')
+}
+
+function stringifyEntryQueryObject(source : UTSJSONObject) : string {
+  const keys = UTSJSONObject.keys(source)
+  const parts = [] as Array<string>
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    if (key.length == 0 || key == 'gdpCircleRoomCollectUrl') {
+      continue
+    }
+    const value = source[key]
+    const text = value != null ? `${value}` : ''
+    parts.push(`${key}=${text}`)
+  }
+  return parts.join('&')
+}
+
+function stringifyEntryQuery(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  if (typeof source == 'string') {
+    return normalizeEntryQuery(source as string)
+  }
+  return stringifyEntryQueryObject(source as UTSJSONObject)
+}
+
+function mergeEntryQuery(baseQuery : string, extraData : any | null) : string {
+  if (extraData == null) {
+    return baseQuery
+  }
+  const merged = {} as UTSJSONObject
+  const baseText = normalizeEntryQuery(baseQuery)
+  if (baseText.length > 0) {
+    const segments = baseText.split('&')
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i]
+      if (segment.length == 0) {
+        continue
+      }
+      const equalIndex = segment.indexOf('=')
+      if (equalIndex >= 0) {
+        merged[segment.slice(0, equalIndex)] = segment.slice(equalIndex + 1)
+      } else {
+        merged[segment] = ''
+      }
+    }
+  }
+  const rawExtraData = extraData as UTSJSONObject
+  const keys = UTSJSONObject.keys(rawExtraData)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    if (key.length == 0 || key == 'gdpCircleRoomCollectUrl') {
+      continue
+    }
+    merged[key] = rawExtraData[key]
+  }
+  return stringifyEntryQueryObject(merged)
+}
+
+function readReferrerObject(source : any | null) : UTSJSONObject | null {
+  if (source == null) {
+    return null
+  }
+  const raw = source as UTSJSONObject
+  const referrerInfo = raw['referrerInfo']
+  if (referrerInfo != null) {
+    return referrerInfo as UTSJSONObject
+  }
+  const refererInfo = raw['refererInfo']
+  if (refererInfo != null) {
+    return refererInfo as UTSJSONObject
+  }
+  return null
+}
+
+function readReferrerAppId(source : any | null) : string | null {
+  const referrer = readReferrerObject(source)
+  if (referrer == null) {
+    return null
+  }
+  const appId = referrer['appId']
+  if (appId == null) {
+    return null
+  }
+  const text = `${appId}`
+  return text.length > 0 ? text : null
+}
+
+function resolveScene(primary : any | null, fallback : any | null) : string {
+  const primaryScene = readSceneFromOptions(primary)
+  if (primaryScene.length > 0) {
+    return primaryScene
+  }
+  return readSceneFromOptions(fallback)
+}
+
+function resolveReferrerObject(
+  primary : any | null,
+  fallback : any | null
+) : UTSJSONObject | null {
+  const primaryReferrer = readReferrerObject(primary)
+  if (primaryReferrer != null) {
+    return primaryReferrer
+  }
+  return readReferrerObject(fallback)
+}
+
+function resolveReferrerAppId(
+  primary : any | null,
+  fallback : any | null
+) : string | null {
+  const primaryAppId = readReferrerAppId(primary)
+  if (primaryAppId != null) {
+    return primaryAppId
+  }
+  return readReferrerAppId(fallback)
+}
+
+function resolveReferrerExtraData(
+  primary : any | null,
+  fallback : any | null
+) : any | null {
+  const referrer = resolveReferrerObject(primary, fallback)
+  if (referrer == null) {
+    return null
+  }
+  return referrer['extraData']
+}
+
+function buildReferralPage(
+  scene : string,
+  primary : any | null,
+  fallback : any | null
+) : string | null {
+  const referrerAppId = resolveReferrerAppId(primary, fallback)
+  if (referrerAppId != null) {
+    return referrerAppId
+  }
+  if (scene.length == 0) {
+    return null
+  }
+  return `scn:${scene}`
+}
+
 function getEnterOptionsSync() : any | null {
   // The enter/launch option APIs only exist on mini-program platforms, and UTS
   // cannot probe `uni` members dynamically. Gate the typed call with
@@ -51,4 +249,39 @@ export function resolveMiniProgramScene() : string {
     return sceneFromEnterOptions
   }
   return ''
+}
+
+export function resolveMiniProgramEntryInfo(
+  fallbackOptions : any | null = null
+) : GioMiniProgramEntryInfo | null {
+  const enterOptions = getEnterOptionsSync()
+  const primary = enterOptions != null ? enterOptions : fallbackOptions
+  if (primary == null) {
+    return null
+  }
+  const primaryRaw = primary as UTSJSONObject
+  const fallbackRaw = fallbackOptions != null ? (fallbackOptions as UTSJSONObject) : null
+
+  let path = normalizeEntryPath(primaryRaw['path'] != null ? `${primaryRaw['path']}` : null)
+  if (path.length == 0 && fallbackRaw != null) {
+    path = normalizeEntryPath(
+      fallbackRaw['path'] != null ? `${fallbackRaw['path']}` : null
+    )
+  }
+
+  let query = stringifyEntryQuery(primaryRaw['query'])
+  if (query.length == 0 && fallbackRaw != null) {
+    query = stringifyEntryQuery(fallbackRaw['query'])
+  }
+
+  const referrerExtraData = resolveReferrerExtraData(primary, fallbackOptions)
+  query = mergeEntryQuery(query, referrerExtraData)
+
+  const scene = resolveScene(primary, fallbackOptions)
+  return {
+    path: path,
+    query: query,
+    referralPage: buildReferralPage(scene, primary, fallbackOptions),
+    scene: scene
+  } as GioMiniProgramEntryInfo
 }

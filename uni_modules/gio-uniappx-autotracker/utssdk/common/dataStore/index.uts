@@ -40,6 +40,7 @@ export class GioDataStore {
   private eventBuilder : GioEventBuilder = new GioEventBuilder()
   private sessionUpdateHandlers : GioSessionUpdateHandlers | null = null
   private sessionListenerBound : boolean = false
+  private startupPageContext : GioPageContext | null = null
 
   initialize(
     options : GioInitOptions,
@@ -159,6 +160,20 @@ export class GioDataStore {
     return pageContext
   }
 
+  buildLastVisitPageContext() : GioPageContext | null {
+    return this.pageStore.buildLastVisitPageContext()
+  }
+
+  setStartupPageContext(pageContext : GioPageContext | null) {
+    this.startupPageContext = pageContext
+    this.pageStore.setEntryReferralPage(
+      pageContext != null ? pageContext.referralPage : null
+    )
+    if (pageContext != null) {
+      this.maybeStoreOriginalSource(pageContext)
+    }
+  }
+
   hasCurrentPage() : boolean {
     return this.pageStore.hasCurrentPage()
   }
@@ -196,6 +211,20 @@ export class GioDataStore {
       storedOriginalSource != null &&
       storedOriginalSource.sessionId == currentSessionId
     ) {
+      if (
+        storedOriginalSource.path == pageContext.path &&
+        storedOriginalSource.title.length == 0 &&
+        pageContext.title != null &&
+        pageContext.title.length > 0
+      ) {
+        this.setOriginalSource({
+          sessionId: storedOriginalSource.sessionId,
+          path: storedOriginalSource.path,
+          query: storedOriginalSource.query,
+          title: pageContext.title,
+          referralPage: storedOriginalSource.referralPage
+        } as GioOriginalSource)
+      }
       return
     }
     const preferredPageContext = this.resolvePreferredPageContext(pageContext)
@@ -249,6 +278,7 @@ export class GioDataStore {
       if (originalSource != null && originalSource.sessionId == sessionId) {
         this.clearOriginalSource()
       }
+      this.startupPageContext = null
     }
   }
 
@@ -331,6 +361,10 @@ export class GioDataStore {
   private resolvePreferredPageContext(
     pageContext : GioPageContext | null
   ) : GioPageContext | null {
+    const startupPageContext = this.startupPageContext
+    if (startupPageContext != null) {
+      return resolvePageContext(startupPageContext)
+    }
     return resolvePageContext(pageContext)
   }
 }

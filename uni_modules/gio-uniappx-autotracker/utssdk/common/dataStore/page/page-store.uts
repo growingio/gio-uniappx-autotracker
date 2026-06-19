@@ -20,12 +20,17 @@ export class GioPageStore {
   private currentPageShowAt : number = 0
   private referralPage : string = ''
   private appId : string = ''
+  private entryReferralPage : string = ''
   private lastPageEvent : GioPageEventRecord | null = null
   private lastVisitEvent : GioPageEventRecord | null = null
   private queryOptions : Map<string, string> = new Map()
 
   configure(appId : string) {
     this.appId = appId
+  }
+
+  setEntryReferralPage(referralPage : string | null) {
+    this.entryReferralPage = referralPage != null ? referralPage : ''
   }
 
   cacheQueryOptions(path : string, query : string) {
@@ -127,6 +132,9 @@ export class GioPageStore {
     if (lastPage != null && lastPage.path.length > 0) {
       return lastPage.path
     }
+    if (this.entryReferralPage.length > 0) {
+      return this.entryReferralPage
+    }
     if (this.appId.length > 0) {
       return this.appId
     }
@@ -158,9 +166,23 @@ export class GioPageStore {
     this.lastVisitEvent = {
       path: path,
       query: query,
-      title: '',
+      title: this.currentPageTitle,
       referralPage: referralPage
     } as GioPageEventRecord
+  }
+
+  buildLastVisitPageContext() : GioPageContext | null {
+    const lastVisit = this.lastVisitEvent
+    if (lastVisit == null || lastVisit.path.length == 0) {
+      return null
+    }
+    return {
+      path: lastVisit.path,
+      query: lastVisit.query.length > 0 ? lastVisit.query : null,
+      title: lastVisit.title.length > 0 ? lastVisit.title : null,
+      referralPage: lastVisit.referralPage.length > 0 ? lastVisit.referralPage : null,
+      duration: null
+    } as GioPageContext
   }
 
   hasCurrentPage() : boolean {
