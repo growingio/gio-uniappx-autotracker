@@ -14,6 +14,7 @@ import { GioTracker } from '../common/core/tracker.uts'
 const MP_EVENT_ON_SHARE = '$mp_on_share'
 const MP_EVENT_SHARE_TIMELINE = '$mp_share_timeline'
 const MP_EVENT_ADD_FAVORITES = '$mp_add_favorites'
+const SHARE_PROMISE_TIMEOUT_MS = 3000
 
 function readShareString(source : any | null, key : string) : string | null {
   if (source == null) {
@@ -36,6 +37,166 @@ function readShareTargetId(options : any | null) : string | null {
   return readShareString(target, 'id')
 }
 
+function hasShareKey(source : any | null, key : string) : boolean {
+  if (source == null || typeof source != 'object') {
+    return false
+  }
+  const keys = UTSJSONObject.keys(source as UTSJSONObject)
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i] == key) {
+      return true
+    }
+  }
+  return false
+}
+
+function normalizeShareQuery(queryText : string) : string {
+  if (queryText.length == 0) {
+    return ''
+  }
+  let normalized = queryText
+  if (normalized.startsWith('?') || normalized.startsWith('&')) {
+    normalized = normalized.slice(1)
+  }
+  if (normalized.length == 0) {
+    return ''
+  }
+  const segments = normalized.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    parts.push(segment)
+  }
+  return parts.join('&')
+}
+
+function filterDefaultShareQuery(queryText : string | null) : string | null {
+  if (queryText == null || queryText.length == 0) {
+    return null
+  }
+  const normalized = normalizeShareQuery(queryText)
+  if (normalized.length == 0) {
+    return null
+  }
+  const segments = normalized.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    const equalIndex = segment.indexOf('=')
+    const key = equalIndex >= 0 ? segment.slice(0, equalIndex) : segment
+    const lowerKey = key.toLowerCase()
+    if (key == 'gdpCircleRoomCollectUrl' || lowerKey.startsWith('utm_')) {
+      continue
+    }
+    parts.push(segment)
+  }
+  if (parts.length == 0) {
+    return null
+  }
+  return parts.join('&')
+}
+
+function splitSharePath(pathText : string | null) : Array<string> {
+  if (pathText == null || pathText.length == 0) {
+    return ['', '']
+  }
+  const queryIndex = pathText.indexOf('?')
+  if (queryIndex < 0) {
+    return [pathText, '']
+  }
+  return [
+    pathText.slice(0, queryIndex),
+    pathText.slice(queryIndex + 1)
+  ] as Array<string>
+}
+
+function normalizeSharePath(pathText : string | null) : string {
+  if (pathText == null || pathText.length == 0) {
+    return ''
+  }
+  const splitResult = splitSharePath(pathText)
+  let path = splitResult[0]
+  if (path.length == 0) {
+    return ''
+  }
+  while (path.startsWith('/')) {
+    path = path.slice(1)
+  }
+  return path.length > 0 ? `/${path}` : ''
+}
+
+function mergeShareResult(
+  originResult : any | null,
+  resolvedResult : any | null
+) : any | null {
+  const mergedResult = {} as UTSJSONObject
+  let hasMergedField = false
+  if (originResult != null && typeof originResult == 'object') {
+    const originRaw = originResult as UTSJSONObject
+    const originKeys = UTSJSONObject.keys(originRaw)
+    for (let i = 0; i < originKeys.length; i++) {
+      const key = originKeys[i]
+      mergedResult[key] = originRaw[key]
+      hasMergedField = true
+    }
+  }
+  if (resolvedResult != null && typeof resolvedResult == 'object') {
+    const resolvedRaw = resolvedResult as UTSJSONObject
+    const resolvedKeys = UTSJSONObject.keys(resolvedRaw)
+    for (let i = 0; i < resolvedKeys.length; i++) {
+      const key = resolvedKeys[i]
+      mergedResult[key] = resolvedRaw[key]
+      hasMergedField = true
+    }
+  }
+  return hasMergedField ? mergedResult : null
+}
+
+function updateShareResult(
+  shareResult : any | null,
+  pageContext : GioPageContext | null,
+  fillParams : boolean = true
+) : any | null {
+  if (shareResult == null || typeof shareResult != 'object') {
+    return shareResult
+  }
+  const result = shareResult as UTSJSONObject
+  const resultHasPath = hasShareKey(result, 'path')
+  const resultHasQuery = hasShareKey(result, 'query')
+  const currentPath = pageContext != null ? pageContext.path : ''
+  const currentQuery = pageContext != null ? pageContext.query : null
+
+  let path = resultHasPath
+    ? normalizeSharePath(readShareString(result, 'path'))
+    : normalizeSharePath(currentPath)
+  let query = ''
+  if (resultHasQuery) {
+    query = normalizeShareQuery(readShareString(result, 'query') != null
+      ? (readShareString(result, 'query') as string)
+      : '')
+  } else if (resultHasPath) {
+    const splitResult = splitSharePath(readShareString(result, 'path'))
+    query = normalizeShareQuery(splitResult[1])
+  } else {
+    const filtered = filterDefaultShareQuery(currentQuery)
+    query = filtered != null ? filtered : ''
+  }
+
+  if (fillParams || resultHasPath) {
+    result['path'] = query.length > 0 ? `${path}?${query}` : path
+  }
+  if (fillParams || resultHasQuery) {
+    result['query'] = query
+  }
+  return result
+}
+
 // 构建分享 / 收藏事件属性。字段集严格按 eventName 分支，对齐独立 SDK
 // `gio-miniprogram-autotracker/src/core/dataStore/index.ts:672-763`：
 //   - `$mp_on_share`        → $from / $target / $share_title / $share_path / $share_query
@@ -55,6 +216,8 @@ function buildShareEventProps(
   const currentTitle = pageContext != null ? pageContext.title : null
   const currentPath = pageContext != null ? pageContext.path : ''
   const currentQuery = pageContext != null ? pageContext.query : null
+  const resultHasPath = hasShareKey(shareResult, 'path')
+  const resultHasQuery = hasShareKey(shareResult, 'query')
 
   const props = {} as UTSJSONObject
 
@@ -66,29 +229,47 @@ function buildShareEventProps(
 
   // 业务返回的 path 可能带 query（`/pages/x?a=1`），按 `?` 拆开；拆不出则兜底当前页。
   const resultPath = readShareString(shareResult, 'path')
-  let sharePath : string | null = null
+  const resultQuery = readShareString(shareResult, 'query')
+  let sharePath : string | null = currentPath.length > 0 ? currentPath : null
   let shareQuery : string | null = null
-  if (resultPath != null) {
-    const queryIndex = resultPath.indexOf('?')
-    if (queryIndex >= 0) {
-      sharePath = resultPath.slice(0, queryIndex)
-      const tail = resultPath.slice(queryIndex + 1)
-      shareQuery = tail.length > 0 ? tail : null
-    } else {
-      sharePath = resultPath
+  if (!resultHasPath && !resultHasQuery) {
+    shareQuery = filterDefaultShareQuery(currentQuery)
+  }
+  if (resultHasPath) {
+    const splitResult = splitSharePath(resultPath)
+    const customPath = splitResult[0]
+    const customQuery = splitResult[1]
+    if (customPath.length > 0) {
+      sharePath = customPath
+    }
+    if (!resultHasQuery && customQuery.length > 0) {
+      shareQuery = normalizeShareQuery(customQuery)
     }
   }
-  if (sharePath == null && currentPath.length > 0) {
-    sharePath = currentPath
-  }
-  if (shareQuery == null) {
-    shareQuery = currentQuery
+  if (resultHasQuery) {
+    const normalizedQuery = normalizeShareQuery(
+      resultQuery != null ? resultQuery : ''
+    )
+    shareQuery = normalizedQuery.length > 0 ? normalizedQuery : null
   }
   if (sharePath != null) {
     props['$share_path'] = sharePath
   }
   if (shareQuery != null && shareQuery.length > 0) {
     props['$share_query'] = shareQuery
+  }
+
+  if (eventName != MP_EVENT_ADD_FAVORITES) {
+    const extraAttributes = shareResult != null
+      ? (shareResult as UTSJSONObject).getJSON('attributes')
+      : null
+    if (extraAttributes != null) {
+      const keys = UTSJSONObject.keys(extraAttributes)
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
+        props[key] = extraAttributes[key]
+      }
+    }
   }
 
   if (eventName == MP_EVENT_ON_SHARE) {
@@ -132,8 +313,108 @@ function emitShare(
 }
 
 export type GioShareAppMessageHandler = (options : any | null) => any | null
-export type GioShareTimelineHandler = () => any | null
+export type GioShareTimelineHandler = (options : any | null) => any | null
 export type GioAddToFavoritesHandler = (options : any | null) => any | null
+
+function readThenableSource(source : any | null) : any | null {
+  if (source == null) {
+    return null
+  }
+  const sourceRaw = source as UTSJSONObject
+  const thenValue = sourceRaw['then']
+  if (thenValue != null && typeof thenValue == 'function') {
+    return source
+  }
+  const promiseValue = sourceRaw['promise']
+  if (promiseValue == null) {
+    return null
+  }
+  const nestedThen = (promiseValue as UTSJSONObject)['then']
+  if (nestedThen != null && typeof nestedThen == 'function') {
+    return promiseValue
+  }
+  return null
+}
+
+function invokeThenable(
+  source : any | null,
+  handler : (value : any | null) => void
+) {
+  if (source == null) {
+    return
+  }
+  const raw = source as UTSJSONObject
+  const thenValue = raw['then']
+  if (thenValue != null && typeof thenValue == 'function') {
+    (source as UTSJSONObject)['then'](handler)
+  }
+}
+
+function emitResolvedShare(
+  eventName : string,
+  originResult : any | null,
+  options : any | null,
+  flipShareOut : boolean
+) {
+  const host : GioShareHost = GioTracker.getInstance()
+  const pageContext = host.getCurrentPageContext()
+  const thenableSource = readThenableSource(originResult)
+  if (thenableSource == null) {
+    const updatedResult = updateShareResult(originResult, pageContext, true)
+    emitShare(eventName, updatedResult, options, flipShareOut)
+    return
+  }
+  if (flipShareOut) {
+    host.setShareOut(true)
+  }
+  if (!host.isFollowShareEnabled()) {
+    return
+  }
+  const returnedResult = updateShareResult(originResult, pageContext, false)
+  let emitted = false
+  setTimeout(() => {
+    if (emitted) {
+      return
+    }
+    emitted = true
+    const mergedFallback = mergeShareResult(returnedResult, null)
+    const updatedFallback = updateShareResult(mergedFallback, pageContext, true)
+    emitShare(
+      eventName,
+      updatedFallback,
+      options,
+      false
+    )
+  }, SHARE_PROMISE_TIMEOUT_MS)
+  try {
+    invokeThenable(thenableSource, (resolvedResult : any | null) => {
+      if (emitted) {
+        return
+      }
+      emitted = true
+      const mergedResult = mergeShareResult(returnedResult, resolvedResult)
+      const updatedResult = updateShareResult(mergedResult, pageContext, true)
+      emitShare(
+        eventName,
+        updatedResult,
+        options,
+        false
+      )
+    })
+  } catch (_error) {
+    if (!emitted) {
+      emitted = true
+      const mergedFallback = mergeShareResult(returnedResult, null)
+      const updatedFallback = updateShareResult(mergedFallback, pageContext, true)
+      emitShare(
+        eventName,
+        updatedFallback,
+        options,
+        false
+      )
+    }
+  }
+}
 
 // 包装页面的 onShareAppMessage：调用业务 handler 取返回值后采集 $mp_on_share，
 // 并原样透传返回值给微信（不改变实际转发内容）。
@@ -142,8 +423,12 @@ export function wrapShareAppMessage(
 ) : GioShareAppMessageHandler {
   return (options : any | null) : any | null => {
     const result = handler != null ? handler(options) : null
-    emitShare(MP_EVENT_ON_SHARE, result, options, true)
-    return result
+    emitResolvedShare(MP_EVENT_ON_SHARE, result, options, true)
+    return updateShareResult(
+      result,
+      GioTracker.getInstance().getCurrentPageContext(),
+      readThenableSource(result) == null
+    )
   }
 }
 
@@ -151,10 +436,14 @@ export function wrapShareAppMessage(
 export function wrapShareTimeline(
   handler : GioShareTimelineHandler | null
 ) : GioShareTimelineHandler {
-  return () : any | null => {
-    const result = handler != null ? handler() : null
-    emitShare(MP_EVENT_SHARE_TIMELINE, result, null, false)
-    return result
+  return (options : any | null) : any | null => {
+    const result = handler != null ? handler(options) : null
+    emitResolvedShare(MP_EVENT_SHARE_TIMELINE, result, options, false)
+    return updateShareResult(
+      result,
+      GioTracker.getInstance().getCurrentPageContext(),
+      readThenableSource(result) == null
+    )
   }
 }
 
@@ -164,7 +453,11 @@ export function wrapAddToFavorites(
 ) : GioAddToFavoritesHandler {
   return (options : any | null) : any | null => {
     const result = handler != null ? handler(options) : null
-    emitShare(MP_EVENT_ADD_FAVORITES, result, options, false)
-    return result
+    emitResolvedShare(MP_EVENT_ADD_FAVORITES, result, options, false)
+    return updateShareResult(
+      result,
+      GioTracker.getInstance().getCurrentPageContext(),
+      readThenableSource(result) == null
+    )
   }
 }

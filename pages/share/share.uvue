@@ -42,7 +42,7 @@ const handleShareAppMessage = wrapShareAppMessage((options: any | null): any | n
 	} as UTSJSONObject
 })
 
-const handleShareTimeline = wrapShareTimeline((): any | null => {
+const handleShareTimeline = wrapShareTimeline((options: any | null): any | null => {
 	return {
 		title: 'GrowingIO 朋友圈演示',
 		query: 'from=on_timeline',
@@ -73,8 +73,8 @@ export default {
 	onShareAppMessage(options: any | null): any | null {
 		return handleShareAppMessage(options)
 	},
-	onShareTimeline(): any | null {
-		return handleShareTimeline()
+	onShareTimeline(options: any | null): any | null {
+		return handleShareTimeline(options)
 	},
 	onAddToFavorites(options: any | null): any | null {
 		return handleAddToFavorites(options)
