@@ -171,17 +171,21 @@ function updateShareResult(
   const resultHasQuery = hasShareKey(result, 'query')
   const currentPath = pageContext != null ? pageContext.path : ''
   const currentQuery = pageContext != null ? pageContext.query : null
-
-  let path = resultHasPath
-    ? normalizeSharePath(readShareString(result, 'path'))
-    : normalizeSharePath(currentPath)
+  const normalizedCurrentPath = normalizeSharePath(currentPath)
+  const resultPathText = readShareString(result, 'path')
+  const resolvedResultPath = resultHasPath
+    ? normalizeSharePath(resultPathText)
+    : normalizedCurrentPath
+  const path = resolvedResultPath.length > 0
+    ? resolvedResultPath
+    : normalizedCurrentPath
   let query = ''
   if (resultHasQuery) {
     query = normalizeShareQuery(readShareString(result, 'query') != null
       ? (readShareString(result, 'query') as string)
       : '')
   } else if (resultHasPath) {
-    const splitResult = splitSharePath(readShareString(result, 'path'))
+    const splitResult = splitSharePath(resultPathText)
     query = normalizeShareQuery(splitResult[1])
   } else {
     const filtered = filterDefaultShareQuery(currentQuery)
@@ -316,6 +320,13 @@ export type GioShareAppMessageHandler = (options : any | null) => any | null
 export type GioShareTimelineHandler = (options : any | null) => any | null
 export type GioAddToFavoritesHandler = (options : any | null) => any | null
 
+function normalizeShareOriginResult(result : any | null) : any | null {
+  if (result != null) {
+    return result
+  }
+  return {} as UTSJSONObject
+}
+
 function readThenableSource(source : any | null) : any | null {
   if (source == null) {
     return null
@@ -338,7 +349,8 @@ function readThenableSource(source : any | null) : any | null {
 
 function invokeThenable(
   source : any | null,
-  handler : (value : any | null) => void
+  handler : (value : any | null) => void,
+  rejectHandler : (() => void) | null
 ) {
   if (source == null) {
     return
@@ -346,6 +358,10 @@ function invokeThenable(
   const raw = source as UTSJSONObject
   const thenValue = raw['then']
   if (thenValue != null && typeof thenValue == 'function') {
+    if (rejectHandler != null) {
+      (source as UTSJSONObject)['then'](handler, rejectHandler)
+      return
+    }
     (source as UTSJSONObject)['then'](handler)
   }
 }
@@ -372,7 +388,7 @@ function emitResolvedShare(
   }
   const returnedResult = updateShareResult(originResult, pageContext, false)
   let emitted = false
-  setTimeout(() => {
+  const emitFallback = () => {
     if (emitted) {
       return
     }
@@ -385,6 +401,9 @@ function emitResolvedShare(
       options,
       false
     )
+  }
+  setTimeout(() => {
+    emitFallback()
   }, SHARE_PROMISE_TIMEOUT_MS)
   try {
     invokeThenable(thenableSource, (resolvedResult : any | null) => {
@@ -400,19 +419,11 @@ function emitResolvedShare(
         options,
         false
       )
+    }, () => {
+      emitFallback()
     })
   } catch (_error) {
-    if (!emitted) {
-      emitted = true
-      const mergedFallback = mergeShareResult(returnedResult, null)
-      const updatedFallback = updateShareResult(mergedFallback, pageContext, true)
-      emitShare(
-        eventName,
-        updatedFallback,
-        options,
-        false
-      )
-    }
+    emitFallback()
   }
 }
 
@@ -422,7 +433,8 @@ export function wrapShareAppMessage(
   handler : GioShareAppMessageHandler | null
 ) : GioShareAppMessageHandler {
   return (options : any | null) : any | null => {
-    const result = handler != null ? handler(options) : null
+    const originResult = handler != null ? handler(options) : null
+    const result = normalizeShareOriginResult(originResult)
     emitResolvedShare(MP_EVENT_ON_SHARE, result, options, true)
     return updateShareResult(
       result,
@@ -437,7 +449,8 @@ export function wrapShareTimeline(
   handler : GioShareTimelineHandler | null
 ) : GioShareTimelineHandler {
   return (options : any | null) : any | null => {
-    const result = handler != null ? handler(options) : null
+    const originResult = handler != null ? handler(options) : null
+    const result = normalizeShareOriginResult(originResult)
     emitResolvedShare(MP_EVENT_SHARE_TIMELINE, result, options, false)
     return updateShareResult(
       result,
@@ -452,7 +465,8 @@ export function wrapAddToFavorites(
   handler : GioAddToFavoritesHandler | null
 ) : GioAddToFavoritesHandler {
   return (options : any | null) : any | null => {
-    const result = handler != null ? handler(options) : null
+    const originResult = handler != null ? handler(options) : null
+    const result = normalizeShareOriginResult(originResult)
     emitResolvedShare(MP_EVENT_ADD_FAVORITES, result, options, false)
     return updateShareResult(
       result,

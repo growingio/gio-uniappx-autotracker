@@ -209,7 +209,7 @@ export class GioUploader {
     }
     this.inflight = false
     if (success) {
-      this.flush(null, null)
+      this.scheduleFlush()
       return
     }
     this.scheduleFlush()
