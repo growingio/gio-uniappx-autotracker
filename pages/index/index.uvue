@@ -63,13 +63,16 @@
 </template>
 
 <script lang="uts">
-import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
 
 export default {
 	data() {
 		return {
 			lastNote: '建议同时打开控制台和网络面板观察请求体。',
 		}
+	},
+	onShow() {
+		console.log('index onShow')
 	},
 	methods: {
 		isTabBarPage(name: string): boolean {

@@ -1,12 +1,5 @@
-import { gdp } from './gdp.uts'
+// uni_modules/gio-uniappx-autotracker/index.uts
+// uts 原生模块统一入口（由 HBuilderX 编译器解析）
+// 注意：不含 plugin.uts 的 defineMixin，避免在原生编译中拉入 Vue 全局
 
-export { gdp }
-export default gdp
-
-// #ifdef MP-WEIXIN
-export {
-  wrapAddToFavorites,
-  wrapShareAppMessage,
-  wrapShareTimeline
-} from './utssdk/mp-weixin/share.uts'
-// #endif
+export * from './utssdk/index.uts'

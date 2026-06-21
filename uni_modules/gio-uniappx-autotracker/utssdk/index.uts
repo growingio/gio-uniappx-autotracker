@@ -4,10 +4,15 @@ import { GioTracker } from './common/core/tracker.uts'
 
 const tracker = GioTracker.getInstance()
 
-// NOTE: do NOT re-export gioUniappxAutotracker here. This file is the uts
-// NATIVE module entry; re-exporting plugin.uts would pull it into the native
-// (Kotlin/Swift) compile where the Vue global `defineMixin` is not in scope.
-// The app-facing root index.uts re-exports the plugin (in Vue context) instead.
+import { consoleText } from './common/utils.uts'
+
+// #ifdef MP-WEIXIN
+export {
+  wrapAddToFavorites,
+  wrapShareAppMessage,
+  wrapShareTimeline
+} from './mp-weixin/share.uts'
+// #endif
 
 export function initialize (options : UTSJSONObject) : boolean {
   // #ifdef WEB
@@ -16,7 +21,24 @@ export function initialize (options : UTSJSONObject) : boolean {
   // #ifdef MP-WEIXIN
   try { globalThis['vdsConfig'] = options } catch (_error) {}
   // #endif
+  consoleText(`initialize ${tracker}`, 'info')
   return tracker.initialize(normalizeInitOptions(options))
+}
+
+export function onPageLoad(page : any, options : any | null) {
+    tracker.onPageLoad(page, options)
+}
+
+export function onShow(target : any | null) {
+    tracker.onShow(target)
+}
+
+export function onHide(target : any | null) {
+    tracker.onHide(target)
+}
+
+export function onPageUnload(page : any | null) {
+	tracker.onPageUnload(page)
 }
 
 export function track(eventName : string, properties : UTSJSONObject | null = null) : boolean {
@@ -77,3 +99,15 @@ export function getABTest(
 ) : boolean {
   return tracker.getABTest(layerId, callback)
 }
+
+// NOTE: do NOT re-export plugin.uts exports here. This file is the uts
+// NATIVE module entry; re-exporting plugin.uts would pull it into the native
+// (Kotlin/Swift) compile where the Vue global `defineMixin` is not in scope.
+// The app-facing root index.uts re-exports the JS-layer entry (gdp) instead.
+
+// Re-exports for external consumers (plugin.uts, gdp.uts) so they can import
+// everything through the module path `@/uni_modules/gio-uniappx-autotracker`
+// without reaching into internal files like `./utssdk/common/core/tracker.uts`.
+export { GioTracker } from './common/core/tracker.uts'
+export { consoleText } from './common/utils.uts'
+export { GioGdpInitOptions } from './interface.uts'

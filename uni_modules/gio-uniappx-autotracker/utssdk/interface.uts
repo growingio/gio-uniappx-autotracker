@@ -37,7 +37,7 @@ export type GioInitOptions = {
 }
 
 export type GioGdpInitOptions = {
-  app : VueApp
+  app : any
   projectId : string
   dataSourceId : string
   appId : string

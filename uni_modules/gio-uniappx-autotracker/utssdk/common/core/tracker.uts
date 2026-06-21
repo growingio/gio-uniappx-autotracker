@@ -149,6 +149,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   private ensureReady() : boolean {
+    consoleText(`${this.initialized} ${this.options}`, 'info')
     return this.initialized && this.options != null
   }
 
@@ -205,7 +206,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   private isPageTarget(target : any | null) : boolean {
-    return this.dataStore.buildPageContextFromTarget(target, null) != null
+    return this.dataStore.buildPageContextFromTarget(target as UniPage, null) != null
   }
 
   private buildCurrentPageContext(duration : number | null) : GioPageContext | null {
@@ -217,7 +218,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     options : any | null,
     duration : number | null = null
   ) : GioPageContext | null {
-    return this.dataStore.buildPageContextFromTarget(page, options, duration)
+    return this.dataStore.buildPageContextFromTarget(page as UniPage, options, duration)
   }
 
   private stringifyLifecyclePageContext(pageContext : GioPageContext | null) : string {
@@ -251,7 +252,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   private updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
-    return this.dataStore.updateCurrentPage(page, options)
+    return this.dataStore.updateCurrentPage(page as UniPage, options)
   }
 
   private buildStartupPageContext(entryInfo : GioMiniProgramEntryInfo | null) : GioPageContext | null {
@@ -401,15 +402,15 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     })
   }
 
-  private normalizeSetOptions(raw : UTSJSONObject) : boolean | null {
+  private normalizeSetOptions(raw : UTSJSONObject) : boolean {
     const dataCollectValue = raw['dataCollect']
     if (dataCollectValue == null) {
-      return null
+      return false
     }
     if (typeof dataCollectValue == 'boolean') {
       return dataCollectValue as boolean
     }
-    return null
+    return false
   }
 
   setOptions(raw : UTSJSONObject) : boolean {
@@ -464,6 +465,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     eventName : string,
     properties : UTSJSONObject | null = null
   ) : boolean {
+    consoleText(`track: ${eventName}`, 'info')
     if (!this.ensureReady()) {
       return false
     }
@@ -477,6 +479,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
 
     const pageContext = this.buildCurrentPageContext(null)
     this.maybeEmitVisit(pageContext)
+    consoleText(`pushInternalEvent: ${eventName}`, 'info')
     this.pushInternalEvent(
       eventName,
       'CUSTOM',
@@ -705,7 +708,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   private cachePageQueryOptions(page : any | null, options : any | null) {
-    const routeInfo = resolvePageRoute(page, options)
+    const routeInfo = resolvePageRoute(page as UniPage, options)
     if (routeInfo.path.length > 0) {
       this.dataStore.cacheQueryOptions(routeInfo.path, routeInfo.query)
     }
@@ -722,6 +725,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return
     }
+    consoleText(`onShow: ${JSON.stringify(target)}`, 'info')
     if (this.isPageTarget(target)) {
       this.onPageShow(target)
       return

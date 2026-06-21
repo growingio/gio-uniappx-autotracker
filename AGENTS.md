@@ -50,6 +50,8 @@
 | UTSJSONObject API | `{KB}/uni-app-x/docs/uts/buildin-object-api/utsjsonobject.md` |
 | 编译器已知问题 | `{KB}/uni-app-x/docs/uts/compiler-known-issues.md` |
 | uni-app-x 类型定义 | `{KB}/uni-app-x/types/` |
+| uni for ios | `{KB}/uni-app-x/docs/plugin/uts-for-ios.md` |
+| uni for android | `{KB}/uni-app-x/docs/plugin/uts-for-android.md` |
 
 遇到任何 UTS 语法或编译问题时，优先查询上述文档。
 

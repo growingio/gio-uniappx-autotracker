@@ -1,0 +1,43 @@
+// BoxArray<T> wraps a native Array<T> in a reference-type (class) container.
+// This avoids Swift's value-type CoW semantics: assigning a BoxArray to another
+// variable shares the same underlying array, so mutations through either
+// reference are visible to both.
+export class BoxArray<T> {
+  private data : Array<T>
+
+  constructor() {
+    this.data = []
+  }
+
+  get length() : number {
+    return this.data.length as number
+  }
+
+  push(item : T) : void {
+    this.data.push(item)
+  }
+
+  shift() : T | null {
+    const shifted = this.data.shift()
+    return shifted != null ? shifted : null
+  }
+
+  splice(start : number, deleteCount : number) : void {
+    this.data.splice(start, deleteCount)
+  }
+
+  slice() : Array<T> {
+    return this.data.slice()
+  }
+
+  get(idx : number) : T | null {
+    if (idx >= 0 && idx < this.data.length) {
+      return this.data[idx]
+    }
+    return null
+  }
+
+  clear() : void {
+    this.data = []
+  }
+}

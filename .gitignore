@@ -3,3 +3,9 @@ dist/
 .DS_Store
 demos/growingio-showcase/unpackage/
 demos/growingio-showcase/uni_modules/
+
+uni-stat
+CODEBUDDY.md
+unpackage
+.codebuddy
+.hbuilderx

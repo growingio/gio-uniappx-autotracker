@@ -74,7 +74,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
 const userIdInput = ref('demo_user_001')
 const userKeyInput = ref('mobile')
 const identifyValidInput = ref('demo_openid_001')

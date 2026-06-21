@@ -1,5 +1,7 @@
 <script lang="uts">
 export default {
-	onShow() {},
+	onShow() {
+		console.log('app onShow')
+	},
 }
 </script>

@@ -1,19 +1,36 @@
+// gdp.uts — glue layer outside utssdk/.
+// Follows the rule: files outside utssdk/ use the module path
+// `@/uni_modules/gio-uniappx-autotracker` to access utssdk exports.
 import {
   clearUserId,
   getABTest,
   identify,
+  initialize,
   registerPlugins,
   setOptions,
   setUserAttributes,
   setUserId,
   track
-} from './utssdk/index.uts'
-import { GioGdpInitOptions } from './utssdk/interface.uts'
-import { consoleText } from './utssdk/common/utils.uts'
-import {
-  initializeGioTracker,
-  installGioLifecycle
-} from './plugin.uts'
+} from '@/uni_modules/gio-uniappx-autotracker'
+import type { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker'
+import { installGioLifecycle } from './plugin.uts'
+
+export function consoleText(
+  message : any,
+  type : string | null = null
+) {
+  const styles = {
+    info: 'color: #3B82F6;',
+    error: 'color: #EF4444;',
+    warn: 'color: #F59E0B;',
+    success: 'color: #10B981;'
+  } as UTSJSONObject
+  let style = ''
+  if (type != null && styles[type] != null) {
+    style = `${styles[type]}`
+  }
+  console.log(`%c [GrowingIO]：${message}`, style)
+}
 
 function isObjectArgument(value : any | null) : boolean {
   return value != null && typeof value == 'object' && !Array.isArray(value)
@@ -65,12 +82,22 @@ function handleInit(options : any | null) : boolean {
   rawOptions['idMapping'] = initOptions.idMapping
   rawOptions['storageType'] = initOptions.storageType
   rawOptions['cookieDomain'] = initOptions.cookieDomain
-  const initialized = initializeGioTracker(rawOptions)
+  const initialized = initialize(rawOptions)
   if (!initialized) {
     return false
   }
-  return installGioLifecycle(initOptions.app)
+  return installGioLifecycle(initOptions.app as VueApp)
 }
+
+// Re-export mp-weixin share wrappers so that index.uts can surface them
+// without directly importing from ./utssdk/.
+// #ifdef MP-WEIXIN
+export {
+  wrapAddToFavorites,
+  wrapShareAppMessage,
+  wrapShareTimeline
+} from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
 
 export function gdp(
   command : string,
@@ -78,6 +105,7 @@ export function gdp(
   arg1 : any | null = null,
   arg2 : any | null = null
 ) : any {
+  consoleText(`gdp(${command}, ${arg0}, ${arg1}, ${arg2})`, 'info')
   if (command == 'init') {
     return handleInit(arg0)
   }
@@ -118,7 +146,7 @@ export function gdp(
     return setUserAttributes(asJSONObject(arg0))
   }
   if (command == 'identify') {
-    return identify(arg0)
+    return identify(arg0!)
   }
   if (command == 'clearUserId') {
     return clearUserId()
@@ -132,7 +160,7 @@ export function gdp(
     return registerPlugins(plugins)
   }
   if (command == 'getABTest') {
-    return getABTest(arg0, asCallback(arg1))
+    return getABTest(arg0!, asCallback(arg1))
   }
   consoleText(`不存在名为 ${command} 的方法调用!`, 'error')
   return false

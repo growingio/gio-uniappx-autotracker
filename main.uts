@@ -1,23 +1,7 @@
 import { createSSRApp } from 'vue'
 import App from './App.uvue'
-import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
-
-type GioDemoInitOptions = {
-	app: VueApp
-	projectId: string
-	dataSourceId: string
-	appId: string
-	serverUrl: string
-	appVersion: string | null
-	dataCollect: boolean
-	debug: boolean
-	forceLogin: boolean
-	originalSource: boolean
-	followShare: boolean
-	idMapping: boolean
-	storageType: string | null
-	cookieDomain: string | null
-}
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
+import { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker/utssdk/interface.uts'
 
 export function createApp() {
 	const app = createSSRApp(App)
@@ -33,7 +17,8 @@ export function createApp() {
 			debug: true,
 			forceLogin: false,
 			idMapping: false,
-		} as GioDemoInitOptions)
+			dataCollect: true
+		} as GioGdpInitOptions)
 		gdp('registerPlugins', [
 			{
 				name: 'gioABTest',
