@@ -18,6 +18,7 @@ type GioPageContextResolver = {
 type GioRuntimeBehavior = {
   scheduleVisitAndPage : (dispatch : (() => void)) => void
   shouldTrackAppClosed : () => boolean
+  shouldEmitPageOnShow : () => boolean
 }
 
 type GioEventShaper = {
@@ -215,6 +216,14 @@ export function shouldTrackAppClosed () : boolean {
     return true
   }
   return behavior.shouldTrackAppClosed()
+}
+
+export function shouldEmitPageOnShow() : boolean {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    return true
+  }
+  return behavior.shouldEmitPageOnShow()
 }
 
 export function shapeTrackEvent (

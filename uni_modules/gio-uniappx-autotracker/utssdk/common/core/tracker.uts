@@ -40,6 +40,7 @@ import {
   readVisitSessionSnapshot,
   recordVisitSessionSnapshot,
   scheduleVisitAndPage,
+  shouldEmitPageOnShow,
   shouldTrackAppClosed,
   syncConfigToGlobal
 } from '../runtime/index.uts'
@@ -762,6 +763,9 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.shareOut = false
     const pageContext = this.updateCurrentPage(page, null)
     this.logLifecycle('page', 'onShow', pageContext)
+    if (!shouldEmitPageOnShow()) {
+      return
+    }
     this.dispatchFirstPageWhenReady(pageContext)
   }
 

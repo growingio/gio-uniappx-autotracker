@@ -290,7 +290,7 @@ function getLocalKeys() : Array<string> {
 }
 
 function getCookieKeys() : Array<string> {
-  return Object.keys(readCookieMap())
+  return UTSJSONObject.keys(readCookieMap())
 }
 
 function createCookieStorage(domain : string) : any {
@@ -418,6 +418,7 @@ function readDocumentReferrer() : string {
 }
 
 let lastPageFullUrl : string = ''
+let lastTrackedPageHref : string = ''
 
 function readCurrentHref() : string {
   try {
@@ -427,6 +428,18 @@ function readCurrentHref() : string {
     }
   } catch (_error) {}
   return ''
+}
+
+function shouldEmitPageForCurrentHref() : boolean {
+  const currentHref = readCurrentHref()
+  if (currentHref.length == 0) {
+    return true
+  }
+  const shouldEmit = lastTrackedPageHref.length == 0 || lastTrackedPageHref != currentHref
+  if (shouldEmit) {
+    lastTrackedPageHref = currentHref
+  }
+  return shouldEmit
 }
 
 function resolveBrowserPageContext(
@@ -582,6 +595,9 @@ registerRuntimeBehavior({
   },
   shouldTrackAppClosed() : boolean {
     return false
+  },
+  shouldEmitPageOnShow() : boolean {
+    return shouldEmitPageForCurrentHref()
   }
 })
 
@@ -601,6 +617,8 @@ registerConfigSyncer({
         appId: options.appId,
         serverUrl: options.serverUrl,
         appVersion: options.appVersion,
+        dataCollect: options.dataCollect,
+        idMapping: options.idMapping,
         cookieDomain: rawDomain != null ? rawDomain : '',
         debug: options.debug,
         forceLogin: options.forceLogin,
@@ -626,6 +644,12 @@ registerEventShaper({
     event.protocolType = event.eventType == 'PAGE'
       ? readProtocolType()
       : null
+    if (event.eventType == 'PAGE') {
+      const currentHref = readCurrentHref()
+      if (currentHref.length > 0) {
+        lastTrackedPageHref = currentHref
+      }
+    }
     return event
   }
 })
