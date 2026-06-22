@@ -4,16 +4,6 @@
   "private": true,
   "description": "Minimal feature showcase for gio-uniappx-autotracker SDK",
   "scripts": {
-    "build": "node ./scripts/build.mjs",
-    "build:sdk": "node ./scripts/build.mjs",
-    "verify:bundle": "node ./scripts/verify-bundle.mjs",
-    "dev:demo-web": "node ./scripts/dev-demo.mjs web",
-    "dev:demo-mp": "node ./scripts/dev-demo.mjs mp-weixin",
-    "dev:demo-android": "node ./scripts/dev-demo.mjs app-android",
-    "dev:demo-ios": "node ./scripts/dev-demo.mjs app-ios",
-    "dev:demo-harmony": "node ./scripts/dev-demo.mjs app-harmony",
-    "demo:open": "open -a HBuilderX .",
-    "demo:debug": "node ./scripts/demo-debug.mjs",
-    "release": "node ./scripts/build.mjs && node ./scripts/verify-bundle.mjs && node ./scripts/release-pack.mjs"
+    "demo:open": "open -a HBuilderX ."
   }
 }

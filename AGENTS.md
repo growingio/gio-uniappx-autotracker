@@ -28,9 +28,9 @@
 ## 验证规则
 
 - 不能因为源码编译通过，就默认五端可用。
-- 每次改动后，至少要保证 `npm run build`、`npm run verify:bundle` 可通过。
-- `npm run release` 应保持可用，确保最终发布产物结构完整。
-- 如果要声称“五端都能编译并可上报”，必须经过真实的 HBuilderX 五端编译验证，不能只根据源码或 `dist` 结构做结论。
+- 每次改动后，至少要在 HBuilderX 里打开根目录工程（`npm run demo:open`），对受影响的端做编译验证。
+- SDK 以 `uni_modules/gio-uniappx-autotracker` 集成包形态直接随工程编译，不依赖额外的构建/打包脚本；要保证该目录五端入口结构完整。
+- 如果要声称“五端都能编译并可上报”，必须经过真实的 HBuilderX 五端编译验证，不能只根据源码结构做结论。
 
 ## 当前项目约定
 

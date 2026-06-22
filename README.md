@@ -25,35 +25,26 @@
 - `appVersion`
 - `debug`
 - `forceLogin`
-- `originalSource`
 - `idMapping`
+- `dataCollect`
 
 对应源码见 [main.uts](./main.uts)。
 
 当前 demo 会默认通过 `gdp('registerPlugins', [{ name: 'gioABTest', options }])` 注册 `gioABTest` 插件，并额外提供一个 ABTest 页面做最小联调入口。该页面按单实例方式演示 `gdp('getABTest', layerId, callback)`，不包含 `trackingId` 多实例调用。
 
-如果你要调试当前 demo，直接在仓库根目录运行：
+如果你要调试当前 demo，用 HBuilderX 打开仓库根目录工程即可，不需要再把 SDK 安装到 demo 里，也不需要额外的 symlink / copy 步骤：
 
 ```bash
-npm run dev:demo-web
+npm run demo:open
 ```
 
-这条命令会直接打开根目录 demo，不需要再把 SDK 安装到 demo 里，也不需要额外的 symlink / copy 步骤。
+这条命令等价于 `open -a HBuilderX .`。打开后，在 HBuilderX 里选择对应的端运行/编译即可：
 
-如果你想在 web 本地地址 ready 后自动打开浏览器，可以执行：
-
-```bash
-npm run dev:demo-web -- --open-browser
-```
-
-其它平台也有同风格命令：
-
-```bash
-npm run dev:demo-mp
-npm run dev:demo-android
-npm run dev:demo-ios
-npm run dev:demo-harmony
-```
+- `web`
+- `mp-weixin`
+- `app-android`
+- `app-ios`
+- `app-harmony`
 
 如果你要调试 `iOS` demo，本机还需要满足这两个前置条件：
 
@@ -62,25 +53,7 @@ npm run dev:demo-harmony
 
 否则 HBuilderX 很容易退回到“iOS 真机未签名标准基座”这条链路，demo 不会真正进入模拟器运行。
 
-如果你只想准备环境，不真正拉起 HBuilderX，可以执行：
+## SDK 集成包
 
-```bash
-npm run demo:debug -- --no-open
-```
-
-## SDK 单独打包
-
-如果你要单独打包 SDK，而不是调 demo，可以直接运行：
-
-```bash
-npm run build:sdk
-```
-
-这会把 `uni_modules/gio-uniappx-autotracker` 打成 `dist/uni_modules/gio-uniappx-autotracker`，然后再执行：
-
-```bash
-npm run verify:bundle
-```
-
-来检查五端入口和产物元数据是否齐全。
+SDK 以 `uni_modules` 集成包的形态放在 `uni_modules/gio-uniappx-autotracker`，包含 `web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 五端入口。其它工程要使用时，直接把整个 `uni_modules/gio-uniappx-autotracker` 目录拷贝进去即可，无需额外构建步骤。
 
