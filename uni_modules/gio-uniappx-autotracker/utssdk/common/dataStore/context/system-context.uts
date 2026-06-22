@@ -18,21 +18,6 @@ function readTextField(source : any | null, keys : Array<string>) : string {
   return ''
 }
 
-function readNumberField(source : any | null, keys : Array<string>) : number {
-  if (source == null) {
-    return 0
-  }
-  const raw = source as UTSJSONObject
-  for (let i = 0; i < keys.length; i++) {
-    const key = keys[i]
-    const value = raw[key]
-    if (value != null && `${value}`.length > 0) {
-      return value as number
-    }
-  }
-  return 0
-}
-
 function mapOperatingSystem(rawValue : string) : string {
   if (rawValue.length == 0) {
     return 'unknown'
@@ -55,7 +40,9 @@ function mapOperatingSystem(rawValue : string) : string {
 
 function buildSystemContext(
   systemInfo : any | null,
-  networkState : string
+  networkState : string,
+  screenWidth : number,
+  screenHeight : number
 ) : GioSystemContext {
   const platform = readTextField(
     systemInfo,
@@ -70,12 +57,6 @@ function buildSystemContext(
     platformVersion = `${operatingSystem} ${version}`
   }
 
-  consoleText(`systemInfo ${systemInfo}`, 'info')
-  consoleText(`screenHeight ${readNumberField(systemInfo, ['screenHeight'])}`, 'info')
-  let si = systemInfo as UTSJSONObject
-  consoleText(`uts ${si}`, 'info')
-  consoleText(`${si['screenHeight']}`, 'info')
-  
   return {
     deviceBrand: readTextField(systemInfo, ['deviceBrand', 'brand']),
     deviceModel: readTextField(systemInfo, ['deviceModel', 'model']),
@@ -85,8 +66,8 @@ function buildSystemContext(
     operatingSystem: operatingSystem,
     platform: platform.length > 0 ? platform : 'unknown',
     platformVersion: platformVersion,
-    screenHeight: readNumberField(systemInfo, ['screenHeight']),
-    screenWidth: readNumberField(systemInfo, ['screenWidth'])
+    screenHeight: screenHeight,
+    screenWidth: screenWidth
   } as GioSystemContext
 }
 
@@ -94,6 +75,8 @@ export class GioSystemContextManager {
   private debugEnabled : boolean = false
   private systemInfo : any | null = null
   private networkState : string = ''
+  private screenWidth : number = 0
+  private screenHeight : number = 0
   private context : GioSystemContext = {
     deviceBrand: '',
     deviceModel: '',
@@ -107,20 +90,25 @@ export class GioSystemContextManager {
     screenWidth: 0
   } as GioSystemContext
   private initialized : boolean = false
-  private listenerBound : boolean = false
   private systemReady : boolean = false
   private networkReady : boolean = false
   private readyCallbacks : Array<GioSystemReadyCallback> = []
 
-  initialize(debugEnabled : boolean) {
+  initialize(debugEnabled : boolean, screenWidth : number, screenHeight : number) {
     this.debugEnabled = debugEnabled
     if (this.initialized) {
       return
     }
     this.initialized = true
+    this.screenWidth = screenWidth
+    this.screenHeight = screenHeight
     this.loadSystemInfo()
-    this.loadNetworkType()
-    this.bindNetworkListener()
+    this.markNetworkReady()
+  }
+
+  setNetworkState(networkType : string) {
+    this.networkState = networkType
+    this.updateContext()
   }
 
   getContext() : GioSystemContext {
@@ -145,7 +133,12 @@ export class GioSystemContextManager {
   }
 
   private updateContext() {
-    this.context = buildSystemContext(this.systemInfo, this.networkState)
+    this.context = buildSystemContext(
+      this.systemInfo,
+      this.networkState,
+      this.screenWidth,
+      this.screenHeight
+    )
   }
 
   private flushReadyCallbacks() {
@@ -183,40 +176,4 @@ export class GioSystemContextManager {
     this.markSystemReady()
   }
 
-  private loadNetworkType() {
-    // UTS cannot probe `uni` members dynamically; call the typed API directly.
-    try {
-      uni.getNetworkType({
-        success: (res) => {
-          this.networkState = res.networkType
-          this.markNetworkReady()
-        },
-        fail: (_) => {
-          debugLog(this.debugEnabled, 'getNetworkType failed', null)
-          this.markNetworkReady()
-        }
-      })
-    } catch (_error) {
-      debugLog(this.debugEnabled, 'getNetworkType threw synchronously', null)
-      this.markNetworkReady()
-    }
-  }
-
-  private bindNetworkListener() {
-    if (this.listenerBound) {
-      return
-    }
-    try {
-      this.listenerBound = true
-      uni.onNetworkStatusChange((res) => {
-        this.networkState = res.networkType
-        this.updateContext()
-        if (!this.networkReady) {
-          this.markNetworkReady()
-        }
-      })
-    } catch (_error) {
-      debugLog(this.debugEnabled, 'onNetworkStatusChange threw synchronously', null)
-    }
-  }
 }

@@ -10,7 +10,8 @@ import {
   setOptions,
   setUserAttributes,
   setUserId,
-  track
+  track,
+  updateNetworkState
 } from '@/uni_modules/gio-uniappx-autotracker'
 import type { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker'
 import { installGioLifecycle } from './plugin.uts'
@@ -55,6 +56,38 @@ function asCallback(
     : null
 }
 
+function seedScreenSize(rawOptions : UTSJSONObject) {
+  try {
+    const win = uni.getWindowInfo()
+    rawOptions['screenWidth'] = win.screenWidth
+    rawOptions['screenHeight'] = win.screenHeight
+  } catch (_error) {
+    consoleText('gdp("init") 读取屏幕尺寸失败', 'warn')
+  }
+}
+
+function bindNetworkState() {
+  try {
+    uni.getNetworkType({
+      success: (res) => {
+        updateNetworkState(res.networkType)
+      },
+      fail: (_) => {
+        consoleText('gdp("init") 读取网络状态失败', 'warn')
+      }
+    })
+  } catch (_error) {
+    consoleText('gdp("init") getNetworkType 调用异常', 'warn')
+  }
+  try {
+    uni.onNetworkStatusChange((res) => {
+      updateNetworkState(res.networkType)
+    })
+  } catch (_error) {
+    consoleText('gdp("init") onNetworkStatusChange 注册异常', 'warn')
+  }
+}
+
 function handleInit(options : any | null) : boolean {
   if (!isObjectArgument(options)) {
     consoleText(
@@ -82,10 +115,12 @@ function handleInit(options : any | null) : boolean {
   rawOptions['idMapping'] = initOptions.idMapping
   rawOptions['storageType'] = initOptions.storageType
   rawOptions['cookieDomain'] = initOptions.cookieDomain
+  seedScreenSize(rawOptions)
   const initialized = initialize(rawOptions)
   if (!initialized) {
     return false
   }
+  bindNetworkState()
   return installGioLifecycle(initOptions.app as VueApp)
 }
 

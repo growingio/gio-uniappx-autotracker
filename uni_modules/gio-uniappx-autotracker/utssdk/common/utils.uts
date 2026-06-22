@@ -145,10 +145,6 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
     snapshot['appLanguage'] = appBase.appLanguage
     snapshot['language'] = appBase.language
 
-    const windowInfo = uni.getWindowInfo()
-    snapshot['screenWidth'] = windowInfo.screenWidth
-    snapshot['screenHeight'] = windowInfo.screenHeight
-
     return snapshot
   } catch (_error) {
     return null

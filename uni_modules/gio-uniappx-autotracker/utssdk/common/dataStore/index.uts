@@ -55,7 +55,11 @@ export class GioDataStore {
     this.sessionUpdateHandlers = sessionUpdateHandlers
     this.eventBuilder.configure(userStore)
     consoleText(`GioDataStore initialize: ${options.debug}`, 'info')
-    this.systemContext.initialize(options.debug == true)
+    this.systemContext.initialize(
+      options.debug == true,
+      options.screenWidth,
+      options.screenHeight
+    )
     this.pageStore.configure(options.appId)
     this.bindSessionUpdateListener()
   }
@@ -107,7 +111,9 @@ export class GioDataStore {
       debug: false,
       forceLogin: false,
       originalSource: true,
-      followShare: false
+      followShare: false,
+      screenWidth: 0,
+      screenHeight: 0
     } as GioInitOptions
   }
 
@@ -121,6 +127,10 @@ export class GioDataStore {
     } else {
       consoleText('已关闭数据采集', 'info')
     }
+  }
+
+  updateNetworkState(networkType : string) {
+    this.systemContext.setNetworkState(networkType)
   }
 
   isSystemReady() : boolean {
