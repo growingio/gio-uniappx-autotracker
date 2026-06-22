@@ -235,9 +235,26 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     }
   }
 
+  // JS 经原生桥传来的页面对象是 UTSJSONObject，不是原生 GioPageSnapshot 结构。
+  // 直接 `as GioPageSnapshot` 在 iOS 上会编成 Swift 强制转型并断言失败崩溃，
+  // 这里逐字段读出来重建快照。
+  private toPageSnapshot(target : any | null) : GioPageSnapshot | null {
+    if (target == null || typeof target != 'object' || Array.isArray(target)) {
+      return null
+    }
+    const raw = target as UTSJSONObject
+    return {
+      route: raw.getString('route'),
+      mpRoute: raw.getString('mpRoute'),
+      title: raw.getString('title'),
+      options: raw.getJSON('options'),
+      mpOptions: raw.getJSON('mpOptions')
+    } as GioPageSnapshot
+  }
+
   private isPageTarget(target : any | null) : boolean {
     return this.dataStore.buildPageContextFromTarget(
-      target as GioPageSnapshot,
+      this.toPageSnapshot(target),
       null
     ) != null
   }
@@ -252,7 +269,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     duration : number | null = null
   ) : GioPageContext | null {
     return this.dataStore.buildPageContextFromTarget(
-      page as GioPageSnapshot,
+      this.toPageSnapshot(page),
       options as UTSJSONObject | null,
       duration
     )
@@ -290,7 +307,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
 
   private updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
     return this.dataStore.updateCurrentPage(
-      page as GioPageSnapshot,
+      this.toPageSnapshot(page),
       options as UTSJSONObject | null
     )
   }
@@ -740,7 +757,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
 
   private cachePageQueryOptions(page : any | null, options : any | null) {
     const routeInfo = resolvePageRoute(
-      page as GioPageSnapshot,
+      this.toPageSnapshot(page),
       options as UTSJSONObject | null
     )
     if (routeInfo.path.length > 0) {
