@@ -38,6 +38,42 @@
 - 当前插件入口通过 `normalizeInitOptions()` 做配置归一化，再进入 `GioTracker`。
 - 当前 demo 也必须遵守同样的 UTS 规则，不能因为只是示例就退回普通 TS 写法。
 
+## 架构与职责边界
+
+- `GioTracker` 只负责编排：初始化校验、生命周期调度、session 边界、事件派发、插件协调。不要继续把平台字段解析、存储细节、请求参数组装直接堆进 `tracker.uts`。
+- 页面路由、页面快照、系统上下文、事件构建、上传、用户身份必须各自留在独立模块中；如果一个函数同时在做取状态、改状态、发事件、拼请求，优先拆开。
+- 跨端共用逻辑优先抽到 `utssdk/common`；平台目录只做注册、薄封装和平台差异适配，不复制完整实现。
+- `utssdk/common` 内禁止出现带平台语义的文件名或实现（如 `miniprogram`、`web-only`、`ios-*`）；如果某段逻辑只服务某一端，即使算法可复用，也应放回对应平台目录，或先抽象成真正无平台语义的公共工具。
+- `utssdk/common/utils` 是唯一的公共工具收口目录；像 `BoxArray` 这种轻量容器封装、请求辅助、调试辅助、校验函数都应收在这里，优先并入已有工具文件，不要为了单个小工具拆出零散文件。
+- `utssdk/` 内是原生编译层，`plugin.uts` / `gdp.uts` 是 JS 编译层。JS 层只允许做生命周期桥接、命令分发、参数预处理，不要重复实现核心业务逻辑。
+
+## 生命周期桥接规则
+
+- `plugin.uts` 的 mixin 必须显式桥接 `onLaunch`、`onLoad`、`onShow`、`onHide`、`onUnload` 到 `utssdk` 导出的对应入口，不能留空壳 hook。
+- `App.uvue` 在 `app-android` 不支持 mixins，全局 mixins 也不会对 `App.uvue` 生效；任何依赖 App mixin 的能力都必须明确标注平台限制，不能默认五端一致。
+- 页面生命周期可以走 mixin；App 生命周期如果受平台限制，必须让降级行为可见，不能让 `APP_CLOSED`、首屏来源等能力处于“代码看起来接了、实际没接上”的状态。
+
+## 日志与调试规则
+
+- 默认常驻日志只保留真正有价值的 `warn`、`error` 和必要的初始化提示；热路径里的 `info` 日志必须受 `debug` 开关控制。
+- 禁止在 `track`、`onShow`、页面上下文构建、命令分发等高频路径里无条件打印对象、JSON 字符串或运行态快照。
+- 为定位单端问题临时加入的日志，修复完成后必须收回到 `debugLog()` 或删除，不能残留在主逻辑里。
+
+## 模块重构规则
+
+- 发现重复实现时，优先抽到 `utssdk/common` 再由平台目录复用；不要在多个入口文件各修一份。
+- `setOptions`、`registerPlugins`、`identify` 这类公开入口必须先做显式参数归一化，再进入核心逻辑；参数不合法时直接失败，不能静默改状态。
+- 对外布尔开关如果存在“未提供 / true / false”语义，必须在归一化阶段一次性消解；进入核心状态后尽量保存为确定类型。
+
+## 已验证的高频坑
+
+- `uni.request()` 的 `data` 只接受 `UTSJSONObject | string | ArrayBuffer`；上传数组时先 `JSON.stringify()`，不要把 `Array<UTSJSONObject>` 直接传进去。
+- `App.uvue` 无法靠 mixin 可靠监听退后台，尤其是 `app-android`；相关能力必须单独标注平台限制。
+- `utssdk` 目录内外分属不同编译层，禁止跨层直接混合 re-export，否则容易出现重复实例或编译异常。
+- 页面路径、query、title 的解析必须走统一模块，不要在不同生命周期里各自拼装。
+- iOS 对 `index.uts` 的二次 re-export 更敏感；公共导出尽量扁平，避免多层转发。
+- Kotlin/Swift 对数组引用语义不同，跨模块共享可变数组时优先使用显式包装类，避免长期直接传裸数组。
+
 ## UTS 知识库
 
 本地知识库根目录：`{.codebuddy/knowledges}`，以下用 `{KB}` 代指。

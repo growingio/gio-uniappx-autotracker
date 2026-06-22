@@ -19,6 +19,36 @@
 
 ---
 
+## 0. 生命周期桥接边界
+
+`gio-uniappx-autotracker` 当前明确区分两层：
+
+- `plugin.uts` / `gdp.uts`：JS 编译层
+- `utssdk/`：native 编译层
+
+这条边界直接影响可编译性，不能模糊处理。
+
+### 0.1 不能把页面实例直接传进 `utssdk/`
+
+页面生命周期里的 `this`、原始 `options`、以及平台页面实例，都不能直接透传给 `utssdk/`。
+
+原因：
+
+- iOS 原生侧不认识这些实例，它们不是稳定的 `UTSJSONObject`
+- 各端页面实例结构不同，直接透传会把平台差异扩散进核心逻辑
+- `utssdk/` 应只消费稳定、显式、可序列化的普通对象
+
+### 0.2 统一先做浅拷贝快照
+
+当前正确做法是在 `plugin.uts` 先构造快照，再转发给 `utssdk/`：
+
+- 页面快照：`route`、`$scope.route`、`options`、`$scope.options`、`title`
+- 启动参数快照：`path`、`scene`、`query`、`referrerInfo` / `refererInfo`
+
+如果后续需要补更多字段，先扩展快照结构，不要回退到“直接传 `this` / `options`”。
+
+---
+
 ## 1. 类型选择
 
 ### 1.1 尽可能不使用 `any`

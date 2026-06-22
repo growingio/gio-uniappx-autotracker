@@ -32,6 +32,7 @@
 - 共享运行时代码放在 `utssdk/common`
 - 平台编译入口需要落到 `utssdk/<platform>/index.uts`
 - 生命周期桥接放在 mixin 中，而不是把入口逻辑硬写进核心类
+- 生命周期桥接进入 `utssdk/` 之前，必须先在 JS 编译层把页面实例和启动参数归一化成稳定的普通对象快照，不能直接透传 `this` 或原始 `options`
 
 ### 来自 `gio-miniprogram-autotracker`
 
@@ -80,12 +81,19 @@ gio-uniappx-autotracker/
     common/
       config.uts
       route.uts
-      system-context.uts
-      utils.uts
       core/
         tracker.uts
-        user-store.uts
         uploader.uts
+      dataStore/
+        index.uts
+      userStore/
+        index.uts
+      utils/
+        base.uts
+        debug.uts
+        request.uts
+        system.uts
+        validate.uts
 ```
 
 ## 5. 对外 API
@@ -134,6 +142,13 @@ UTS 约束说明：
 - 调用路由解析模块，统一维护 `path` / `query` / `title` / `referralPage`
 - 等待异步设备信息和网络信息就绪后，再真正构建事件并入队
 - 首屏 `VISIT` / `PAGE` 也不能例外，必须等上下文 ready 后才能发送
+- 只消费稳定的初始化配置、页面快照、启动参数快照，不直接依赖原始页面实例
+
+边界约束：
+
+- `tracker` 只做编排，不直接承担平台页面实例适配
+- 页面实例字段提取、`this`/`options` 浅拷贝、`referrerInfo` 兼容处理，统一放在 `plugin.uts` 或独立解析模块里
+- 小程序入口来源、scene、referrer 的兜底解析应沉到独立模块，不要继续堆进 `tracker.uts`
 
 web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选择浏览器存储实现和 cookie 域名。
 
@@ -259,11 +274,17 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 职责：
 
-- 统一从 `route`、`__route__`、`$page.route`、`fullPath`、`url` 等多个候选字段中提取页面路径
-- 统一从 `onLoad(options)`、`page.options`、`$page.options`、URL query 中提取页面参数
+- 统一消费 JS 编译层传入的页面快照，而不是直接读取原始页面实例
+- 统一从 `route`、`$scope.route`、`fullPath`、`url` 等多个候选字段中提取页面路径
+- 统一从 `onLoad(options)` 快照、`page.options` 快照、`$scope.options` 快照、URL query 中提取页面参数
 - 统一归一化 `query` 的上报格式，最终始终输出字符串
 - 生成路由签名，用于判断“同一路径但 query 已变化”的场景
 - 为 `tracker` 提供 `path` / `query` / `title` / `signature` 这一组稳定结果
+
+演进规则：
+
+- 如果后续还有新平台字段需要参与路由解析，先扩展 JS 层快照结构，再让 `route.uts` 消费新增字段
+- 不允许为了省事回退到在 `utssdk/` 里直接接页面实例或直接假设 `UniPage`
 
 ## 7. 事件模型
 
@@ -325,6 +346,15 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 ## 8. 生命周期策略
 
+### 生命周期桥接总原则
+
+- `plugin.uts` 是 JS 编译层桥接器，只负责监听生命周期、做浅拷贝、构造快照并转发
+- `utssdk/` 是原生编译层，只接收稳定的普通对象，不直接接收 `this`、页面实例或原始 `options`
+- 页面快照当前最小字段集合为 `route`、`$scope.route`、`options`、`$scope.options`、`title`
+- 启动参数快照当前最小字段集合为 `path`、`scene`、`query`、`referrerInfo` / `refererInfo`
+- 如果后续能力需要更多字段，先补快照结构，再补 `tracker` / `route` 的消费逻辑
+- `plugin.uts` 不重复实现 session、事件构建、上报策略；`tracker` 也不反向接管桥接细节
+
 ### `VISIT`
 
 触发时机：
@@ -353,6 +383,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 当前实现补充规则：
 
 - 路由解析统一走 `route.uts`
+- `onLoad`、`onShow`、`onHide`、`onUnload` 进入 `utssdk/` 时统一使用 JS 层快照对象，不直接传页面实例
 - `referralPage` 的切换判断不只看 `path`，而是看 `path + query` 组成的路由签名
 - 同一路径但 query 变化时，会被当成新的路由状态处理
 - 新页面如果暂时还没有标题，不会继续沿用上一个页面的标题
@@ -523,6 +554,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 - 还没有跑过 HBuilderX 编译验证
 - 平台入口虽然已经补齐，但还没有经过五端逐一编译验证
+- `app-android` 的 `App.uvue` mixin 仍有限制，`APP_CLOSED` 与完整退后台链路还需要继续做真机验证
 - 还没有做到与独立 SDK 完整请求体对齐
 - 当前 route / title 提取仍然只是“尽力提取”策略，后续还需要结合真实 uni-app x 页面对象继续收敛
 - 当前虽然已经把路由解析集中到了 `route.uts`，但不同端的页面对象字段还需要继续补充更多真实样本验证
