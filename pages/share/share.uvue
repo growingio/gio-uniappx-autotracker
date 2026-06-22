@@ -33,7 +33,7 @@
 
 <script lang="uts">
 // #ifdef MP-WEIXIN
-import { wrapShareAppMessage, wrapShareTimeline, wrapAddToFavorites } from '@/uni_modules/gio-uniappx-autotracker'
+import { wrapShareAppMessage, wrapShareTimeline, wrapAddToFavorites } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
 
 const handleShareAppMessage = wrapShareAppMessage((options: any | null): any | null => {
 	return {

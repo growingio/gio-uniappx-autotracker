@@ -37,8 +37,6 @@ function normalizeRoutePath(raw : string | null) : string {
   if (raw == null || raw.length == 0) {
     return ''
   }
-  // raw is non-null here, but UTS keeps the `string | null` type on the new
-  // binding; assert to a non-null string so String methods resolve.
   let value : string = raw as string
   const hashIndex = value.indexOf('#')
   if (hashIndex >= 0) {
@@ -97,131 +95,105 @@ function normalizeQueryString(queryText : string) : string {
   return parts.join('&')
 }
 
-// UTS forbids dot-access of arbitrary members on an `any` value; read fields
-// through direct index access with fallback protection.
-function readAnyField(source : any | null, key : string) : any | null {
-	if (source == null) {
-		return null
-	}
-	try {
-		const record = source as UTSJSONObject
-		const value = (record as any)[key]
-		return value != null ? value : null
-	} catch (_error) {
-		return null
-	}
+// ============================================================
+// getPagePath — 完全对齐 uni-stat get_route（直接访问属性，无 readAnyField）
+// ============================================================
+export function getPagePath(page : UniPage | null) : string {
+  if (page == null) {
+    return ''
+  }
+  let route : string
+  // #ifdef MP-WEIXIN
+  route = (page.$scope as any)?.route ?? ''
+  // #endif
+  // #ifndef MP-WEIXIN
+  route = page.route
+  // #endif
+
+  if (route.length == 0) {
+    return ''
+  }
+  return normalizeRoutePath(route)
 }
 
-function getPageUrl(page : any | null) : string {
-  const url = readAnyField(page, 'url')
-  if (url != null && `${url}`.length > 0) {
-    return `${url}`
-  }
-  const fullPath = readAnyField(page, 'fullPath')
-  if (fullPath != null && `${fullPath}`.length > 0) {
-    return `${fullPath}`
-  }
-  const sub = readAnyField(page, '$page')
-  const subFullPath = readAnyField(sub, 'fullPath')
-  if (subFullPath != null && `${subFullPath}`.length > 0) {
-    return `${subFullPath}`
-  }
-  const subPath = readAnyField(sub, 'path')
-  if (subPath != null && `${subPath}`.length > 0) {
-    return `${subPath}`
-  }
-  return ''
-}
-
-export function getPagePath(page : any | null) : string {
-  const route = readAnyField(page, 'route')
-  if (route != null && `${route}`.length > 0) {
-    return normalizeRoutePath(`${route}`)
-  }
-  const legacyRoute = readAnyField(page, '__route__')
-  if (legacyRoute != null && `${legacyRoute}`.length > 0) {
-    return normalizeRoutePath(`${legacyRoute}`)
-  }
-  const sub = readAnyField(page, '$page')
-  const subRoute = readAnyField(sub, 'route')
-  if (subRoute != null && `${subRoute}`.length > 0) {
-    return normalizeRoutePath(`${subRoute}`)
-  }
-  const subFullPath = readAnyField(sub, 'fullPath')
-  if (subFullPath != null && `${subFullPath}`.length > 0) {
-    return normalizeRoutePath(`${subFullPath}`)
-  }
-  const subPath = readAnyField(sub, 'path')
-  if (subPath != null && `${subPath}`.length > 0) {
-    return normalizeRoutePath(`${subPath}`)
-  }
-  const pageUrl = getPageUrl(page)
-  if (pageUrl.length > 0) {
-    return normalizeRoutePath(pageUrl)
-  }
-  return ''
-}
-
+// ============================================================
+// getPageQuery — 完全对齐 uni-stat get_route
+// ============================================================
 function getPageQuery(
-  page : any | null,
+  page : UniPage | null,
   options : any | null,
   cachedQueryOptions : string | null,
   queryFromLastEvent : string | null
 ) : string {
+  if (page == null) {
+    return ''
+  }
+  let selectOptions : any
+  // #ifdef MP-WEIXIN
+  selectOptions = (page.$scope as any)?.options
+  // #endif
+  // #ifndef MP-WEIXIN
+  selectOptions = page.options
+  // #endif
+
   if (options != null) {
-    return stringifyRouteQuery(options)
+    // Android 上 options 可能是 Map，需要转成 UTSJSONObject
+    // #ifdef APP-ANDROID
+    const androidOptions = new UTSJSONObject(options)
+    const query = stringifyRouteQuery(androidOptions)
+    if (query.length > 0) {
+      return query
+    }
+    // #endif
+    // #ifndef APP-ANDROID
+    const query = stringifyRouteQuery(options)
+    if (query.length > 0) {
+      return query
+    }
+    // #endif
   }
-  const pageOptions = readAnyField(page, 'options')
-  if (pageOptions != null) {
-    const query = stringifyRouteQuery(pageOptions)
+
+  if (selectOptions != null) {
+    const query = stringifyRouteQuery(selectOptions)
     if (query.length > 0) {
       return query
     }
   }
-  const subOptions = readAnyField(readAnyField(page, '$page'), 'options')
-  if (subOptions != null) {
-    const query = stringifyRouteQuery(subOptions)
-    if (query.length > 0) {
-      return query
-    }
-  }
+
   if (cachedQueryOptions != null) {
     return cachedQueryOptions
   }
-  const pageUrl = getPageUrl(page)
-  if (pageUrl.length == 0) {
-    if (queryFromLastEvent != null && queryFromLastEvent.length > 0) {
-      return queryFromLastEvent
-    }
-    return ''
-  }
-  const queryIndex = pageUrl.indexOf('?')
-  if (queryIndex < 0 || queryIndex >= pageUrl.length - 1) {
-    if (queryFromLastEvent != null && queryFromLastEvent.length > 0) {
-      return queryFromLastEvent
-    }
-    return ''
-  }
-  return normalizeQueryString(pageUrl.slice(queryIndex + 1))
-}
-
-function getPageTitle(page : any | null) : string {
-  const navTitle = readAnyField(page, 'navigationBarTitleText')
-  if (navTitle != null && `${navTitle}`.length > 0) {
-    return `${navTitle}`
-  }
-  const title = readAnyField(page, 'title')
-  if (title != null && `${title}`.length > 0) {
-    return `${title}`
-  }
-  const meta = readAnyField(readAnyField(page, '$page'), 'meta')
-  const metaTitle = readAnyField(meta, 'navigationBarTitleText')
-  if (metaTitle != null && `${metaTitle}`.length > 0) {
-    return `${metaTitle}`
+  if (queryFromLastEvent != null && queryFromLastEvent.length > 0) {
+    return queryFromLastEvent
   }
   return ''
 }
 
+// ============================================================
+// getPageTitle — 完全对齐 uni-stat get_page_name
+// ============================================================
+// @ts-ignore
+function getPageTitle(page : UniPage | null) : string {
+  if (page == null) {
+    return ''
+  }
+  // #ifndef MP-WEIXIN
+  // @ts-ignore
+  try {
+    const pageStyle = page.getPageStyle()
+    const titleText = pageStyle['navigationBarTitleText'] as string
+    if (titleText != null && titleText.length > 0) {
+      return titleText
+    }
+  } catch (_error) {}
+  // #endif
+
+  return ''
+}
+
+// ============================================================
+// Public API
+// ============================================================
 export function buildRouteSignature(path : string, query : string) : string {
   if (path.length == 0) {
     return ''
@@ -233,7 +205,7 @@ export function buildRouteSignature(path : string, query : string) : string {
 }
 
 export function resolvePageRoute(
-  page : any | null,
+  page : UniPage | null,
   options : any | null,
   cachedQueryOptions : string | null = null,
   queryFromLastEvent : string | null = null
@@ -249,6 +221,6 @@ export function resolvePageRoute(
   } as GioResolvedRoute
 }
 
-export function isPageRouteTarget(target : any | null) : boolean {
+export function isPageRouteTarget(target : UniPage | null) : boolean {
   return getPagePath(target).length > 0
 }

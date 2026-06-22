@@ -7,4 +7,4 @@ GioTracker.getInstance().setMiniProgramResolver(
 
 export * from './share.uts'
 
-export * from '../../index.uts'
+export * from '../index.uts'

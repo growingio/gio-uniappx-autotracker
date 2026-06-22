@@ -2,6 +2,7 @@ import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
 import { buildCollectUrl, debugLog, guid, platformName } from '../utils.uts'
 import { dispatchViaEventSender } from '../runtime/index.uts'
+import { BoxArray } from '../BoxArray.uts'
 
 type GioQueuedEvent = {
   requestId : string
@@ -15,8 +16,8 @@ const DEFAULT_MP_REQUEST_TIMEOUT_MS = 5000
 
 export class GioUploader {
   private options : GioInitOptions | null = null
-  private pending : Array<GioQueuedEvent> = []
-  private hoarding : Array<GioQueuedEvent> = []
+  private pending : BoxArray<GioQueuedEvent> = new BoxArray()
+  private hoarding : BoxArray<GioQueuedEvent> = new BoxArray()
   private inflight : boolean = false
   private forceLogin : boolean = false
   private onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
@@ -127,15 +128,17 @@ export class GioUploader {
 
   releaseHoarding(deviceId : string, maxQueueSize : number) {
     for (let i = 0; i < this.hoarding.length; i++) {
-      const queued = this.hoarding[i]
-      queued.event.deviceId = deviceId
-      this.pending.push(queued)
-      if (this.pending.length > maxQueueSize) {
-        this.pending.shift()
+      const event = this.hoarding.get(i as number)
+      if (event != null) {
+        event.deviceId = deviceId
+        this.pending.push(event)
+        if (this.pending.length > maxQueueSize) {
+          this.pending.shift()
+        }
       }
     }
-    this.hoarding = []
-    this.continueFlush()
+    this.hoarding = new BoxArray()
+    this.scheduleFlush()
   }
 
   private sanitizeEvent(event : GioTrackEvent) : UTSJSONObject {
@@ -244,7 +247,8 @@ export class GioUploader {
     }
     const sendAt = Date.now()
     this.inflight = true
-    debugLog(options.debug as boolean, 'request payload', requestData)
+    const payload = JSON.stringify(requestData)
+    debugLog(options.debug as boolean, 'request payload', payload)
 
     const collectUrl = `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`
     const dispatched = dispatchViaEventSender(
@@ -269,7 +273,7 @@ export class GioUploader {
         ? DEFAULT_MP_REQUEST_TIMEOUT_MS
         : DEFAULT_REQUEST_TIMEOUT_MS,
       header: this.buildRequestHeader(),
-      data: requestData,
+      data: payload,
       success: (res : RequestSuccess<string>) => {
         const statusCode = parseFloat(`${res.statusCode}`)
         if (statusCode == 200 || statusCode == 204) {

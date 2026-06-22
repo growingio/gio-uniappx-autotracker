@@ -34,10 +34,12 @@ export type GioInitOptions = {
   idMapping : boolean
   storageType : string | null
   cookieDomain : string | null
+  screenWidth : number
+  screenHeight : number
 }
 
 export type GioGdpInitOptions = {
-  app : VueApp
+  app : any
   projectId : string
   dataSourceId : string
   appId : string

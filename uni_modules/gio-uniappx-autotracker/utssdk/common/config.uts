@@ -37,6 +37,14 @@ function readBooleanWithDefault(raw : UTSJSONObject, key : string, fallback : bo
   return fallback
 }
 
+function readNumberWithDefault(raw : UTSJSONObject, key : string, fallback : number) : number {
+  const value = raw[key]
+  if (value == null) {
+    return fallback
+  }
+  return value as number
+}
+
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
 
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
@@ -60,7 +68,9 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     followShare: followShare,
     idMapping: readBooleanWithDefault(raw, 'idMapping', false),
     storageType: readNullableString(raw, 'storageType'),
-    cookieDomain: readNullableString(raw, 'cookieDomain')
+    cookieDomain: readNullableString(raw, 'cookieDomain'),
+    screenWidth: readNumberWithDefault(raw, 'screenWidth', 0),
+    screenHeight: readNumberWithDefault(raw, 'screenHeight', 0)
   } as GioInitOptions
 }
 

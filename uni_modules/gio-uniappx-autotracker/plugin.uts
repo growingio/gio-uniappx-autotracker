@@ -1,44 +1,45 @@
-import { normalizeInitOptions } from './utssdk/common/config.uts'
-import { GioTracker } from './utssdk/common/core/tracker.uts'
+// plugin.uts — JS 编译层入口（Vue 上下文）
+// 职责：仅负责 defineMixin 生命周期混入，不包含初始化逻辑。
+// 初始化逻辑已移入 utssdk/index.uts 的 initialize()。
+// 通过模块路径 @/uni_modules/gio-uniappx-autotracker 导入 GioTracker，
+// 而非直接依赖 utssdk 内部文件路径。
 
-const tracker = GioTracker.getInstance()
+import { onPageLoad, onShow, onHide, onPageUnload } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from './gdp.uts'
+
+export { gdp }
+export default gdp
+
+// #ifdef MP-WEIXIN
+export {
+  wrapAddToFavorites,
+  wrapShareAppMessage,
+  wrapShareTimeline
+} from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
 let lifecycleInstalled = false
 
 const lifecycle = defineMixin({
   // @ts-ignore
   onLaunch(options : any | null = null) {
-    tracker.onLaunch(options)
   },
   // @ts-ignore
   onLoad(options : OnLoadOptions) {
     // @ts-ignore
-    tracker.onPageLoad(this, options)
   },
   // @ts-ignore
   onShow(options : any | null = null) {
     // @ts-ignore
-    tracker.onShow(this, options)
   },
   // @ts-ignore
   onHide() {
     // @ts-ignore
-    tracker.onHide(this)
   },
   // @ts-ignore
   onUnload() {
     // @ts-ignore
-    tracker.onPageUnload(this)
   }
 })
-
-function bindInitOptions(rawOptions : UTSJSONObject) {
-  // #ifdef WEB
-  try { window['vdsConfig'] = rawOptions } catch (_error) {}
-  // #endif
-  // #ifdef MP-WEIXIN
-  try { globalThis['vdsConfig'] = rawOptions } catch (_error) {}
-  // #endif
-}
 
 export function installGioLifecycle(app : VueApp) : boolean {
   if (lifecycleInstalled) {
@@ -48,16 +49,3 @@ export function installGioLifecycle(app : VueApp) : boolean {
   lifecycleInstalled = true
   return true
 }
-
-export function initializeGioTracker(rawOptions : UTSJSONObject) : boolean {
-  bindInitOptions(rawOptions)
-  const initOptions = normalizeInitOptions(rawOptions)
-  return tracker.initialize(initOptions)
-}
-
-const gioUniappxAutotracker = definePlugin({
-  install(app : VueApp, options : UTSJSONObject) {
-    initializeGioTracker(options)
-    installGioLifecycle(app)
-  }
-})

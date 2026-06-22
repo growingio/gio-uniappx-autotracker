@@ -55,7 +55,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { gdp } from '@/uni_modules/gio-uniappx-autotracker'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
 
 const lastAction = ref('(none)')
 
