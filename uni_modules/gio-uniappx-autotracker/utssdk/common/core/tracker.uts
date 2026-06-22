@@ -25,6 +25,7 @@ import {
   isValidIdentifyId,
   isValidEventName,
   normalizeTrackProperties,
+  stringifyScalar,
   verifyId
 } from '../utils/validate.uts'
 import { now } from '../utils/base.uts'
@@ -441,29 +442,18 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     })
   }
 
-  private readDataCollectOption(raw : UTSJSONObject) : boolean | null {
-    const dataCollectValue = raw['dataCollect']
-    if (dataCollectValue == null) {
-      return null
-    }
-    if (typeof dataCollectValue == 'boolean') {
-      return dataCollectValue as boolean
-    }
-    return null
-  }
-
   setOptions(raw : UTSJSONObject) : boolean {
     if (!this.ensureReady()) {
       return false
     }
-    const dataCollect = this.readDataCollectOption(raw)
-    if (dataCollect == null) {
+    if (raw['dataCollect'] == null) {
       consoleText(
         'setOptions 参数不合法，请传入 { dataCollect: boolean }',
         'error'
       )
       return false
     }
+    const dataCollect = raw.getBoolean('dataCollect', false)
     if (this.options == null) {
       return false
     }
@@ -680,7 +670,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       consoleText('identify 参数不合法', 'error')
       return false
     }
-    const deviceId = `${assignmentId}`.slice(0, 1000)
+    const deviceId = stringifyScalar(assignmentId).slice(0, 1000)
     this.userStore.setDeviceId(deviceId)
     options.forceLogin = false
     this.uploader.setForceLogin(false)

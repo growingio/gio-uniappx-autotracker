@@ -30,23 +30,26 @@ export function initialize (options : UTSJSONObject) : boolean {
   return tracker.initialize(normalizeInitOptions(options))
 }
 
-export function onLaunch(options : any | null = null) {
+// 这些生命周期入口的对象参数必须显式声明成 `UTSJSONObject | null`（与 initialize / track
+// 一致）。若声明成 `any`，iOS 原生桥不会把 JS 对象 marshal 成 UTSJSONObject，下游
+// `as UTSJSONObject` / 字段读取会 dynamicCast 失败直接崩溃。
+export function onLaunch(options : UTSJSONObject | null = null) {
   tracker.onLaunch(options)
 }
 
-export function onPageLoad(page : any, options : any | null) {
+export function onPageLoad(page : UTSJSONObject | null, options : UTSJSONObject | null) {
   tracker.onPageLoad(page, options)
 }
 
-export function onShow(target : any | null, options : any | null = null) {
+export function onShow(target : UTSJSONObject | null, options : UTSJSONObject | null = null) {
   tracker.onShow(target, options)
 }
 
-export function onHide(target : any | null) {
+export function onHide(target : UTSJSONObject | null) {
   tracker.onHide(target)
 }
 
-export function onPageUnload(page : any | null) {
+export function onPageUnload(page : UTSJSONObject | null) {
   tracker.onPageUnload(page)
 }
 
@@ -116,6 +119,5 @@ export function getABTest(
 // 这些类型和工具通过模块根路径重新导出，供 plugin.uts / gdp.uts 等外层文件使用，
 // 外层不需要再深入 import 内部实现路径。
 export { GioTracker } from './common/core/tracker.uts'
-export { consoleText } from './common/utils/debug.uts'
 export { GioGdpInitOptions } from './interface.uts'
 export { GioPageSnapshot } from './interface.uts'

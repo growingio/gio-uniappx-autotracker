@@ -324,7 +324,7 @@ export class GioDataStore {
 
   private getVisitSentSessionId() : string {
     const value = this.getMainStorage().getItem(this.getSentSignKey())
-    return value != null ? `${value}` : ''
+    return value != null && typeof value == 'string' ? value as string : ''
   }
 
   private markVisitSent(sessionId : string) {
@@ -340,13 +340,11 @@ export class GioDataStore {
     }
     const raw = storedValue as UTSJSONObject
     return {
-      sessionId: raw['sessionId'] != null ? `${raw['sessionId']}` : '',
-      path: raw['path'] != null ? `${raw['path']}` : '',
-      query: raw['query'] != null ? `${raw['query']}` : '',
-      title: raw['title'] != null ? `${raw['title']}` : '',
-      referralPage: raw['referralPage'] != null
-        ? `${raw['referralPage']}`
-        : ''
+      sessionId: raw.getString('sessionId', ''),
+      path: raw.getString('path', ''),
+      query: raw.getString('query', ''),
+      title: raw.getString('title', ''),
+      referralPage: raw.getString('referralPage', '')
     } as GioOriginalSource
   }
 

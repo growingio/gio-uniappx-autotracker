@@ -130,14 +130,14 @@ export class GioUploader {
 
   releaseHoarding(deviceId : string, maxQueueSize : number) {
     for (let i = 0; i < this.hoarding.length; i++) {
-      const event = this.hoarding.get(i as number)
-      if (event != null) {
-        event.deviceId = deviceId
-        this.pending.push(event)
-        if (this.pending.length > maxQueueSize) {
-          this.pending.shift()
-        }
-      }
+      const queued = this.hoarding.get(i as number)
+	  if (queued != null) {
+		  queued.event.deviceId = deviceId
+		  this.pending.push(queued)
+		  if (this.pending.length > maxQueueSize) {
+			this.pending.shift()
+		  }
+	  }
     }
     this.hoarding = new BoxArray()
     this.scheduleFlush()
@@ -207,7 +207,7 @@ export class GioUploader {
 
   private dequeueBatch() : Array<GioQueuedEvent> {
     const batch = this.pending.slice(0, MAX_BATCH_SIZE)
-    this.pending.splice(0, batch.length)
+    this.pending.splice(0, batch.length as number)
     return batch
   }
 

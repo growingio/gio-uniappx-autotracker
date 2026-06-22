@@ -30,7 +30,16 @@ function stringifyRouteQuery(value : any | null) : string {
       continue
     }
     const item = raw[key]
-    const itemValue = item != null ? `${item}` : ''
+    let itemValue = ''
+    if (item != null) {
+      if (typeof item == 'string') {
+        itemValue = item as string
+      } else if (typeof item == 'number') {
+        itemValue = `${item as number}`
+      } else if (typeof item == 'boolean') {
+        itemValue = `${item as boolean}`
+      }
+    }
     parts.push(`${key}=${itemValue}`)
   }
   return parts.join('&')

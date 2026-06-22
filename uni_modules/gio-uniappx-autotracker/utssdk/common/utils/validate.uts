@@ -29,12 +29,43 @@ export function isValidEventName (eventName : string | null) : boolean {
   return (eventName as string).match(EVENT_NAME_REG) != null
 }
 
+// 把标量按真实类型解包成字符串。iOS 上对 any 直接 `${value}` 会渲染出 "Optional(...)"。
+export function stringifyScalar (value : any | null) : string {
+  if (value == null) {
+    return ''
+  }
+  if (typeof value == 'string') {
+    return value as string
+  }
+  if (typeof value == 'number') {
+    return `${value as number}`
+  }
+  if (typeof value == 'boolean') {
+    return `${value as boolean}`
+  }
+  return ''
+}
+
+// 把标量按真实类型解包成数字（与 stringifyScalar 配对）。string 走 parseFloat，其余/缺失返回 0。
+export function numberifyScalar (value : any | null) : number {
+  if (value == null) {
+    return 0
+  }
+  if (typeof value == 'number') {
+    return value as number
+  }
+  if (typeof value == 'string') {
+    return parseFloat(value as string)
+  }
+  return 0
+}
+
 export function isValidIdentifyId (value : any | null) : boolean {
   if (value == null) {
     return false
   }
   // 这里只按字符串形态校验，不走 number 分支比较，避免 Swift 侧被编成不稳定的 NSNumber 比较。
-  const text = `${value}`
+  const text = stringifyScalar(value)
   return text.length > 0 && text != '0' && text != '-' && text != 'null' && text != 'undefined'
 }
 
@@ -58,7 +89,7 @@ export function normalizeTrackProperties (properties : UTSJSONObject | null) : U
       continue
     }
 
-    const key = `${rawKey}`.slice(0, 100)
+    const key = rawKey.slice(0, 100)
 
     if (Array.isArray(value)) {
       const arrayValue = value as Array<any>
@@ -69,7 +100,7 @@ export function normalizeTrackProperties (properties : UTSJSONObject | null) : U
         if (item == null) {
           continue
         }
-        parts.push(`${item}`)
+        parts.push(stringifyScalar(item))
       }
       normalized[key] = parts.join('||').slice(0, 1000)
       continue
@@ -79,7 +110,7 @@ export function normalizeTrackProperties (properties : UTSJSONObject | null) : U
       continue
     }
 
-    normalized[key] = `${value}`.slice(0, 1000)
+    normalized[key] = stringifyScalar(value).slice(0, 1000)
   }
 
   return UTSJSONObject.keys(normalized).length > 0 ? normalized : null

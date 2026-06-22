@@ -11,10 +11,9 @@ function readTextField(source : any | null, keys : Array<string>) : string {
   }
   const raw = source as UTSJSONObject
   for (let i = 0; i < keys.length; i++) {
-    const key = keys[i]
-    const value = raw[key]
-    if (value != null && `${value}`.length > 0) {
-      return `${value}`
+    const value = raw.getString(keys[i])
+    if (value != null && value.length > 0) {
+      return value
     }
   }
   return ''

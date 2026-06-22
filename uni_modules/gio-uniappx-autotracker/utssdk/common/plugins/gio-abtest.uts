@@ -14,6 +14,7 @@ import {
   now
 } from '../utils/base.uts'
 import { consoleText } from '../utils/debug.uts'
+import { stringifyScalar } from '../utils/validate.uts'
 
 const ABTEST_DEFAULT_SERVER_URL = 'https://ab.growingio.com'
 const ABTEST_DEFAULT_REQUEST_INTERVAL = 5
@@ -37,20 +38,12 @@ function niceCallback(callback : GioABTestCallback | null, value : GioABTestResu
 
 function isEmptyLayerId(layerId : any) : boolean {
   // 先字符串化再判断 number 分支，避免 Swift 在模板字符串路径里生成不稳定的 NSNumber 强转。
-  const text = `${layerId}`
+  const text = stringifyScalar(layerId)
   if (typeof layerId == 'number') {
     const numeric = parseFloat(text)
     return numeric <= 0
   }
   return text.length == 0
-}
-
-function readNullableString(source : UTSJSONObject, key : string) : string | null {
-  const value = source[key]
-  if (value == null) {
-    return null
-  }
-  return `${value}`
 }
 
 function readObject(value : any | null) : UTSJSONObject {
@@ -183,7 +176,13 @@ export class GioABTestPlugin {
     if (value == null) {
       return 0
     }
-    return parseFloat(`${value}`)
+    if (typeof value == 'number') {
+      return value as number
+    }
+    if (typeof value == 'string') {
+      return parseFloat(value as string)
+    }
+    return 0
   }
 
   private updateSign(hashKey : number) {
@@ -278,7 +277,7 @@ export class GioABTestPlugin {
           this.experimentVerify(layerId, data, originData, callback)
         } else {
           // 业务失败（2xx 但 code!=0）：有意保持回 {}（ADR-014 §80：业务失败仍回 {}）。
-          const errorMsg = data['errorMsg'] != null ? `${data['errorMsg']}` : ''
+          const errorMsg = data.getString('errorMsg', '')
           consoleText(`获取ABTest数据失败! ${errorMsg}!`, 'error')
           niceCallback(callback, {} as UTSJSONObject)
         }
@@ -315,9 +314,9 @@ export class GioABTestPlugin {
     // 这类写法会在运行时触发和 registerPlugins 一样的强转崩溃。
     const variables = responseData.getJSON('variables')
     const comparisonData = {
-      layerId: `${responseData['layerId'] != null ? responseData['layerId'] : layerId}`,
-      strategyId: `${responseData['strategyId'] != null ? responseData['strategyId'] : ''}`,
-      experimentId: `${responseData['experimentId'] != null ? responseData['experimentId'] : ''}`,
+      layerId: stringifyScalar(responseData['layerId'] != null ? responseData['layerId'] : layerId),
+      strategyId: stringifyScalar(responseData['strategyId']),
+      experimentId: stringifyScalar(responseData['experimentId']),
       variables: variables != null ? variables : {} as UTSJSONObject
     } as UTSJSONObject
     const controlData = this.cloneComparisonData(originData)
@@ -325,12 +324,12 @@ export class GioABTestPlugin {
     const controlValue = hashCode(jsonStringify(controlData))
 
     const result : GioABTestResult = {
-      layerId: `${comparisonData['layerId']}`,
-      strategyId: `${comparisonData['strategyId']}`,
-      experimentId: `${comparisonData['experimentId']}`,
-      layerName: readNullableString(responseData, 'layerName'),
-      experimentName: readNullableString(responseData, 'experimentName'),
-      strategyName: readNullableString(responseData, 'strategyName'),
+      layerId: comparisonData.getString('layerId', ''),
+      strategyId: comparisonData.getString('strategyId', ''),
+      experimentId: comparisonData.getString('experimentId', ''),
+      layerName: responseData.getString('layerName'),
+      experimentName: responseData.getString('experimentName'),
+      strategyName: responseData.getString('strategyName'),
       variables: variables
     }
 

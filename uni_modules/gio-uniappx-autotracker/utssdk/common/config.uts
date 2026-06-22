@@ -6,70 +6,31 @@ export const SDK_VERSION = '0.1.0'
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
 export const DEFAULT_MAX_QUEUE_SIZE = 100
 export const DEFAULT_APP_VERSION = '1.0.0'
-
-function readRequiredString(raw : UTSJSONObject, key : string) : string {
-  const value = raw[key]
-  if (value == null) {
-    return ''
-  }
-  return `${value}`
-}
-
-function readNullableString(raw : UTSJSONObject, key : string) : string | null {
-  const value = raw[key]
-  if (value == null) {
-    return null
-  }
-  return `${value}`
-}
-
-// 在 UTS-iOS 上，`boolean | null` 最终会塌成非空 Bool，导致“未传值”和 false 分不出来。
-// 所以所有布尔默认值都必须在这里直接基于原始对象解析完，后续只存普通 boolean。
-function readBooleanWithDefault(raw : UTSJSONObject, key : string, fallback : boolean) : boolean {
-  const value = raw[key]
-  if (value == null) {
-    return fallback
-  }
-  if (typeof value == 'boolean') {
-    return value as boolean
-  }
-  return fallback
-}
-
-function readNumberWithDefault(raw : UTSJSONObject, key : string, fallback : number) : number {
-  const value = raw[key]
-  if (value == null) {
-    return fallback
-  }
-  return value as number
-}
-
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
 
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
-  // UTS 里的 `||` 只能做布尔运算，不能像 JS 一样拿来给字符串兜底。
-  const rawServerUrl = readRequiredString(raw, 'serverUrl')
+  const rawServerUrl = raw.getString('serverUrl', '')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
   // followShare 仅小程序生效：mp-weixin 默认开启（用户未显式关闭时），其余端一律关闭，
   // 分享 / 收藏事件本就只在小程序端产生。
   const isMpWeixin = platformName() == 'mp-weixin'
-  const followShare = isMpWeixin ? readBooleanWithDefault(raw, 'followShare', true) : false
+  const followShare = isMpWeixin ? raw.getBoolean('followShare', true) : false
   return {
-    projectId: readRequiredString(raw, 'projectId'),
-    dataSourceId: readRequiredString(raw, 'dataSourceId'),
-    appId: readRequiredString(raw, 'appId'),
+    projectId: raw.getString('projectId', ''),
+    dataSourceId: raw.getString('dataSourceId', ''),
+    appId: raw.getString('appId', ''),
     serverUrl: serverUrl,
-    appVersion: readNullableString(raw, 'appVersion'),
-    dataCollect: readBooleanWithDefault(raw, 'dataCollect', true),
-    debug: readBooleanWithDefault(raw, 'debug', false),
-    forceLogin: readBooleanWithDefault(raw, 'forceLogin', false),
-    originalSource: readBooleanWithDefault(raw, 'originalSource', true),
+    appVersion: raw.getString('appVersion'),
+    dataCollect: raw.getBoolean('dataCollect', true),
+    debug: raw.getBoolean('debug', false),
+    forceLogin: raw.getBoolean('forceLogin', false),
+    originalSource: raw.getBoolean('originalSource', true),
     followShare: followShare,
-    idMapping: readBooleanWithDefault(raw, 'idMapping', false),
-    storageType: readNullableString(raw, 'storageType'),
-    cookieDomain: readNullableString(raw, 'cookieDomain'),
-    screenWidth: readNumberWithDefault(raw, 'screenWidth', 0),
-    screenHeight: readNumberWithDefault(raw, 'screenHeight', 0)
+    idMapping: raw.getBoolean('idMapping', false),
+    storageType: raw.getString('storageType'),
+    cookieDomain: raw.getString('cookieDomain'),
+    screenWidth: raw.getNumber('screenWidth', 0),
+    screenHeight: raw.getNumber('screenHeight', 0)
   } as GioInitOptions
 }
 

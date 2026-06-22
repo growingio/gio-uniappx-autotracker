@@ -3,7 +3,6 @@
 // 不直接承接原生编译层的核心采集逻辑。
 import {
   clearUserId,
-  consoleText,
   getABTest,
   identify,
   initialize,
@@ -16,6 +15,26 @@ import {
 } from '@/uni_modules/gio-uniappx-autotracker'
 import type { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker'
 import { installGioLifecycle } from './plugin.uts'
+
+function consoleText(message : any, type : string | null = null) {
+  const styles = {
+    info: 'color: #3B82F6;',
+    error: 'color: #EF4444;',
+    warn: 'color: #F59E0B;',
+    success: 'color: #10B981;'
+  } as UTSJSONObject
+  let style = ''
+  if (type != null && styles[type] != null) {
+    style = `${styles[type]}`
+  }
+  // #ifdef WEB
+  if (message != null && typeof message == 'object') {
+    console.log('%c [GrowingIO]：', style, message)
+    return
+  }
+  // #endif
+  console.log(`%c [GrowingIO]：${message}`, style)
+}
 
 function isObjectArgument(value : any | null) : boolean {
   return value != null && typeof value == 'object' && !Array.isArray(value)

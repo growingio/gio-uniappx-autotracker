@@ -8,6 +8,7 @@ import {
   now
 } from '../utils/base.uts'
 import { platformName } from '../utils/system.uts'
+import { stringifyScalar, numberifyScalar } from '../utils/validate.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
 const UID_STORAGE_KEY = 'gdp_user_id_gioenc'
@@ -91,7 +92,7 @@ export class GioUserStore {
 
   private readStoredSessionId() : string {
     const value = this.getMainStorage().getItem(this.getSessionIdKey())
-    return value != null ? `${value}` : ''
+    return stringifyScalar(value)
   }
 
   private writeStoredSessionId(sessionId : string, expiredAt : number) {
@@ -100,7 +101,7 @@ export class GioUserStore {
 
   private readStoredDeviceId() : string {
     const value = this.getMainStorage().getItem(this.getDeviceIdKey())
-    return value != null ? `${value}` : ''
+    return stringifyScalar(value)
   }
 
   private readStoredLastActiveAt() : number {
@@ -108,7 +109,7 @@ export class GioUserStore {
     if (value == null) {
       return 0
     }
-    return parseFloat(`${value}`)
+    return numberifyScalar(value)
   }
 
   private persistLastActiveAt(ts : number, expiredAt : number) {
@@ -120,22 +121,22 @@ export class GioUserStore {
     if (value == null) {
       return 0
     }
-    return parseFloat(`${value}`)
+    return numberifyScalar(value)
   }
 
   private readStoredUserId() : string {
     const value = this.getMainStorage().getItem(this.getUserIdKey())
-    return value != null ? `${value}` : ''
+    return stringifyScalar(value)
   }
 
   private readStoredUserKey() : string {
     const value = this.getMainStorage().getItem(this.getUserKeyKey())
-    return value != null ? `${value}` : ''
+    return stringifyScalar(value)
   }
 
   private readStoredGioId() : string {
     const value = this.getMainStorage().getItem(this.getGioIdKey())
-    return value != null ? `${value}` : ''
+    return stringifyScalar(value)
   }
 
   private readStoredEventSequenceId() : number {
