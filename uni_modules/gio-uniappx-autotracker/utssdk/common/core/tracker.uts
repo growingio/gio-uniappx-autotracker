@@ -5,6 +5,8 @@ import {
   GioContext,
   GioInitOptions,
   GioPluginItem,
+  GioMiniProgramEntryInfo,
+  GioMiniProgramResolver,
   GioPageContext,
   GioShareHost,
   GioStorageProvider,
@@ -25,12 +27,6 @@ import {
   platformName,
   verifyId
 } from '../utils.uts'
-import {
-  GioMiniProgramEntryInfo,
-  isMpWeixinPlatform,
-  resolveMiniProgramEntryInfo,
-  resolveMiniProgramScene
-} from '../miniprogram.uts'
 import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
@@ -46,6 +42,280 @@ import {
 } from '../runtime/index.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 import { resolvePageRoute } from '../route.uts'
+
+function getMiniProgramEnterOptions() : any | null {
+  // #ifdef MP-WEIXIN
+  return uni.getEnterOptionsSync()
+  // #endif
+  // #ifndef MP-WEIXIN
+  return null
+  // #endif
+}
+
+function readSceneFromQuery(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as UTSJSONObject
+  const shoppingListScene = raw['wxShoppingListScene']
+  if (shoppingListScene == null) {
+    return ''
+  }
+  return `${shoppingListScene}`
+}
+
+function readSceneFromOptions(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as UTSJSONObject
+  const queryScene = readSceneFromQuery(raw['query'])
+  if (queryScene.length > 0) {
+    return queryScene
+  }
+  const scene = raw['scene']
+  if (scene == null) {
+    return ''
+  }
+  return `${scene}`
+}
+
+function normalizeEntryPath(raw : string | null) : string {
+  if (raw == null || raw.length == 0) {
+    return ''
+  }
+  let value : string = raw as string
+  while (value.startsWith('/')) {
+    value = value.slice(1)
+  }
+  const queryIndex = value.indexOf('?')
+  if (queryIndex >= 0) {
+    value = value.slice(0, queryIndex)
+  }
+  return value
+}
+
+function normalizeEntryQuery(queryText : string) : string {
+  if (queryText.length == 0) {
+    return ''
+  }
+  let normalized = queryText
+  if (normalized.startsWith('?') || normalized.startsWith('&')) {
+    normalized = normalized.slice(1)
+  }
+  if (normalized.length == 0) {
+    return ''
+  }
+  const segments = normalized.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    let key = segment
+    let value = ''
+    const equalIndex = segment.indexOf('=')
+    if (equalIndex >= 0) {
+      key = segment.slice(0, equalIndex)
+      value = segment.slice(equalIndex + 1)
+    }
+    if (key.length == 0 || key == 'gdpCircleRoomCollectUrl') {
+      continue
+    }
+    parts.push(`${key}=${value}`)
+  }
+  return parts.join('&')
+}
+
+function stringifyEntryQueryObject(source : UTSJSONObject) : string {
+  const keys = UTSJSONObject.keys(source)
+  const parts = [] as Array<string>
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    if (key.length == 0 || key == 'gdpCircleRoomCollectUrl') {
+      continue
+    }
+    const value = source[key]
+    const text = value != null ? `${value}` : ''
+    parts.push(`${key}=${text}`)
+  }
+  return parts.join('&')
+}
+
+function stringifyEntryQuery(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  if (typeof source == 'string') {
+    return normalizeEntryQuery(source as string)
+  }
+  return stringifyEntryQueryObject(source as UTSJSONObject)
+}
+
+function mergeEntryQuery(baseQuery : string, extraData : any | null) : string {
+  if (extraData == null) {
+    return baseQuery
+  }
+  const merged = {} as UTSJSONObject
+  const baseText = normalizeEntryQuery(baseQuery)
+  if (baseText.length > 0) {
+    const segments = baseText.split('&')
+    for (let i = 0; i < segments.length; i++) {
+      const segment = segments[i]
+      if (segment.length == 0) {
+        continue
+      }
+      const equalIndex = segment.indexOf('=')
+      if (equalIndex >= 0) {
+        merged[segment.slice(0, equalIndex)] = segment.slice(equalIndex + 1)
+      } else {
+        merged[segment] = ''
+      }
+    }
+  }
+  const rawExtraData = extraData as UTSJSONObject
+  const keys = UTSJSONObject.keys(rawExtraData)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    if (key.length == 0 || key == 'gdpCircleRoomCollectUrl') {
+      continue
+    }
+    merged[key] = rawExtraData[key]
+  }
+  return stringifyEntryQueryObject(merged)
+}
+
+function readReferrerObject(source : any | null) : UTSJSONObject | null {
+  if (source == null) {
+    return null
+  }
+  const raw = source as UTSJSONObject
+  const referrerInfo = raw['referrerInfo']
+  if (referrerInfo != null) {
+    return referrerInfo as UTSJSONObject
+  }
+  const refererInfo = raw['refererInfo']
+  if (refererInfo != null) {
+    return refererInfo as UTSJSONObject
+  }
+  return null
+}
+
+function readReferrerAppId(source : any | null) : string | null {
+  const referrer = readReferrerObject(source)
+  if (referrer == null) {
+    return null
+  }
+  const appId = referrer['appId']
+  if (appId == null) {
+    return null
+  }
+  const text = `${appId}`
+  return text.length > 0 ? text : null
+}
+
+function resolveScene(primary : any | null, fallback : any | null) : string {
+  const primaryScene = readSceneFromOptions(primary)
+  if (primaryScene.length > 0) {
+    return primaryScene
+  }
+  return readSceneFromOptions(fallback)
+}
+
+function resolveReferrerObject(
+  primary : any | null,
+  fallback : any | null
+) : UTSJSONObject | null {
+  const primaryReferrer = readReferrerObject(primary)
+  if (primaryReferrer != null) {
+    return primaryReferrer
+  }
+  return readReferrerObject(fallback)
+}
+
+function resolveReferrerAppId(
+  primary : any | null,
+  fallback : any | null
+) : string | null {
+  const primaryAppId = readReferrerAppId(primary)
+  if (primaryAppId != null) {
+    return primaryAppId
+  }
+  return readReferrerAppId(fallback)
+}
+
+function resolveReferrerExtraData(
+  primary : any | null,
+  fallback : any | null
+) : any | null {
+  const referrer = resolveReferrerObject(primary, fallback)
+  if (referrer == null) {
+    return null
+  }
+  return referrer['extraData']
+}
+
+function buildReferralPage(
+  scene : string,
+  primary : any | null,
+  fallback : any | null
+) : string | null {
+  const referrerAppId = resolveReferrerAppId(primary, fallback)
+  if (referrerAppId != null) {
+    return referrerAppId
+  }
+  if (scene.length == 0) {
+    return null
+  }
+  return `scn:${scene}`
+}
+
+function resolveMiniProgramSceneFallback() : string {
+  const enterOptions = getMiniProgramEnterOptions()
+  const sceneFromEnterOptions = readSceneFromOptions(enterOptions)
+  if (sceneFromEnterOptions.length > 0) {
+    return sceneFromEnterOptions
+  }
+  return ''
+}
+
+function resolveMiniProgramEntryInfoFallback(
+  fallbackOptions : any | null = null
+) : GioMiniProgramEntryInfo | null {
+  const enterOptions = getMiniProgramEnterOptions()
+  const primary = enterOptions != null ? enterOptions : fallbackOptions
+  if (primary == null) {
+    return null
+  }
+  const primaryRaw = primary as UTSJSONObject
+  const fallbackRaw = fallbackOptions != null ? (fallbackOptions as UTSJSONObject) : null
+
+  let path = normalizeEntryPath(
+    primaryRaw['path'] != null ? `${primaryRaw['path']}` : null
+  )
+  if (path.length == 0 && fallbackRaw != null) {
+    path = normalizeEntryPath(
+      fallbackRaw['path'] != null ? `${fallbackRaw['path']}` : null
+    )
+  }
+
+  let query = stringifyEntryQuery(primaryRaw['query'])
+  if (query.length == 0 && fallbackRaw != null) {
+    query = stringifyEntryQuery(fallbackRaw['query'])
+  }
+
+  const referrerExtraData = resolveReferrerExtraData(primary, fallbackOptions)
+  query = mergeEntryQuery(query, referrerExtraData)
+
+  const scene = resolveScene(primary, fallbackOptions)
+  return {
+    path: path,
+    query: query,
+    referralPage: buildReferralPage(scene, primary, fallbackOptions),
+    scene: scene
+  } as GioMiniProgramEntryInfo
+}
 
 export class GioTracker implements GioABTestHost, GioShareHost {
   static sharedInstance : GioTracker | null = null
@@ -68,6 +338,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
   private firstPageDispatchWaiting : boolean = false
   private mpWeixinEnabled : boolean = false
+  private miniProgramResolver : GioMiniProgramResolver | null = null
   private miniProgramScene : string = ''
   private currentPageShown : boolean = false
   // 分享往返标记：平台侧分享包装器在「分享给朋友」时经 setShareOut(true) 置位
@@ -110,7 +381,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     }
     this.options = resolvedOptions
     syncConfigToGlobal(this.options)
-    this.mpWeixinEnabled = isMpWeixinPlatform()
+    this.mpWeixinEnabled = this.isMpWeixinPlatform()
     this.storage.initialize(this.options)
     this.userStore.hydrate(this.options, this.storage)
     this.uploader.configure(
@@ -165,6 +436,10 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return this.storage
   }
 
+  setMiniProgramResolver(resolver : GioMiniProgramResolver | null) {
+    this.miniProgramResolver = resolver
+  }
+
   private getSessionTimeoutMs() : number {
     const platform = platformName()
     if (platform == 'web') {
@@ -178,6 +453,31 @@ export class GioTracker implements GioABTestHost, GioShareHost {
 
   private getMaxQueueSize() : number {
     return DEFAULT_MAX_QUEUE_SIZE
+  }
+
+  private isMpWeixinPlatform() : boolean {
+    if (this.miniProgramResolver == null) {
+      return platformName() == 'mp-weixin'
+    }
+    return this.miniProgramResolver.isMpWeixinPlatform()
+  }
+
+  private resolveMiniProgramScene() : string {
+    if (this.miniProgramResolver == null) {
+      return resolveMiniProgramSceneFallback()
+    }
+    return this.miniProgramResolver.resolveMiniProgramScene()
+  }
+
+  private resolveMiniProgramEntryInfo(
+    fallbackOptions : any | null = null
+  ) : GioMiniProgramEntryInfo | null {
+    if (this.miniProgramResolver == null) {
+      return this.isMpWeixinPlatform()
+        ? resolveMiniProgramEntryInfoFallback(fallbackOptions)
+        : null
+    }
+    return this.miniProgramResolver.resolveMiniProgramEntryInfo(fallbackOptions)
   }
 
   private initializeSessionState() {
@@ -339,7 +639,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     }
     const scene = this.miniProgramScene.length > 0
       ? this.miniProgramScene
-      : resolveMiniProgramScene()
+      : this.resolveMiniProgramScene()
     if (scene.length == 0) {
       return 'scn:NA'
     }
@@ -350,7 +650,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.mpWeixinEnabled) {
       return
     }
-    this.syncMiniProgramEntry(resolveMiniProgramEntryInfo(null))
+    this.syncMiniProgramEntry(this.resolveMiniProgramEntryInfo(null))
   }
 
   private pushInternalEvent(
@@ -716,7 +1016,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady() || !this.mpWeixinEnabled) {
       return
     }
-    this.syncMiniProgramEntry(resolveMiniProgramEntryInfo(options))
+    this.syncMiniProgramEntry(this.resolveMiniProgramEntryInfo(options))
   }
 
   onShow(target : any | null, options : any | null = null) {
@@ -789,7 +1089,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       return
     }
     const entryInfo = this.mpWeixinEnabled
-      ? resolveMiniProgramEntryInfo(options)
+      ? this.resolveMiniProgramEntryInfo(options)
       : null
     this.syncMiniProgramEntry(entryInfo)
     this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))

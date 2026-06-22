@@ -1,3 +1,10 @@
+import { GioTracker } from '../common/core/tracker.uts'
+import { createMiniProgramResolver } from './miniprogram.uts'
+
+GioTracker.getInstance().setMiniProgramResolver(
+  createMiniProgramResolver()
+)
+
 export * from './share.uts'
 
 export * from '../../index.uts'

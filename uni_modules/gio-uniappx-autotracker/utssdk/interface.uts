@@ -168,6 +168,19 @@ export interface GioABTestHost {
   clearVisitSession() : void
 }
 
+export type GioMiniProgramEntryInfo = {
+  path : string
+  query : string
+  referralPage : string | null
+  scene : string
+}
+
+export interface GioMiniProgramResolver {
+  isMpWeixinPlatform : () => boolean
+  resolveMiniProgramScene : () => string
+  resolveMiniProgramEntryInfo : (fallbackOptions : any | null) => GioMiniProgramEntryInfo | null
+}
+
 // 平台侧「分享 / 收藏」处理器所依赖的 host 能力，由 GioTracker 实现。把发事件、
 // 取当前页上下文、翻 shareOut、读 followShare 这些平台无关的能力暴露出去，使各端
 // 独有的事件名 / 字段集 / 翻转策略可以收敛到各自平台目录（如 mp-weixin），不进公共层。

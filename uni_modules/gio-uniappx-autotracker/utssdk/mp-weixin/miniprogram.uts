@@ -1,11 +1,8 @@
-import { platformName } from './utils.uts'
-
-export type GioMiniProgramEntryInfo = {
-  path : string
-  query : string
-  referralPage : string | null
-  scene : string
-}
+import {
+  GioMiniProgramEntryInfo,
+  GioMiniProgramResolver
+} from '../../interface.uts'
+import { platformName } from '../common/utils.uts'
 
 function readSceneFromQuery(source : any | null) : string {
   if (source == null) {
@@ -284,4 +281,12 @@ export function resolveMiniProgramEntryInfo(
     referralPage: buildReferralPage(scene, primary, fallbackOptions),
     scene: scene
   } as GioMiniProgramEntryInfo
+}
+
+export function createMiniProgramResolver() : GioMiniProgramResolver {
+  return {
+    isMpWeixinPlatform,
+    resolveMiniProgramScene,
+    resolveMiniProgramEntryInfo
+  }
 }
