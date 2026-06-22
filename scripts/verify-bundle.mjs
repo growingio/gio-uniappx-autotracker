@@ -41,7 +41,7 @@ const REQUIRED_FILES = [
   'utssdk/app-ios/config.json',
   'utssdk/app-harmony/index.uts',
   'utssdk/app-harmony/config.json',
-  'utssdk/common/miniprogram.uts',
+  'utssdk/mp-weixin/miniprogram.uts',
   'utssdk/common/route.uts',
 ];
 
