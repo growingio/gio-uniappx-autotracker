@@ -1,8 +1,11 @@
+// uploader 负责事件排队、批量发送、失败重试和 forceLogin 积压释放。
 import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
-import { buildCollectUrl, debugLog, guid, platformName } from '../utils.uts'
+import { BoxArray, guid } from '../utils/base.uts'
+import { debugLog } from '../utils/debug.uts'
+import { buildCollectUrl } from '../utils/request.uts'
+import { platformName } from '../utils/system.uts'
 import { dispatchViaEventSender } from '../runtime/index.uts'
-import { BoxArray } from '../BoxArray.uts'
 
 type GioQueuedEvent = {
   requestId : string
@@ -113,8 +116,7 @@ export class GioUploader {
   }
 
   getPendingCount() : number {
-    // Array.length transpiles to Swift Int; the `: number` return is NSNumber,
-    // so coerce explicitly (implicit Int→NSNumber return is rejected).
+    // Swift 里数组长度是 Int，而这里的返回类型是 number，对外返回前要显式转一次。
     return this.pending.length as number
   }
 
@@ -248,7 +250,7 @@ export class GioUploader {
     const sendAt = Date.now()
     this.inflight = true
     const payload = JSON.stringify(requestData)
-    debugLog(options.debug as boolean, 'request payload', payload)
+    debugLog(options.debug as boolean, 'request payload', requestData)
 
     const collectUrl = `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`
     const dispatched = dispatchViaEventSender(

@@ -1,8 +1,10 @@
+// 微信小程序入口上下文解析器。
+// 这里只处理 mp-weixin 独有的 scene、query、referrer 和入口来源拼装，
+// 供公共层 tracker 通过 resolver 回调消费，避免把平台细节放进 common。
 import {
   GioMiniProgramEntryInfo,
   GioMiniProgramResolver
-} from '../../interface.uts'
-import { platformName } from '../common/utils.uts'
+} from '../interface.uts'
 
 function readSceneFromQuery(source : any | null) : string {
   if (source == null) {
@@ -223,24 +225,16 @@ function buildReferralPage(
   return `scn:${scene}`
 }
 
-function getEnterOptionsSync() : any | null {
-  // The enter/launch option APIs only exist on mini-program platforms, and UTS
-  // cannot probe `uni` members dynamically. Gate the typed call with
-  // conditional compilation so non-MP targets exclude it at compile time.
-  // #ifdef MP-WEIXIN
+function getMiniProgramEnterOptions() : any | null {
   return uni.getEnterOptionsSync()
-  // #endif
-  // #ifndef MP-WEIXIN
-  return null
-  // #endif
 }
 
 export function isMpWeixinPlatform() : boolean {
-  return platformName() == 'mp-weixin'
+  return true
 }
 
 export function resolveMiniProgramScene() : string {
-  const enterOptions = getEnterOptionsSync()
+  const enterOptions = getMiniProgramEnterOptions()
   const sceneFromEnterOptions = readSceneFromOptions(enterOptions)
   if (sceneFromEnterOptions.length > 0) {
     return sceneFromEnterOptions
@@ -251,7 +245,7 @@ export function resolveMiniProgramScene() : string {
 export function resolveMiniProgramEntryInfo(
   fallbackOptions : any | null = null
 ) : GioMiniProgramEntryInfo | null {
-  const enterOptions = getEnterOptionsSync()
+  const enterOptions = getMiniProgramEnterOptions()
   const primary = enterOptions != null ? enterOptions : fallbackOptions
   if (primary == null) {
     return null
@@ -259,7 +253,9 @@ export function resolveMiniProgramEntryInfo(
   const primaryRaw = primary as UTSJSONObject
   const fallbackRaw = fallbackOptions != null ? (fallbackOptions as UTSJSONObject) : null
 
-  let path = normalizeEntryPath(primaryRaw['path'] != null ? `${primaryRaw['path']}` : null)
+  let path = normalizeEntryPath(
+    primaryRaw['path'] != null ? `${primaryRaw['path']}` : null
+  )
   if (path.length == 0 && fallbackRaw != null) {
     path = normalizeEntryPath(
       fallbackRaw['path'] != null ? `${fallbackRaw['path']}` : null

@@ -1,5 +1,6 @@
+// config.uts 负责初始化配置的读取、归一化和默认值收口。
 import { GioInitOptions } from '../interface.uts'
-import { platformName } from './utils.uts'
+import { platformName } from './utils/system.uts'
 
 export const SDK_VERSION = '0.1.0'
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
@@ -22,10 +23,8 @@ function readNullableString(raw : UTSJSONObject, key : string) : string | null {
   return `${value}`
 }
 
-// UTS-iOS collapses `boolean | null` to a non-null `Bool = false` (both in
-// struct fields and fn returns), so the tri-state "unspecified" can't survive.
-// Resolve every boolean default HERE against the raw object (the only place
-// that still sees whether a key was provided) and store plain `boolean`.
+// 在 UTS-iOS 上，`boolean | null` 最终会塌成非空 Bool，导致“未传值”和 false 分不出来。
+// 所以所有布尔默认值都必须在这里直接基于原始对象解析完，后续只存普通 boolean。
 function readBooleanWithDefault(raw : UTSJSONObject, key : string, fallback : boolean) : boolean {
   const value = raw[key]
   if (value == null) {
@@ -48,7 +47,7 @@ function readNumberWithDefault(raw : UTSJSONObject, key : string, fallback : num
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
 
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
-  // `||` is a boolean-only operator in UTS; can't use it for string fallback.
+  // UTS 里的 `||` 只能做布尔运算，不能像 JS 一样拿来给字符串兜底。
   const rawServerUrl = readRequiredString(raw, 'serverUrl')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
   // followShare 仅小程序生效：mp-weixin 默认开启（用户未显式关闭时），其余端一律关闭，

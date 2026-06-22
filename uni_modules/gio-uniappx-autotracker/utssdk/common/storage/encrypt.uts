@@ -1,3 +1,4 @@
+// encrypt.uts 负责 `_gioenc` 存储值的轻量编解码。
 const GIO_ENCRYPTED_PREFIX = 'gioenc-'
 
 function isEncryptionSpecialChar(value : string) : boolean {
@@ -18,7 +19,7 @@ function xorStorageChar(value : string) : string {
   if (value >= '0' && value <= '9') {
     return `${parseInt(value) ^ 1}`
   }
-  // charCodeAt is `Number?` on the native backend; coalesce before the XOR.
+  // 原生后端里的 charCodeAt 可能返回可空 Number，这里先兜底再做异或。
   const code = value.charCodeAt(0)
   return String.fromCharCode((code != null ? code : 0) ^ 1)
 }

@@ -1,3 +1,5 @@
+// interface.uts 定义 SDK 的公共类型契约。
+// 公共层、平台层和 JS 桥接层之间只通过这里暴露的稳定类型交互。
 export type GioReportSuccess = {
   errMsg : string
 }
@@ -78,9 +80,8 @@ export type GioABTestResult = {
 
 export type GioABTestCallback = (result : GioABTestResult | UTSJSONObject) => void
 
-// Storage contract shared by the common engine and the platform adapters.
-// UTS cannot call methods on an `any`-typed value, so storage must be typed
-// through this interface rather than passed around as `any`.
+// 这是公共层与平台存储适配层共享的存储契约。
+// UTS 不能在 `any` 上安全调用方法，所以存储能力必须通过明确 interface 传递。
 export interface GioStorage {
   getItem(key : string) : any | null
   setItem(key : string, value : any, expiredAt : number | null) : void
@@ -102,6 +103,14 @@ export type GioPageContext = {
   title : string | null
   referralPage : string | null
   duration : number | null
+}
+
+export type GioPageSnapshot = {
+  route : string | null
+  mpRoute : string | null
+  title : string | null
+  options : UTSJSONObject | null
+  mpOptions : UTSJSONObject | null
 }
 
 export type GioOriginalSource = {
@@ -147,18 +156,17 @@ export type GioTrackEvent = {
   attributes : UTSJSONObject | null
 }
 
-// Provides the two storage instances. Implemented by GioStorageContainer.
-// Declared after the types it depends on — UTS does not hoist forward
-// references from `export interface` member signatures.
+// 由 GioStorageContainer 实现的存储提供器。
+// 之所以放在这里靠后声明，是因为 UTS 不会为 interface 成员签名做前向提升。
 export interface GioStorageProvider {
   getMainStorage() : GioStorage
   getOriginalSourceStorage() : GioStorage
   getLocalStorage() : GioStorage
 }
 
-// The slice of the tracker that plugins (e.g. ABTest) depend on. Declared here
-// to break the tracker<->plugin import cycle; UTS cannot dot-access an `any`
-// tracker, so plugins type it through this interface. Implemented by GioTracker.
+// 这是插件层（如 ABTest）依赖的 tracker 能力切片。
+// 单独抽成 interface 可以打断 tracker 与插件的循环依赖，也避免插件对 `any` tracker
+// 直接点方法。
 export interface GioABTestHost {
   getStorage() : GioStorageProvider
   getContext() : GioContext | null

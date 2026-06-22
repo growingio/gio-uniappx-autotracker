@@ -1,0 +1,189 @@
+// debug.uts 放统一日志输出和调试格式化工具。
+
+import { jsonStringify, now } from './base.uts'
+
+export function consoleText(
+  message : any,
+  type : string | null = null
+) {
+  const styles = {
+    info: 'color: #3B82F6;',
+    error: 'color: #EF4444;',
+    warn: 'color: #F59E0B;',
+    success: 'color: #10B981;'
+  } as UTSJSONObject
+  let style = ''
+  if (type != null && styles[type] != null) {
+    style = `${styles[type]}`
+  }
+  // Web 控制台优先保留对象原貌，避免被模板字符串压成不可展开的文本。
+  // #ifdef WEB
+  if (message != null && typeof message == 'object') {
+    console.log('%c [GrowingIO]：', style, message)
+    return
+  }
+  // #endif
+  console.log(`%c [GrowingIO]：${message}`, style)
+}
+
+function stringifyDebugData(data : any) : string {
+  try {
+    // UTS-iOS 的 JSON.stringify 只有 value 参数，没有 replacer / space 版本。
+    return jsonStringify(data)
+  } catch (_error) {
+    return `${data}`
+  }
+}
+
+function buildWebDebugJsonValue(data : any | null) : any | null {
+  if (data == null) {
+    return null
+  }
+  try {
+    const text = jsonStringify(data)
+    return JSON.parse(text)
+  } catch (_error) {
+    return data
+  }
+}
+
+function escapeDebugString(text : string) : string {
+  return text
+    .replaceAll('\\', '\\\\')
+    .replaceAll('"', '\\"')
+    .replaceAll('\n', '\\n')
+    .replaceAll('\r', '\\r')
+    .replaceAll('\t', '\\t')
+}
+
+function prettyPrintDebugJson(value : any | null, indentLevel : number = 0) : string {
+  if (value == null) {
+    return 'null'
+  }
+  if (typeof value == 'string') {
+    return `"${escapeDebugString(value)}"`
+  }
+  if (typeof value == 'number' || typeof value == 'boolean') {
+    return `${value}`
+  }
+  const indentUnit = '  '
+  const currentIndent = indentUnit.repeat(indentLevel)
+  const nextIndent = indentUnit.repeat(indentLevel + 1)
+  if (Array.isArray(value)) {
+    if (value.length == 0) {
+      return '[]'
+    }
+    const lines = [] as Array<string>
+    for (let i = 0; i < value.length; i++) {
+      lines.push(`${nextIndent}${prettyPrintDebugJson(value[i], indentLevel + 1)}`)
+    }
+    return `[\n${lines.join(',\n')}\n${currentIndent}]`
+  }
+  if (typeof value == 'object') {
+    const raw = value as UTSJSONObject
+    const keys = UTSJSONObject.keys(raw)
+    if (keys.length == 0) {
+      return '{}'
+    }
+    const lines = [] as Array<string>
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]
+      const rendered = prettyPrintDebugJson(raw[key], indentLevel + 1)
+      lines.push(`${nextIndent}"${escapeDebugString(key)}": ${rendered}`)
+    }
+    return `{\n${lines.join(',\n')}\n${currentIndent}}`
+  }
+  return stringifyDebugData(value)
+}
+
+type GioCivilTime = {
+  year : number
+  month : number
+  day : number
+  hour : number
+  minute : number
+  second : number
+  milli : number
+}
+
+// 通过纯整数运算从毫秒时间戳推导年月日时分秒，避免依赖原生 Date 上不存在的
+// toISOString / getUTC* 之类 JS 实例方法。这里使用的是 civil_from_days 思路，
+// 调用方传进来的 `ms` 应该已经包含它想表达的时区偏移。
+function epochMsToCivil(ms : number) : GioCivilTime {
+  const milli = ((ms % 1000) + 1000) % 1000
+  const totalSec = Math.floor(ms / 1000)
+  const second = ((totalSec % 60) + 60) % 60
+  const totalMin = Math.floor(totalSec / 60)
+  const minute = ((totalMin % 60) + 60) % 60
+  const totalHour = Math.floor(totalMin / 60)
+  const hour = ((totalHour % 24) + 24) % 24
+  const days = Math.floor(totalHour / 24)
+
+  const z = days + 719468
+  const era = Math.floor((z >= 0 ? z : z - 146096) / 146097)
+  const doe = z - era * 146097
+  const yoe = Math.floor((doe - Math.floor(doe / 1460) + Math.floor(doe / 36524) - Math.floor(doe / 146096)) / 365)
+  const y = yoe + era * 400
+  const doy = doe - (365 * yoe + Math.floor(yoe / 4) - Math.floor(yoe / 100))
+  const mp = Math.floor((5 * doy + 2) / 153)
+  const day = doy - Math.floor((153 * mp + 2) / 5) + 1
+  const month = mp < 10 ? mp + 3 : mp - 9
+  const year = month <= 2 ? y + 1 : y
+
+  return {
+    year: year,
+    month: month,
+    day: day,
+    hour: hour,
+    minute: minute,
+    second: second,
+    milli: milli
+  } as GioCivilTime
+}
+
+function padDatePart(value : number, size : number = 2) : string {
+  let text = `${value}`
+  while (text.length < size) {
+    text = `0${text}`
+  }
+  return text
+}
+
+function formatDebugTimestamp() : string {
+  const c = epochMsToCivil(now())
+  const datePart = `${c.year}-${padDatePart(c.month)}-${padDatePart(c.day)}`
+  const timePart = `${padDatePart(c.hour)}:${padDatePart(c.minute)}:${padDatePart(c.second)}.${padDatePart(c.milli, 3)}`
+  return `${datePart}T${timePart}Z`
+}
+
+function buildDebugMessage(message : string) : string {
+  return `[GrowingIO Debug][${formatDebugTimestamp()}] ${message}`
+}
+
+export function formatBeijingTimestamp(ts : number) : string {
+  const beijingMs = ts + 480 * 60 * 1000
+  const c = epochMsToCivil(beijingMs)
+  const datePart = `${c.year}-${padDatePart(c.month)}-${padDatePart(c.day)}`
+  const timePart = `${padDatePart(c.hour)}:${padDatePart(c.minute)}:${padDatePart(c.second)}.${padDatePart(c.milli, 3)}`
+  return `${datePart} ${timePart} GMT+8`
+}
+
+export function debugLog(enabled : boolean, message : string, data : any | null = null) {
+  if (!enabled) {
+    return
+  }
+  if (data == null) {
+    console.log(buildDebugMessage(message))
+    return
+  }
+  // Web 端按“标题 + 多行格式化 JSON”输出，保持控制台里直接可读。
+  // #ifdef WEB
+  const jsonValue = buildWebDebugJsonValue(data)
+  console.log(
+    `%c ${buildDebugMessage(message)}: ${prettyPrintDebugJson(jsonValue)}`,
+    'color: #000000;'
+  )
+  return
+  // #endif
+  console.log(buildDebugMessage(`${message}\n${prettyPrintDebugJson(data)}`))
+}

@@ -1,3 +1,4 @@
+// eventBuilder 负责把上下文、用户身份和业务属性拼成统一事件对象。
 import {
   GioInitOptions,
   GioOriginalSource,
@@ -5,11 +6,12 @@ import {
   GioTrackEvent
 } from '../../../interface.uts'
 import { SDK_VERSION } from '../../config.uts'
-import { GioSystemContext, now, readTimezoneOffsetMinutes } from '../../utils.uts'
+import { now, readTimezoneOffsetMinutes } from '../../utils/base.uts'
 import {
   resolvePageContext as resolveRuntimePageContext,
   shapeTrackEvent
 } from '../../runtime/index.uts'
+import { GioSystemContext } from '../../utils/system.uts'
 import { GioUserStore } from '../../userStore/index.uts'
 
 export class GioEventBuilder {
@@ -19,9 +21,8 @@ export class GioEventBuilder {
     this.userStore = userStore
   }
 
-  // Named distinctly from the imported runtime `resolvePageContext`: UTS-iOS
-  // ignores the import alias and module-qualifies the call, which collides with
-  // a same-named class method ("cannot find UTSSDKModules... in scope").
+  // 这里故意不用 `resolvePageContext` 这个名字。
+  // UTS-iOS 会忽略 import alias 并带模块名前缀调用，同名方法容易和 runtime 的导入函数撞名。
   private composePageContext(
     eventType : string,
     pageContext : GioPageContext | null,
@@ -78,13 +79,9 @@ export class GioEventBuilder {
     ) {
       eventSequenceId = userStore.getNextEventSequenceId()
     }
-    // Extract only the expression-valued entries (cast / ternary / calls) into
-    // locals; the plain member accesses auto-unwrap fine inline. The big
-    // `{...} as GioTrackEvent` literal was "unable to type-check in reasonable
-    // time" mostly because of the unresolved `new Date().getTimezoneOffset()`
-    // (no native Date member) plus the inline cast/ternary. (Don't extract the
-    // String! member accesses — an untyped local decays them to String? and
-    // then fails assignment into the non-null event fields.)
+    // 这里把复杂表达式先拆到局部变量里，只保留简单字段访问内联写进对象字面量。
+    // 否则 iOS 侧很容易在大对象字面量 + 内联三元 / 强转 / 原生 Date 缺失方法的组合下，
+    // 报 “unable to type-check in reasonable time”。
     const appVersionText : string = options.appVersion as string
     const titleText : string = title != null ? (title as string) : ''
     const timestamp : number = now()

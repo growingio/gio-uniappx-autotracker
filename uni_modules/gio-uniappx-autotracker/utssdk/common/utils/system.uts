@@ -1,0 +1,116 @@
+// system.uts 放系统信息快照、平台识别和标准系统上下文组装。
+
+export type GioSystemContext = {
+  deviceBrand : string
+  deviceModel : string
+  deviceType : string
+  language : string
+  networkState : string
+  operatingSystem : string
+  platform : string
+  platformVersion : string
+  screenHeight : number
+  screenWidth : number
+}
+
+function readSystemText(source : any | null, keys : Array<string>) : string {
+  if (source == null) {
+    return ''
+  }
+  const raw = source as UTSJSONObject
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    const value = raw[key]
+    if (value != null && `${value}`.length > 0) {
+      return `${value}`
+    }
+  }
+  return ''
+}
+
+export function getSystemInfoSnapshot() : UTSJSONObject | null {
+  // UTS 不能像 JS 一样按字符串动态访问 `uni` 上的方法，只能直接调用明确 API，
+  // 再把消费者需要的系统信息拼成快照对象。
+  try {
+    const snapshot = {} as UTSJSONObject
+
+    const device = uni.getDeviceInfo()
+    snapshot['deviceBrand'] = device.deviceBrand
+    snapshot['brand'] = device.brand
+    snapshot['deviceModel'] = device.deviceModel
+    snapshot['model'] = device.model
+    snapshot['osName'] = device.osName
+    snapshot['osVersion'] = device.osVersion
+    snapshot['platform'] = device.platform
+
+    const appBase = uni.getAppBaseInfo()
+    snapshot['uniPlatform'] = appBase.uniPlatform
+    snapshot['version'] = appBase.version
+    snapshot['appLanguage'] = appBase.appLanguage
+    snapshot['language'] = appBase.language
+
+    return snapshot
+  } catch (_error) {
+    return null
+  }
+}
+
+export function platformName () : string {
+  const system = getSystemInfoSnapshot()
+  const platform = readSystemText(system, ['uniPlatform', 'platform'])
+  if (platform.length > 0) {
+    return platform
+  }
+  return 'unknown'
+}
+
+export function getSystemContext () : GioSystemContext {
+  const system = getSystemInfoSnapshot()
+  const platformText = readSystemText(system, ['uniPlatform', 'platform'])
+  const platform = platformText.length > 0 ? platformText : 'unknown'
+
+  let operatingSystem = platform
+  const lowerPlatform = platform.toLowerCase()
+  if (lowerPlatform.indexOf('android') >= 0) {
+    operatingSystem = 'uni-app-x-Android'
+  } else if (lowerPlatform.indexOf('ios') >= 0) {
+    operatingSystem = 'uni-app-x-iOS'
+  } else if (
+    lowerPlatform.indexOf('harmony') >= 0 ||
+    lowerPlatform.indexOf('ohos') >= 0
+  ) {
+    operatingSystem = 'uni-app-x-HarmonyOS'
+  } else {
+    const osName = readSystemText(system, ['osName'])
+    const lowerOsName = osName.toLowerCase()
+    if (lowerOsName.indexOf('android') >= 0) {
+      operatingSystem = 'uni-app-x-Android'
+    } else if (lowerOsName.indexOf('ios') >= 0) {
+      operatingSystem = 'uni-app-x-iOS'
+    } else if (
+      lowerOsName.indexOf('harmony') >= 0 ||
+      lowerOsName.indexOf('ohos') >= 0
+    ) {
+      operatingSystem = 'uni-app-x-HarmonyOS'
+    }
+  }
+
+  let platformVersion = operatingSystem
+  const osVersion = readSystemText(system, ['osVersion', 'version'])
+  if (osVersion.length > 0) {
+    platformVersion = `${operatingSystem} ${osVersion}`
+  }
+
+  return {
+    deviceBrand: readSystemText(system, ['deviceBrand', 'brand']),
+    deviceModel: readSystemText(system, ['deviceModel', 'model']),
+    deviceType: operatingSystem,
+    language: readSystemText(system, ['language', 'appLanguage']),
+    networkState: readSystemText(system, ['networkType']),
+    operatingSystem: operatingSystem,
+    platform: platform,
+    platformVersion: platformVersion,
+    screenHeight: system != null ? (system as UTSJSONObject).getNumber('screenHeight', 0) : 0,
+    screenWidth: system != null ? (system as UTSJSONObject).getNumber('screenWidth', 0) : 0
+  } as GioSystemContext
+}

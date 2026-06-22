@@ -1,3 +1,4 @@
+// Web 平台入口：注册浏览器运行时实现，再复用公共 utssdk API。
 import './runtime.uts'
 
 export * from '../index.uts'

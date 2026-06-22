@@ -1,8 +1,10 @@
+// dataStore 负责统一管理系统上下文、页面状态、原始来源和事件构建。
 import {
   GioContext,
   GioInitOptions,
   GioOriginalSource,
   GioPageContext,
+  GioPageSnapshot,
   GioStorage,
   GioTrackEvent
 } from '../../interface.uts'
@@ -10,11 +12,9 @@ import {
   GioEventCenter,
   GioSessionIdUpdatePayload
 } from '../events.uts'
-import {
-  platformName,
-  consoleText
-} from '../utils.uts'
+import { consoleText } from '../utils/debug.uts'
 import { resolvePageContext } from '../runtime/index.uts'
+import { platformName } from '../utils/system.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import { GioSystemContextManager } from './context/system-context.uts'
 import { GioEventBuilder } from './eventBuilder/index.uts'
@@ -54,7 +54,6 @@ export class GioDataStore {
     this.storage = storage
     this.sessionUpdateHandlers = sessionUpdateHandlers
     this.eventBuilder.configure(userStore)
-    consoleText(`GioDataStore initialize: ${options.debug}`, 'info')
     this.systemContext.initialize(
       options.debug == true,
       options.screenWidth,
@@ -112,6 +111,9 @@ export class GioDataStore {
       forceLogin: false,
       originalSource: true,
       followShare: false,
+      idMapping: false,
+      storageType: null,
+      cookieDomain: null,
       screenWidth: 0,
       screenHeight: 0
     } as GioInitOptions
@@ -162,11 +164,18 @@ export class GioDataStore {
     options : any | null,
     duration : number | null = null
   ) : GioPageContext | null {
-    return this.pageStore.buildPageContextFromTarget(page as UniPage, options, duration)
+    return this.pageStore.buildPageContextFromTarget(
+      page as GioPageSnapshot,
+      options as UTSJSONObject | null,
+      duration
+    )
   }
 
   updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
-    const pageContext = this.pageStore.updateCurrentPage(page as UniPage, options)
+    const pageContext = this.pageStore.updateCurrentPage(
+      page as GioPageSnapshot,
+      options as UTSJSONObject | null
+    )
     this.maybeStoreOriginalSource(pageContext)
     return pageContext
   }
@@ -207,8 +216,8 @@ export class GioDataStore {
     }
     const userStore = this.userStore as GioUserStore
     const context = userStore.getContext()
-    // sessionId is a non-null `string` → Swift `String!`; an untyped local
-    // decays to `String?` and breaks `.length`. Annotate to force non-null.
+    // 这里显式标成 string，避免 Swift 把本来非空的 sessionId 局部变量降成 `String?`，
+    // 进而影响 `.length` 判断。
     const currentSessionId : string = context.sessionId
     if (currentSessionId.length == 0) {
       return
@@ -275,8 +284,8 @@ export class GioDataStore {
   handleFlushSuccess(events : Array<GioTrackEvent>) {
     for (let i = 0; i < events.length; i++) {
       const event = events[i]
-      // Use typed field access, not `event['key']` subscript: the subscript
-      // returns Any?, and comparing Any? to a string literal fails on Swift.
+      // 这里只能走明确字段访问，不能写 `event['key']`。
+      // 下标访问会退成 Any?，Swift 上再拿它和字符串字面量比较就会出问题。
       if (event.eventType != 'VISIT') {
         continue
       }

@@ -1,3 +1,4 @@
+// gio-abtest.uts 实现单实例 ABTest 插件能力。
 import {
   GioABTestCallback,
   GioABTestHost,
@@ -8,12 +9,11 @@ import {
   GioStorage
 } from '../../interface.uts'
 import {
-  consoleText,
   hashCode,
   jsonStringify,
-  niceCallback,
   now
-} from '../utils.uts'
+} from '../utils/base.uts'
+import { consoleText } from '../utils/debug.uts'
 
 const ABTEST_DEFAULT_SERVER_URL = 'https://ab.growingio.com'
 const ABTEST_DEFAULT_REQUEST_INTERVAL = 5
@@ -24,9 +24,19 @@ const ABTEST_MIN_REQUEST_TIMEOUT = 100
 const ABTEST_SIGN_SUFFIX = '_gdp_abt_sign'
 const ABTEST_DATA_SUFFIX = '_gdp_abtd'
 
+function niceCallback(callback : GioABTestCallback | null, value : GioABTestResult | UTSJSONObject) {
+  if (callback == null) {
+    return
+  }
+  try {
+    callback(value)
+  } catch (error) {
+    consoleText(`回调执行失败！${error}`, 'error')
+  }
+}
+
 function isEmptyLayerId(layerId : any) : boolean {
-  // Stringify before narrowing (see isValidIdentifyId): `${x}` inside a
-  // typeof-number branch becomes `\(x as! NSNumber)` which Swift rejects.
+  // 先字符串化再判断 number 分支，避免 Swift 在模板字符串路径里生成不稳定的 NSNumber 强转。
   const text = `${layerId}`
   if (typeof layerId == 'number') {
     const numeric = parseFloat(text)
@@ -81,10 +91,8 @@ export class GioABTestPlugin {
     this.tracker = tracker
     this.storage = tracker.getStorage().getLocalStorage()
 
-    // Inlined from the former timeoutCheck/generateUrl methods: Swift forbids
-    // calling an instance's OWN methods in a constructor before super.init(),
-    // and UTS emits those calls before it ("'self' used … before 'super.init'").
-    // Plain field assignments (and calls on the `tracker` field) are allowed.
+    // 这里把原先的小方法逻辑直接内联到构造函数里。
+    // Swift 不允许在 `super.init()` 之前调用实例自己的方法，而 UTS 会把那类调用提前生成。
     if (options != null) {
       const intervalValue = options.requestInterval
       if (intervalValue != null) {
@@ -251,12 +259,9 @@ export class GioABTestPlugin {
       method: 'POST',
       data: requestData,
       timeout: this.requestTimeout,
-      // error17: uni.request's generic T (RequestOptions<T>, T only on `success`) must
-      // be pinned with a CONCRETE type, not `any` — `RequestSuccess<any>` still infers
-      // RequestOptions<String> and is rejected on Android. The json default returns an
-      // object, so pin T = UTSJSONObject on BOTH the call (`uni.request<UTSJSONObject>`)
-      // and the success param. (uploader.uts uses the concrete <string> because its
-      // dataType:'text' returns text.) res.data is then a real UTSJSONObject.
+      // 这里必须把 uni.request 的泛型 T 固定成 `UTSJSONObject`。
+      // 如果写成 `any`，Android 侧仍可能把 RequestOptions 推断成字符串分支并拒绝编译；
+      // 同时 success 回调里的 `res.data` 也需要稳定落成真正的 UTSJSONObject。
       success: (res : RequestSuccess<UTSJSONObject>) => {
         // 4xx/5xx：uni.request 各端都走 success（带 statusCode），与独立 web 裸 XHR 走 fail
         // 不同。按 ADR-014/015，传输层失败一律回 stale（上一次存储的实验数据），且仍写 sign
@@ -306,9 +311,8 @@ export class GioABTestPlugin {
     originData : UTSJSONObject,
     callback : GioABTestCallback | null
   ) {
-    // Nested object: getJSON, not `responseData['variables'] as UTSJSONObject`.
-    // The subscript value can't be force-cast to UTSJSONObject at runtime
-    // (swift_dynamicCastFailure) — same crash class as registerPlugins' options.
+    // 嵌套对象必须通过 getJSON 读取，不能直接把下标结果强转成 UTSJSONObject。
+    // 这类写法会在运行时触发和 registerPlugins 一样的强转崩溃。
     const variables = responseData.getJSON('variables')
     const comparisonData = {
       layerId: `${responseData['layerId'] != null ? responseData['layerId'] : layerId}`,
@@ -332,8 +336,7 @@ export class GioABTestPlugin {
 
     this.writeCachedData(this.getHashKey(layerId), result)
 
-    // Swift: number → NSNumber, and NSNumber does not conform to Equatable;
-    // `comparisonValue != controlValue` is ambiguous. Compare via string.
+    // Swift 里 number 会映射成 NSNumber，直接做 `!=` 比较容易产生歧义，这里统一转成字符串比较。
     if (
       `${comparisonValue}` != `${controlValue}` &&
       result.strategyId.length > 0 &&

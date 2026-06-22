@@ -1,8 +1,9 @@
-// gdp.uts — glue layer outside utssdk/.
-// Follows the rule: files outside utssdk/ use the module path
-// `@/uni_modules/gio-uniappx-autotracker` to access utssdk exports.
+// gdp.uts 是 SDK 的对外命令分发入口。
+// 该文件位于 utssdk 之外，属于 JS 编译层，只负责参数校验、命令分发和生命周期安装，
+// 不直接承接原生编译层的核心采集逻辑。
 import {
   clearUserId,
+  consoleText,
   getABTest,
   identify,
   initialize,
@@ -15,23 +16,6 @@ import {
 } from '@/uni_modules/gio-uniappx-autotracker'
 import type { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker'
 import { installGioLifecycle } from './plugin.uts'
-
-export function consoleText(
-  message : any,
-  type : string | null = null
-) {
-  const styles = {
-    info: 'color: #3B82F6;',
-    error: 'color: #EF4444;',
-    warn: 'color: #F59E0B;',
-    success: 'color: #10B981;'
-  } as UTSJSONObject
-  let style = ''
-  if (type != null && styles[type] != null) {
-    style = `${styles[type]}`
-  }
-  console.log(`%c [GrowingIO]：${message}`, style)
-}
 
 function isObjectArgument(value : any | null) : boolean {
   return value != null && typeof value == 'object' && !Array.isArray(value)
@@ -124,8 +108,8 @@ function handleInit(options : any | null) : boolean {
   return installGioLifecycle(initOptions.app as VueApp)
 }
 
-// Re-export mp-weixin share wrappers so that index.uts can surface them
-// without directly importing from ./utssdk/.
+// 重新导出微信小程序分享包装器，让外部始终通过模块根路径取能力，
+// 不需要直接 import 内部的 utssdk 目录。
 // #ifdef MP-WEIXIN
 export {
   wrapAddToFavorites,
@@ -140,7 +124,6 @@ export function gdp(
   arg1 : any | null = null,
   arg2 : any | null = null
 ) : any {
-  consoleText(`gdp(${command}, ${arg0}, ${arg1}, ${arg2})`, 'info')
   if (command == 'init') {
     return handleInit(arg0)
   }

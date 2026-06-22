@@ -1,3 +1,5 @@
+// 微信小程序平台入口。
+// 这里只注册小程序专属 resolver 和分享包装器，再复用公共 utssdk 入口。
 import { GioTracker } from '../common/core/tracker.uts'
 import { createMiniProgramResolver } from './miniprogram.uts'
 

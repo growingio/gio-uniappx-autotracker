@@ -1,3 +1,4 @@
+// events.uts 提供 SDK 内部的轻量事件中心，目前只承载身份与 session 变化广播。
 export type GioSessionIdUpdatePayload = {
   newSessionId : string
   oldSessionId : string

@@ -1,0 +1,86 @@
+// validate.uts 放业务层可复用的输入校验与属性归一化工具。
+
+export function isBlank (value : string | null) : boolean {
+  return value == null || value.length == 0
+}
+
+const INVALID_ID_VALUES = ['-', 'null', 'undefined']
+
+export function verifyId (value : string | null) : boolean {
+  if (isBlank(value)) {
+    return false
+  }
+  const trimmed = (value as string).trim()
+  if (trimmed.length == 0) {
+    return false
+  }
+  if (INVALID_ID_VALUES.includes(trimmed)) {
+    return false
+  }
+  return true
+}
+
+const EVENT_NAME_REG = /^[a-zA-Z_][0-9a-zA-Z_]{0,100}$/
+
+export function isValidEventName (eventName : string | null) : boolean {
+  if (isBlank(eventName)) {
+    return false
+  }
+  return (eventName as string).match(EVENT_NAME_REG) != null
+}
+
+export function isValidIdentifyId (value : any | null) : boolean {
+  if (value == null) {
+    return false
+  }
+  // 这里只按字符串形态校验，不走 number 分支比较，避免 Swift 侧被编成不稳定的 NSNumber 比较。
+  const text = `${value}`
+  return text.length > 0 && text != '0' && text != '-' && text != 'null' && text != 'undefined'
+}
+
+export function normalizeTrackProperties (properties : UTSJSONObject | null) : UTSJSONObject | null {
+  if (properties == null) {
+    return null
+  }
+
+  const normalized = {} as UTSJSONObject
+  const raw = properties as UTSJSONObject
+  const keys = UTSJSONObject.keys(raw)
+
+  for (let i = 0; i < keys.length; i++) {
+    const rawKey = keys[i]
+    if (rawKey == '&&sendTo') {
+      continue
+    }
+
+    const value = raw[rawKey]
+    if (value == null) {
+      continue
+    }
+
+    const key = `${rawKey}`.slice(0, 100)
+
+    if (Array.isArray(value)) {
+      const arrayValue = value as Array<any>
+      const parts = [] as Array<string>
+      const maxLength = arrayValue.length > 100 ? 100 : arrayValue.length
+      for (let j = 0; j < maxLength; j++) {
+        const item = arrayValue[j]
+        if (item == null) {
+          continue
+        }
+        parts.push(`${item}`)
+      }
+      normalized[key] = parts.join('||').slice(0, 1000)
+      continue
+    }
+
+    if (typeof value == 'object' || typeof value == 'function') {
+      continue
+    }
+
+    normalized[key] = `${value}`.slice(0, 1000)
+  }
+
+  return UTSJSONObject.keys(normalized).length > 0 ? normalized : null
+}

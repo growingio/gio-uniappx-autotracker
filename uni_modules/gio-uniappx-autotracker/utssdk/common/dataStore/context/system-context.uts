@@ -1,4 +1,6 @@
-import { GioSystemContext, debugLog, getSystemInfoSnapshot, consoleText } from '../../utils.uts'
+// system-context 负责异步拉取系统信息、网络状态，并在 ready 后统一回填给事件构建层。
+import { debugLog } from '../../utils/debug.uts'
+import { GioSystemContext, getSystemInfoSnapshot } from '../../utils/system.uts'
 
 
 type GioSystemReadyCallback = () => void
@@ -120,7 +122,6 @@ export class GioSystemContextManager {
   }
 
   ensureReady(callback : GioSystemReadyCallback | null = null) {
-    consoleText(`ensureReady: ${this.isReady()}`)
     if (this.isReady()) {
       if (callback != null) {
         callback()
@@ -167,7 +168,6 @@ export class GioSystemContextManager {
 
   private loadSystemInfo() {
     const systemSnapshot = getSystemInfoSnapshot()
-	consoleText(`loadSystemInfo ${systemSnapshot}`, 'info')
     if (systemSnapshot != null) {
       this.systemInfo = systemSnapshot
     } else {

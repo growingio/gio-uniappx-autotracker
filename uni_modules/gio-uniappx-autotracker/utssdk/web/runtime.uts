@@ -1,3 +1,4 @@
+// web/runtime.uts 注册浏览器侧的存储、事件整形、页面上下文和发送实现。
 import {
   GioInitOptions,
   GioPageContext,
@@ -638,8 +639,7 @@ registerEventShaper({
     event.networkState = null
     event.operatingSystem = null
     event.platform = 'web'
-    // Keep the web payload behavior of omitting platformVersion without
-    // widening the shared event contract used by mobile platforms.
+    // Web 端继续保持“不上报 platformVersion 内容”的行为，同时不去改共享事件契约。
     event.platformVersion = ''
     event.protocolType = event.eventType == 'PAGE'
       ? readProtocolType()

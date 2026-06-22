@@ -1,0 +1,14 @@
+// request.uts 放上报地址与请求路径相关的纯拼装工具。
+
+import { GioInitOptions } from '../../interface.uts'
+
+export function normalizeServerUrl (serverUrl : string) : string {
+  if (serverUrl.endsWith('/')) {
+    return serverUrl.slice(0, serverUrl.length - 1)
+  }
+  return serverUrl
+}
+
+export function buildCollectUrl (options : GioInitOptions) : string {
+  return `${normalizeServerUrl(options.serverUrl)}/v3/projects/${options.projectId}/collect`
+}

@@ -1,3 +1,4 @@
+// share.uts 负责微信小程序端的分享、朋友圈和收藏采集包装。
 import { GioPageContext, GioShareHost } from '../interface.uts'
 import { GioTracker } from '../common/core/tracker.uts'
 

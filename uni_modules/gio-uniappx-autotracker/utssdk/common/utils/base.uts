@@ -1,0 +1,103 @@
+// base.uts 放最底层、无业务语义的基础工具。
+
+export function now () : number {
+  return Date.now()
+}
+
+// 原生侧 Date 没有 getTimezoneOffset，只有 web / 小程序的 JS Date 才有。
+// 因此 App 平台直接返回 0，避免把不存在的方法带进 Swift / Kotlin 类型检查。
+export function readTimezoneOffsetMinutes () : number {
+  // #ifdef APP
+  return 0
+  // #endif
+  // #ifndef APP
+  return new Date().getTimezoneOffset()
+  // #endif
+}
+
+export function guid () : string {
+  const template = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+  let result = ''
+  for (let i = 0; i < template.length; i++) {
+    const char = template.charAt(i)
+    if (char == 'x' || char == 'y') {
+      const random = Math.floor(Math.random() * 16)
+      const value = char == 'x' ? random : ((random & 0x3) | 0x8)
+      result += value.toString(16)
+      continue
+    }
+    result += char
+  }
+  return result
+}
+
+// UTS-iOS 会把 JSON.stringify 标成 `string | null`，这里统一兜成非空字符串，
+// 免得业务层到处重复判空。
+export function jsonStringify (value : any) : string {
+  const text = JSON.stringify(value)
+  return text != null ? (text as string) : ''
+}
+
+export function hashCode(value : string, abs : boolean = false) : number {
+  let hash = 0
+  if (value.length == 0) {
+    return hash
+  }
+  let index = 0
+  while (index < value.length) {
+    // 编辑器里 charCodeAt 看起来是 number，但原生后端实际可能返回可空 Number。
+    // 这里先兜底成确定数值，避免后续位运算吃到 null。
+    const charCode = value.charCodeAt(index)
+    hash = (hash << 5) - hash + (charCode != null ? charCode : 0)
+    hash = hash & hash
+    index++
+  }
+  return abs ? Math.abs(hash) : hash
+}
+
+// BoxArray 用 class 把原生 Array 包成“引用语义容器”。
+// 这样可以规避 Swift 数组的值语义和写时复制，让多个模块持有同一队列时仍然共享状态。
+// 这类轻量级通用封装统一收敛在基础工具文件里，避免为单个小容器再拆散文件。
+export class BoxArray<T> {
+  private data : Array<T>
+
+  constructor() {
+    this.data = []
+  }
+
+  get length() : number {
+    return this.data.length as number
+  }
+
+  push(item : T) : void {
+    this.data.push(item)
+  }
+
+  unshift(item : T) : void {
+    this.data.unshift(item)
+  }
+
+  shift() : T | null {
+    const shifted = this.data.shift()
+    return shifted != null ? shifted : null
+  }
+
+  splice(start : number, deleteCount : number) : void {
+    this.data.splice(start, deleteCount)
+  }
+
+  slice(start : number, end : number) : Array<T> {
+    return this.data.slice(start, end)
+  }
+
+  get(idx : number) : T | null {
+    if (idx >= 0 && idx < this.data.length) {
+      return this.data[idx]
+    }
+    return null
+  }
+
+  clear() : void {
+    this.data = []
+  }
+}

@@ -1,12 +1,13 @@
+// userStore 是设备标识、登录身份和 session 状态的单一事实来源。
 import { GioContext, GioInitOptions, GioStorage } from '../../interface.uts'
 import {
   GioEventCenter
 } from '../events.uts'
 import {
   guid,
-  now,
-  platformName
-} from '../utils.uts'
+  now
+} from '../utils/base.uts'
+import { platformName } from '../utils/system.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
 const UID_STORAGE_KEY = 'gdp_user_id_gioenc'
@@ -142,8 +143,7 @@ export class GioUserStore {
     if (value == null) {
       return 1
     }
-    // Stringify before the typeof-number narrowing (Swift rejects the
-    // `\(value as! NSNumber)` that `${value}` becomes inside that branch).
+    // 先字符串化再进 number 分支，避免 Swift 在分支内把模板字符串编成不稳定的 NSNumber 强转。
     const text = `${value}`
     if (typeof value == 'number') {
       const numeric = parseFloat(text)

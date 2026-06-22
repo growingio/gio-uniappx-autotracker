@@ -1,5 +1,6 @@
+// storage/index.uts 负责统一包装存储读写、过期时间和 `_gioenc` 编解码。
 import { GioInitOptions, GioStorage, GioStorageProvider } from '../../interface.uts'
-import { now, jsonStringify } from '../utils.uts'
+import { now, jsonStringify } from '../utils/base.uts'
 import {
   resolveLocalStorage,
   resolveMainStorage,
@@ -80,9 +81,8 @@ export function parseStorageValue (value : any | null) : any | null {
     return value
   }
   const text = `${value}`
-  // shouldAttemptJsonParse already excludes numeric strings (they don't start
-  // with {/[/"/true/false/null), so no need for an inline parseFloat/isNaN check
-  // (which Swift rejects as a numeric op on a String).
+  // shouldAttemptJsonParse 已经把纯数字字符串排除了，所以这里不需要再内联
+  // parseFloat / isNaN 判定，避免 Swift 把它当成字符串上的非法数值运算。
   if (shouldAttemptJsonParse(text)) {
     try {
       return JSON.parse(text)
@@ -102,8 +102,7 @@ export function buildWrappedStorageValue (
   value : any,
   expiredAt : number | null
 ) : string {
-  // Compute a concrete number first: Swift can't compare a boxed NSNumber (the
-  // `number | null` cast) with `> 0` the way it compares a plain number.
+  // 先把过期时间收成明确 number，避免 Swift 用装箱 NSNumber 去做 `> 0` 比较。
   let resolvedExpiredAt = getDefaultStorageExpiredAt()
   if (expiredAt != null) {
     resolvedExpiredAt = expiredAt

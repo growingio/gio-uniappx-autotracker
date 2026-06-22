@@ -1,10 +1,15 @@
-// plugin.uts — JS 编译层入口（Vue 上下文）
-// 职责：仅负责 defineMixin 生命周期混入，不包含初始化逻辑。
-// 初始化逻辑已移入 utssdk/index.uts 的 initialize()。
-// 通过模块路径 @/uni_modules/gio-uniappx-autotracker 导入 GioTracker，
-// 而非直接依赖 utssdk 内部文件路径。
+// plugin.uts 是 Vue / JS 编译层的生命周期桥接入口。
+// 这里只负责挂载 mixin、提取页面快照和启动参数快照，再把稳定对象转发给 utssdk；
+// 初始化、session、事件构建和上报都由 utssdk 内部处理。
 
-import { onPageLoad, onShow, onHide, onPageUnload } from '@/uni_modules/gio-uniappx-autotracker'
+import {
+  onHide as handleOnHide,
+  onLaunch as handleOnLaunch,
+  onPageLoad as handleOnPageLoad,
+  onPageUnload as handleOnPageUnload,
+  onShow as handleOnShow
+} from '@/uni_modules/gio-uniappx-autotracker'
+import { GioPageSnapshot } from '@/uni_modules/gio-uniappx-autotracker'
 import { gdp } from './gdp.uts'
 
 export { gdp }
@@ -19,25 +24,181 @@ export {
 // #endif
 let lifecycleInstalled = false
 
+function copyLooseObject(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  let hasValue = false
+  for (const key in source) {
+    const value = source[key]
+    if (value == null) {
+      continue
+    }
+    copied[key] = value
+    hasValue = true
+  }
+  return hasValue ? copied : null
+}
+
+function copyLifecycleOptionValue(value : any | null) : any | null {
+  if (value == null) {
+    return null
+  }
+  if (typeof value == 'object' && !Array.isArray(value)) {
+    return copyLooseObject(value)
+  }
+  return value
+}
+
+function copyReferrerInfo(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const appId = source['appId']
+  if (appId != null) {
+    copied['appId'] = `${appId}`
+  }
+  const extraData = copyLooseObject(source['extraData'])
+  if (extraData != null) {
+    copied['extraData'] = extraData
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+// 页面实例不能直接进入 utssdk。
+// 这里先在 JS 层做浅拷贝，只保留公共层真正需要的 route / options / title 字段。
+function buildPageSnapshot(page : any | null) : GioPageSnapshot | null {
+  if (page == null || typeof page != 'object') {
+    return null
+  }
+  let route : string | null = null
+  const routeValue = page['route']
+  if (routeValue != null && `${routeValue}`.length > 0) {
+    route = `${routeValue}`
+  }
+
+  let mpRoute : string | null = null
+  let mpOptions : UTSJSONObject | null = null
+  const scope = page['$scope']
+  if (scope != null && typeof scope == 'object') {
+    const scopeRoute = scope['route']
+    if (scopeRoute != null && `${scopeRoute}`.length > 0) {
+      mpRoute = `${scopeRoute}`
+    }
+    mpOptions = copyLooseObject(scope['options'])
+  }
+
+  const options = copyLooseObject(page['options'])
+
+  let title : string | null = null
+  try {
+    const pageStyle = page.getPageStyle()
+    if (pageStyle != null && typeof pageStyle == 'object') {
+      const titleValue = pageStyle['navigationBarTitleText']
+      if (titleValue != null && `${titleValue}`.length > 0) {
+        title = `${titleValue}`
+      }
+    }
+  } catch (_error) {}
+
+  if (route == null && mpRoute == null) {
+    return null
+  }
+
+  return {
+    route: route,
+    mpRoute: mpRoute,
+    title: title,
+    options: options,
+    mpOptions: mpOptions
+  } as GioPageSnapshot
+}
+
+// 启动参数同样先裁成稳定快照，避免把原始 options 直接传入原生编译层。
+function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null {
+  if (options == null || typeof options != 'object' || Array.isArray(options)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const path = options['path']
+  if (path != null) {
+    copied['path'] = `${path}`
+  }
+  const scene = options['scene']
+  if (scene != null) {
+    copied['scene'] = `${scene}`
+  }
+  const query = copyLooseObject(options['query'])
+  if (query != null) {
+    copied['query'] = query
+  }
+  const referrerInfo = copyReferrerInfo(options['referrerInfo'])
+  if (referrerInfo != null) {
+    copied['referrerInfo'] = referrerInfo
+  }
+  const refererInfo = copyReferrerInfo(options['refererInfo'])
+  if (refererInfo != null) {
+    copied['refererInfo'] = refererInfo
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+// 页面生命周期参数通常就是 route query 的平铺对象。
+// 这里仍然做浅拷贝，但不能按启动参数那套白名单裁剪，否则普通页面参数会被误丢弃。
+function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
+  if (options == null || typeof options != 'object' || Array.isArray(options)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  let hasValue = false
+  for (const key in options) {
+    const normalizedValue = copyLifecycleOptionValue(options[key])
+    if (normalizedValue == null) {
+      continue
+    }
+    copied[key] = normalizedValue
+    hasValue = true
+  }
+  return hasValue ? copied : null
+}
+
 const lifecycle = defineMixin({
+  // 各端页面实例类型不同，mixin 生命周期函数的 this / options 只能在桥接层按 any 接住，
+  // 再尽快转换成明确快照对象。
   // @ts-ignore
   onLaunch(options : any | null = null) {
+    handleOnLaunch(buildLaunchOptionsSnapshot(options))
   },
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onLoad(options : OnLoadOptions) {
-    // @ts-ignore
+    handleOnPageLoad(
+      buildPageSnapshot(this),
+      buildPageOptionsSnapshot(options)
+    )
   },
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onShow(options : any | null = null) {
-    // @ts-ignore
+    const pageSnapshot = buildPageSnapshot(this)
+    handleOnShow(
+      pageSnapshot,
+      pageSnapshot != null
+        ? buildPageOptionsSnapshot(options)
+        : buildLaunchOptionsSnapshot(options)
+    )
   },
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onHide() {
-    // @ts-ignore
+    handleOnHide(buildPageSnapshot(this))
   },
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onUnload() {
-    // @ts-ignore
+    handleOnPageUnload(buildPageSnapshot(this))
   }
 })
 

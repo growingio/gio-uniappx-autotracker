@@ -1,10 +1,11 @@
-import { GioPageContext } from '../../../interface.uts'
+// page-store 维护当前页、上一页和路由签名等页面态。
+import { GioPageContext, GioPageSnapshot } from '../../../interface.uts'
 import {
   buildRouteSignature,
   getPagePath,
   resolvePageRoute
 } from '../../route.uts'
-import { now, consoleText } from '../../utils.uts'
+import { now } from '../../utils/base.uts'
 
 export type GioPageEventRecord = {
   path : string
@@ -46,7 +47,7 @@ export class GioPageStore {
     return null
   }
 
-  private resolvePathFromTarget(page : UniPage | null) : string {
+  private resolvePathFromTarget(page : GioPageSnapshot | null) : string {
     return getPagePath(page)
   }
 
@@ -64,11 +65,10 @@ export class GioPageStore {
   }
 
   buildPageContextFromTarget(
-    page : UniPage | null,
-    options : any | null,
+    page : GioPageSnapshot | null,
+    options : UTSJSONObject | null,
     duration : number | null = null
   ) : GioPageContext | null {
-    consoleText(`buildPageContextFromTarget ${page}`, 'info')
     const path = this.resolvePathFromTarget(page)
     const cachedQuery = path.length > 0 ? this.getCachedQuery(path) : null
     const lastEventQuery = path.length > 0 ? this.getQueryFromLastEvent(path) : null
@@ -85,14 +85,13 @@ export class GioPageStore {
     } as GioPageContext
   }
 
-  updateCurrentPage(page : UniPage | null, options : any | null) : GioPageContext | null {
+  updateCurrentPage(page : GioPageSnapshot | null, options : UTSJSONObject | null) : GioPageContext | null {
     const path = this.resolvePathFromTarget(page)
     const cachedQuery = path.length > 0 ? this.getCachedQuery(path) : null
     const lastEventQuery = path.length > 0 ? this.getQueryFromLastEvent(path) : null
     const routeInfo = resolvePageRoute(page, options, cachedQuery, lastEventQuery)
-    // GioResolvedRoute fields transpile to Swift `String!` (IUO); storing them
-    // in an untyped local decays to `String?`, breaking `.length` / assigning
-    // to the non-null currentPage* fields. Annotate to force non-null.
+    // 这里显式收成 string，避免 Swift 把路由结果的非空字符串局部变量降成 `String?`，
+    // 影响后续 `.length` 判断和当前页字段赋值。
     const nextPath : string = routeInfo.path
     const nextQuery : string = routeInfo.query
     const nextTitle : string = routeInfo.title

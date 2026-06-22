@@ -1,3 +1,5 @@
+// runtime/index.uts 是“平台运行时注册表”。
+// common 只依赖这里的抽象钩子，不直接依赖 web / mp / app 的具体实现。
 import {
   GioInitOptions,
   GioPageContext,
@@ -141,9 +143,8 @@ export function clearVisitSessionSnapshot () {
   store.clear()
 }
 
-// Dispatch through the registered sender from INSIDE runtime, where the
-// GioEventSender type is in scope. Callers (uploader) only see a boolean, so
-// they never have to call a method on an `any`-typed sender (UTS forbids that).
+// 发送逻辑统一从 runtime 内部分发，这里能看到 GioEventSender 的明确类型。
+// uploader 只拿到 boolean 结果，不需要在 `any` sender 上直接调方法。
 export function dispatchViaEventSender (
   url : string,
   data : Array<UTSJSONObject>,
