@@ -17,8 +17,8 @@ const DEFAULT_MP_REQUEST_TIMEOUT_MS = 5000
 
 export class GioUploader {
   private options : GioInitOptions | null = null
-  private pending : BoxArray<GioTrackEvent> = new BoxArray()
-  private hoarding : BoxArray<GioTrackEvent> = new BoxArray()
+  private pending : BoxArray<GioQueuedEvent> = new BoxArray()
+  private hoarding : BoxArray<GioQueuedEvent> = new BoxArray()
   private inflight : boolean = false
   private forceLogin : boolean = false
   private onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null

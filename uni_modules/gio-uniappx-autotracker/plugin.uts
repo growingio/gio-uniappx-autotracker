@@ -22,7 +22,6 @@ let lifecycleInstalled = false
 const lifecycle = defineMixin({
   // @ts-ignore
   onLaunch(options : any | null = null) {
-    tracker.onLaunch(options)
   },
   // @ts-ignore
   onLoad(options : OnLoadOptions) {
@@ -31,7 +30,6 @@ const lifecycle = defineMixin({
   // @ts-ignore
   onShow(options : any | null = null) {
     // @ts-ignore
-    tracker.onShow(this, options)
   },
   // @ts-ignore
   onHide() {

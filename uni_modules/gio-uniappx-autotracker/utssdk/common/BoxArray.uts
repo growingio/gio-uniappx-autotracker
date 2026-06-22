@@ -17,6 +17,10 @@ export class BoxArray<T> {
     this.data.push(item)
   }
 
+  unshift(item : T) : void {
+    this.data.unshift(item)
+  }
+
   shift() : T | null {
     const shifted = this.data.shift()
     return shifted != null ? shifted : null
@@ -26,8 +30,8 @@ export class BoxArray<T> {
     this.data.splice(start, deleteCount)
   }
 
-  slice() : Array<T> {
-    return this.data.slice()
+  slice(start : number, end : number) : Array<T> {
+    return this.data.slice(start, end)
   }
 
   get(idx : number) : T | null {
