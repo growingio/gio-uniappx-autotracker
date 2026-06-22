@@ -11,7 +11,6 @@ type GioQueuedEvent = {
 
 const MAX_BATCH_SIZE = 50
 const MAX_RETRY_COUNT = 2
-const DEFAULT_UPLOAD_INTERVAL_MS = 1000
 const DEFAULT_MP_REQUEST_TIMEOUT_MS = 5000
 
 export class GioUploader {
@@ -22,6 +21,7 @@ export class GioUploader {
   private forceLogin : boolean = false
   private onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
   private flushTimer : number = 0
+  private uploadInterval : number = 1000
 
   configure(
     options : GioInitOptions,
@@ -30,6 +30,23 @@ export class GioUploader {
     this.options = options
     this.forceLogin = options.forceLogin == true
     this.onFlushSuccess = onFlushSuccess
+  }
+
+  private shouldThrottleFlush() : boolean {
+    return platformName().startsWith('mp-')
+  }
+
+  private continueFlush() {
+    if (this.pending.length == 0) {
+      return
+    }
+    if (this.shouldThrottleFlush()) {
+      this.scheduleFlush()
+      return
+    }
+    if (!this.inflight) {
+      this.flush(null, null)
+    }
   }
 
   private sanitizeValue(value : any | null) : any | null {
@@ -72,11 +89,11 @@ export class GioUploader {
     this.flushTimer = setTimeout(() => {
       this.flushTimer = 0
       this.flush(null, null)
-    }, DEFAULT_UPLOAD_INTERVAL_MS) as number
+    }, this.uploadInterval) as number
   }
 
   requestFlush() {
-    this.scheduleFlush()
+    this.continueFlush()
   }
 
   enqueue(event : GioTrackEvent, maxQueueSize : number) {
@@ -90,7 +107,7 @@ export class GioUploader {
       queue.shift()
     }
     if (!this.forceLogin) {
-      this.scheduleFlush()
+      this.continueFlush()
     }
   }
 
@@ -118,7 +135,7 @@ export class GioUploader {
       }
     }
     this.hoarding = []
-    this.scheduleFlush()
+    this.continueFlush()
   }
 
   private sanitizeEvent(event : GioTrackEvent) : UTSJSONObject {
@@ -209,10 +226,10 @@ export class GioUploader {
     }
     this.inflight = false
     if (success) {
-      this.scheduleFlush()
+      this.continueFlush()
       return
     }
-    this.scheduleFlush()
+    this.continueFlush()
   }
 
   private dispatchBatch(
@@ -303,7 +320,7 @@ export class GioUploader {
       this.pending.unshift(retriable[i])
     }
     if (this.pending.length > 0) {
-      this.scheduleFlush()
+      this.continueFlush()
     }
   }
 }
