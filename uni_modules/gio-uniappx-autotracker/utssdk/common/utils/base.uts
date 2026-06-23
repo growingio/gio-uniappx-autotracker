@@ -38,6 +38,38 @@ export function jsonStringify (value : any) : string {
   return text != null ? (text as string) : ''
 }
 
+export function utf8ByteLength(value : string) : number {
+  let bytes = 0
+  for (let i = 0; i < value.length; i++) {
+    const rawCode = value.charCodeAt(i)
+    if (rawCode == null) {
+      continue
+    }
+    const code = rawCode as number
+    if (code <= 0x7f) {
+      bytes += 1
+      continue
+    }
+    if (code <= 0x7ff) {
+      bytes += 2
+      continue
+    }
+    if (code >= 0xd800 && code <= 0xdbff) {
+      const rawNextCode = i + 1 < value.length ? value.charCodeAt(i + 1) : null
+      if (rawNextCode != null) {
+        const nextCode = rawNextCode as number
+        if (nextCode >= 0xdc00 && nextCode <= 0xdfff) {
+          bytes += 4
+          i++
+          continue
+        }
+      }
+    }
+    bytes += 3
+  }
+  return bytes
+}
+
 export function hashCode(value : string, abs : boolean = false) : number {
   let hash = 0
   if (value.length == 0) {

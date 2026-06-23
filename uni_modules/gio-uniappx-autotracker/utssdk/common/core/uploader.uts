@@ -1,11 +1,17 @@
 // uploader 负责事件排队、批量发送、失败重试和 forceLogin 积压释放。
 import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
-import { BoxArray, guid } from '../utils/base.uts'
+import { BoxArray, guid, jsonStringify, utf8ByteLength } from '../utils/base.uts'
 import { debugLog } from '../utils/debug.uts'
 import { buildCollectUrl } from '../utils/request.uts'
 import { platformName } from '../utils/system.uts'
-import { dispatchViaEventSender } from '../runtime/index.uts'
+import {
+  dispatchViaEventSender,
+  resolveUploadFlushDelay,
+  resolveUploadMaxBatchPayloadBytes,
+  resolveUploadMaxBatchSize,
+  shouldScheduleUploadFlush
+} from '../runtime/index.uts'
 
 type GioQueuedEvent = {
   requestId : string
@@ -40,11 +46,15 @@ export class GioUploader {
     return platformName().startsWith('mp-')
   }
 
+  private shouldScheduleFlush() : boolean {
+    return this.shouldThrottleFlush() || shouldScheduleUploadFlush()
+  }
+
   private continueFlush() {
     if (this.pending.length == 0) {
       return
     }
-    if (this.shouldThrottleFlush()) {
+    if (this.shouldScheduleFlush()) {
       this.scheduleFlush()
       return
     }
@@ -93,7 +103,7 @@ export class GioUploader {
     this.flushTimer = setTimeout(() => {
       this.flushTimer = 0
       this.flush(null, null)
-    }, this.uploadInterval) as number
+    }, this.shouldThrottleFlush() ? this.uploadInterval : resolveUploadFlushDelay(0)) as number
   }
 
   requestFlush() {
@@ -205,8 +215,50 @@ export class GioUploader {
     return header
   }
 
+  private getMaxBatchSize() : number {
+    return resolveUploadMaxBatchSize(MAX_BATCH_SIZE)
+  }
+
+  private estimateBatchPayloadBytes(batch : Array<GioQueuedEvent>) : number {
+    const requestData = [] as Array<UTSJSONObject>
+    for (let i = 0; i < batch.length; i++) {
+      requestData.push(this.sanitizeEvent(batch[i].event))
+    }
+    return utf8ByteLength(jsonStringify(requestData))
+  }
+
+  private dequeuePayloadLimitedBatch(
+    maxBatchSize : number,
+    maxPayloadBytes : number
+  ) : Array<GioQueuedEvent> {
+    const batch = [] as Array<GioQueuedEvent>
+    while (this.pending.length > 0 && batch.length < maxBatchSize) {
+      const queued = this.pending.get(batch.length as number)
+      if (queued == null) {
+        break
+      }
+      const candidate = batch.slice(0, batch.length)
+      candidate.push(queued)
+      const candidateBytes = this.estimateBatchPayloadBytes(candidate)
+      if (candidateBytes > maxPayloadBytes && batch.length > 0) {
+        break
+      }
+      batch.push(queued)
+      if (candidateBytes > maxPayloadBytes) {
+        break
+      }
+    }
+    this.pending.splice(0, batch.length as number)
+    return batch
+  }
+
   private dequeueBatch() : Array<GioQueuedEvent> {
-    const batch = this.pending.slice(0, MAX_BATCH_SIZE)
+    const maxBatchSize = this.getMaxBatchSize()
+    const maxPayloadBytes = resolveUploadMaxBatchPayloadBytes()
+    if (maxPayloadBytes > 0) {
+      return this.dequeuePayloadLimitedBatch(maxBatchSize, maxPayloadBytes)
+    }
+    const batch = this.pending.slice(0, maxBatchSize)
     this.pending.splice(0, batch.length as number)
     return batch
   }
@@ -249,7 +301,7 @@ export class GioUploader {
     }
     const sendAt = Date.now()
     this.inflight = true
-    const payload = JSON.stringify(requestData)
+    const payload = jsonStringify(requestData)
     debugLog(options.debug as boolean, 'request payload', requestData)
 
     const collectUrl = `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`

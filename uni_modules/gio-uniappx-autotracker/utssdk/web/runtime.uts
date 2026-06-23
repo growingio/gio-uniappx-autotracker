@@ -11,6 +11,7 @@ import {
   registerPageContextResolver,
   registerPlatformStorageFactory,
   registerRuntimeBehavior,
+  registerUploadPolicy,
   registerVisitSessionStore
 } from '../common/runtime/index.uts'
 import {
@@ -21,6 +22,7 @@ import {
   readDirectStorageValue,
   readStructuredStorageValue
 } from '../common/storage/index.uts'
+import { jsonStringify, utf8ByteLength } from '../common/utils/base.uts'
 
 const SPECIAL_TOP_DOMAIN_PREFIXES = [
   '.ac.',
@@ -63,6 +65,24 @@ function readProtocolType() : string | null {
   return protocol.endsWith(':')
     ? protocol.slice(0, protocol.length - 1)
     : protocol
+}
+
+function readRuntimeDomain() : string | null {
+  const runtimeLocation = getRuntimeLocation()
+  if (runtimeLocation == null) {
+    return null
+  }
+  if (runtimeLocation.host != null) {
+    const host = `${runtimeLocation.host}`
+    if (host.length > 0) {
+      return host
+    }
+  }
+  if (runtimeLocation.hostname != null) {
+    const hostname = `${runtimeLocation.hostname}`
+    return hostname.length > 0 ? hostname : null
+  }
+  return null
 }
 
 function getRuntimeLocalStorage() : any | null {
@@ -636,6 +656,10 @@ registerEventShaper({
     event.appChannel = null
     event.deviceModel = null
     event.deviceType = null
+    const runtimeDomain = readRuntimeDomain()
+    if (runtimeDomain != null) {
+      event.domain = runtimeDomain
+    }
     event.networkState = null
     event.operatingSystem = null
     event.platform = 'web'
@@ -664,6 +688,28 @@ function isBeaconSupported() : boolean {
   }
 }
 
+const MAX_WEB_UPLOAD_BATCH_SIZE = 10
+const MAX_BEACON_PAYLOAD_BYTES = 60 * 1024
+
+function shouldUseBeacon(payload : string) : boolean {
+  return isBeaconSupported() && utf8ByteLength(payload) <= MAX_BEACON_PAYLOAD_BYTES
+}
+
+registerUploadPolicy({
+  shouldScheduleFlush() : boolean {
+    return true
+  },
+  getFlushDelay() : number {
+    return 0
+  },
+  getMaxBatchSize() : number {
+    return MAX_WEB_UPLOAD_BATCH_SIZE
+  },
+  getMaxBatchPayloadBytes() : number {
+    return MAX_BEACON_PAYLOAD_BYTES
+  }
+})
+
 registerEventSender({
   sendEvent(
     url : string,
@@ -671,8 +717,8 @@ registerEventSender({
     onSuccess : (() => void) | null,
     onFail : (() => void) | null
   ) {
-    const payload = JSON.stringify(data)
-    if (isBeaconSupported()) {
+    const payload = jsonStringify(data)
+    if (shouldUseBeacon(payload)) {
       try {
         const runtimeGlobal = window as any
         const accepted = runtimeGlobal.navigator.sendBeacon(url, payload)
