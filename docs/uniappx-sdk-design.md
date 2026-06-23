@@ -2,15 +2,21 @@
 
 ## 1. 目标
 
-构建一个面向 uni-app x 的最小可用采集 SDK，先只保留以下基础能力：
+构建一个面向 uni-app x 的跨端采集 SDK。当前版本以 `uni_modules/gio-uniappx-autotracker` 为源代码与集成包事实源，优先保证公开入口、生命周期桥接、事件构建、上传、用户身份、插件能力和平台边界稳定。
+
+当前基线能力包括：
 
 - 初始化
 - 自定义事件采集
 - 用户身份管理：`sessionId`、`userId`、`userKey`
 - 关键生命周期事件：`VISIT`、`PAGE`、`APP_CLOSED`
 - 事件上报
+- `dataCollect` 运行时开关
+- 非 web 端经纬度字段设置
+- 单实例 `gioABTest`
+- 微信小程序分享 / 朋友圈 / 收藏包装器
 
-这份设计并不是要一次性完整对齐 `gio-miniprogram-autotracker`，而是先把 uni-app x 版本最重要的模块边界、运行时分层和数据契约立住，后续再逐步补齐更丰富的上下文、路由采集能力和更高程度的协议对齐。
+这份设计文档描述当前仓库状态，不作为历史计划记录。后续如果能力继续演进，应同步更新本文件、根 README 和 QA 文档。
 
 ## 2. 参考来源提炼
 
@@ -44,7 +50,7 @@
 - 需要独立的 `uploader`
 - 页面和应用生命周期应在“事件构建层”处理，而不是混进上传逻辑
 
-当前第一版只继承这些最基础、最值得提前定下来的部分。多实例、复杂插件体系、完整事件上下文构建等能力仍然暂缓。
+当前实现已经在这些基线之上补充了 `dataCollect`、web 存储配置、微信小程序分享包装器和单实例 ABTest。多实例、曝光、性能采集和更完整的自动采集仍不属于当前基线。
 
 ## 3. 当前非目标
 
@@ -54,6 +60,7 @@
 - 曝光采集
 - 多实例支持
 - 离线重试持久化
+- 通用运行时配置修改入口；`setOptions` 当前只允许修改 `dataCollect`
 
 ## 4. 目录结构
 
@@ -64,9 +71,39 @@ gio-uniappx-autotracker/
   utssdk/
     index.uts
     interface.uts
+    common/
+      config.uts
+      route.uts
+      core/
+        tracker.uts
+        uploader.uts
+      dataStore/
+        index.uts
+        context/
+          system-context.uts
+        eventBuilder/
+          index.uts
+        page/
+          page-store.uts
+      plugins/
+        gio-abtest.uts
+      runtime/
+        index.uts
+      storage/
+        encrypt.uts
+        index.uts
+      userStore/
+        index.uts
+      utils/
+        base.uts
+        debug.uts
+        request.uts
+        system.uts
+        validate.uts
     web/
       package.json
       index.uts
+      runtime.uts
     app-android/
       config.json
       index.uts
@@ -78,22 +115,8 @@ gio-uniappx-autotracker/
       index.uts
     mp-weixin/
       index.uts
-    common/
-      config.uts
-      route.uts
-      core/
-        tracker.uts
-        uploader.uts
-      dataStore/
-        index.uts
-      userStore/
-        index.uts
-      utils/
-        base.uts
-        debug.uts
-        request.uts
-        system.uts
-        validate.uts
+      miniprogram.uts
+      share.uts
 ```
 
 ## 5. 对外 API
@@ -104,15 +127,29 @@ gio-uniappx-autotracker/
 - `gdp('track', eventName, properties = null)`
 - `gdp('identify', assignmentId)`
 - `gdp('setUserId', userId, userKey = null)`
+- `gdp('setOptions', { dataCollect })`
+- `gdp('setLocation', latitude, longitude)`（非 web 端）
 - `gdp('setUserAttributes', userAttributes)`
 - `gdp('clearUserId')`
 - `gdp('registerPlugins', plugins)`
 - `gdp('getABTest', layerId, callback = null)`
 
+微信小程序端额外导出包装器：
+
+- `wrapShareAppMessage(handler)`
+- `wrapShareTimeline(handler)`
+- `wrapAddToFavorites(handler)`
+
 web 端额外支持两个初始化项：
 
 - `storageType`：浏览器存储策略，默认 `cookie`
 - `cookieDomain`：cookie 域名，仅在 `storageType = cookie` 时生效
+
+跨端配置项补充：
+
+- `originalSource`：默认 `true`
+- `followShare`：仅 `mp-weixin` 生效，默认 `true`；其他端固定关闭
+- `dataCollect`：默认 `true`，也可通过 `setOptions({ dataCollect })` 动态切换
 
 UTS 约束说明：
 
@@ -120,9 +157,12 @@ UTS 约束说明：
 - 对外传入的配置对象不再依赖 `?` 可选属性
 - `idMapping` 默认 `false`；只有显式开启后，`setUserId(userId, userKey)` 里的 `userKey` 才会持久化并参与后续事件上报
 - `track` 直接按独立 SDK 风格使用 `gdp('track', eventName, properties)`
+- `setOptions` 参数必须显式包含布尔字段 `dataCollect`，当前不允许借此修改其他初始化项
+- `setLocation` 只接受合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`；web 端调用会返回 `false`
 - `flush`、`autoTrackLifecycle`、`requestTimeoutMs`、`maxQueueSize`、`storagePrefix`、`header` 都不再对外透出，也不允许传入初始化配置
 - 当前插件层只支持 `gioABTest`
 - 插件注册方式先按小程序独立 SDK 思路对齐：先 `gdp('registerPlugins', [...])`，再调用 `gdp('getABTest', ...)`
+- 微信小程序分享采集通过显式包装器完成，不用全局 mixin 注入分享钩子
 
 ## 6. 运行时架构
 
@@ -143,6 +183,7 @@ UTS 约束说明：
 - 等待异步设备信息和网络信息就绪后，再真正构建事件并入队
 - 首屏 `VISIT` / `PAGE` 也不能例外，必须等上下文 ready 后才能发送
 - 只消费稳定的初始化配置、页面快照、启动参数快照，不直接依赖原始页面实例
+- 只编排 `setLocation` 的校验和平台限制，实际经纬度状态由 `dataStore` 保存并进入事件构建
 
 边界约束：
 
@@ -208,6 +249,8 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 当前这些发送策略完全由 SDK 内部固定控制，不提供外部手动 `flush()` 入口。
 
+`mp-weixin` 端会对 flush 做固定节流，避免小程序端高频事件触发过密请求；其他端是否延迟 flush 由平台 runtime resolver 决定。
+
 ### `forceLogin` / `identify`
 
 最小对齐策略：
@@ -253,7 +296,28 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 更通用的插件安装器和插件生命周期
 - 除 `gioABTest` 以外的其他插件
 
-### 6.5 `system-context.uts`
+### 6.5 微信小程序分享包装器
+
+微信小程序端提供三个显式包装器：
+
+- `wrapShareAppMessage`
+- `wrapShareTimeline`
+- `wrapAddToFavorites`
+
+设计原则：
+
+- 只代理业务页已经定义的分享 / 收藏钩子，不通过全局 mixin 让所有页面都出现转发菜单
+- 包装器先执行业务 handler，保留业务返回值，再补充 SDK 需要的分享字段
+- `followShare` 仅在 `mp-weixin` 生效，默认开启；其他端固定关闭
+- `onShareAppMessage` 会维护分享往返状态，用于保护回流场景下的 `originalSource`
+
+当前事件名对齐小程序独立 SDK：
+
+- `$mp_on_share`
+- `$mp_share_timeline`
+- `$mp_add_favorites`
+
+### 6.6 `system-context.uts`
 
 这是设备与网络上下文的集中管理文件。
 
@@ -268,7 +332,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 这样做的目的，是保证进入请求体的 `deviceBrand`、`deviceModel`、`networkState`、`platform`、`platformVersion` 等字段，来自异步 API 的最终结果，而不是先用空值建事件、再在发送阶段补救。
 这条约束同样适用于首屏 `VISIT` 和首个 `PAGE`：上下文没 ready 时，它们只能等待，不能抢先发送不完整事件。
 
-### 6.6 `route.uts`
+### 6.7 `route.uts`
 
 这是当前页面路由解析的集中管理文件。
 
@@ -302,11 +366,14 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - `eventSequenceId`
 - `eventType`
 - `language`
+- `latitude`
+- `longitude`
 - `networkState`
 - `operatingSystem`
 - `path`
 - `platform`
 - `platformVersion`
+- `protocolType`
 - `query`
 - `referralPage`
 - `screenHeight`
@@ -328,6 +395,8 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 其中首屏 `VISIT` 和首个 `PAGE` 事件也不会提前发出，必须在这些异步上下文回填后才允许真正入队和上报。
 
 其中 `protocolType` 按独立 web SDK 的行为对齐：只在 `web` 端的 `PAGE` 事件上报，例如 `http`、`https`；其他事件和其他平台都不带这个字段。
+
+其中 `latitude` / `longitude` 由 `gdp('setLocation', latitude, longitude)` 写入运行时状态。该 API 仅非 web 端支持，设置后影响后续事件构建；当前不做持久化，运行时重建后需要业务重新设置。
 
 对外 API 直接按独立 SDK 风格使用 `gdp('track', eventName, properties)`。业务传入的 `properties` 在真正构建请求体时会被归一化后映射到独立 SDK 风格的 `attributes` 字段。
 
@@ -434,6 +503,8 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
     "eventSequenceId": 12,
     "eventType": "PAGE",
     "language": "zh-Hans",
+    "latitude": 31.2304,
+    "longitude": 121.4737,
     "networkState": "wifi",
     "operatingSystem": "uni-app-x-iOS",
     "path": "pages/home/index",
@@ -498,6 +569,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 非法 `userId`（如空串、`null`、`undefined`、`-`）直接返回 `false`，不会借失败路径隐式清空当前登录态
 - `query` 当前按普通 query string 上报，不再序列化为 JSON 字符串
 - 设备信息和网络信息字段在事件构建前会先等待异步上下文 ready
+- `latitude` / `longitude` 仅在业务设置后随事件上报；未设置时会被清理，不进入最终请求体
 - `mp-weixin` 会优先读取启动上下文里的 `scene` / `wxShoppingListScene`，并把它映射到 `appChannel`
 - 如果后续要继续做更细粒度的 collector 对齐，主要改动点仍然集中在 `uploader.uts` 和 `tracker.uts`
 
@@ -512,6 +584,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 生命周期桥接与上传逻辑分离
 - 关键事件命名与独立 SDK 同方向
 - 插件层先把最需要对齐的 `gioABTest` 单独补上
+- 平台专属能力留在平台目录，例如 `mp-weixin/share.uts` 和 `web/runtime.uts`
 
 同时刻意不去提前做那些需求还没稳定、但设计成本很高的部分：
 
@@ -528,6 +601,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 更丰富的设备 / 应用上下文字段
 - 手动 `sendPage` / `sendVisit` API
 - 定时批量上报和 retry backoff
+- `setLocation` 持久化策略是否需要对齐独立 SDK
 
 ### Phase 3
 
@@ -548,16 +622,18 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 应用退后台时能发出 `APP_CLOSED`
 - 业务事件可通过 `gdp('track', eventName, properties)` 上报
 - `userId` 和 `userKey` 可在运行时更新
+- `dataCollect` 可通过 `setOptions({ dataCollect })` 动态切换
+- 非 web 端可通过 `setLocation(latitude, longitude)` 给后续事件补充经纬度
 - 待发送事件会按 SDK 内部发送策略自动上报
 
 ## 14. 当前已知缺口
 
-- 还没有跑过 HBuilderX 编译验证
-- 平台入口虽然已经补齐，但还没有经过五端逐一编译验证
+- 不能只凭源码或目录结构声称“五端都能编译并可上报”；必须经过 HBuilderX 五端真实编译验证
 - `app-android` 的 `App.uvue` mixin 仍有限制，`APP_CLOSED` 与完整退后台链路还需要继续做真机验证
 - 还没有做到与独立 SDK 完整请求体对齐
 - 当前 route / title 提取仍然只是“尽力提取”策略，后续还需要结合真实 uni-app x 页面对象继续收敛
 - 当前虽然已经把路由解析集中到了 `route.uts`，但不同端的页面对象字段还需要继续补充更多真实样本验证
 - 当前设备与网络字段虽然已经切到官方异步 API 驱动，但还需要继续做五端真机 / 模拟器样本校验，确认各端返回字段名没有额外差异
+- 当前 `setLocation` 保存在运行时内存，不跨运行时重建持久化；如果后续要长期沿用，需要补存储语义并更新事件构建规则
 
-这些缺口在当前阶段是可接受的，因为目标本来就是“保留基本功能”的第一版，而不是一次性做成完整对齐版本。
+这些缺口是当前基线的已知边界。对外交付或对齐独立 SDK 前，需要逐项补验证证据，不能把文档里的能力边界当作真实五端通过证明。

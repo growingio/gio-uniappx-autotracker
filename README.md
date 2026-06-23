@@ -1,8 +1,8 @@
 # growingio-showcase
 
-这是当前最小版 `gio-uniappx-autotracker` 的 demo。现在仓库根目录就是 demo 工程，SDK 以集成包的形态放在 `uni_modules/gio-uniappx-autotracker` 中，调试时不再依赖软连接或额外 copy 步骤。
+这是 `gio-uniappx-autotracker` 的根 demo 工程。SDK 以 `uni_modules` 集成包形态放在 `uni_modules/gio-uniappx-autotracker`，调试时直接用 HBuilderX 打开仓库根目录，不再依赖软连接或额外 copy 步骤。
 
-页面结构保留了当前 SDK 真正已经支持的能力：
+## 当前 SDK 能力
 
 - `gdp('init', { app, ...options })`
 - `VISIT`
@@ -10,11 +10,22 @@
 - `APP_CLOSED`
 - `gdp('track', ...)`
 - `gdp('setUserId', ...)`
+- `gdp('setOptions', { dataCollect })`
+- `gdp('setLocation', latitude, longitude)`（非 web 端）
 - `gdp('setUserAttributes', ...)`
 - `gdp('clearUserId')`
 - `gdp('identify', ...)`
 - `gdp('registerPlugins', ...)`
 - `gdp('getABTest', ...)`
+- 微信小程序端分享包装器：`wrapShareAppMessage`、`wrapShareTimeline`、`wrapAddToFavorites`
+
+`setLocation` 只在非 web 端生效。参数必须是合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`。设置后，后续事件会携带 `latitude` / `longitude`；该值当前保存在运行时内存中，不做持久化。
+
+`setOptions` 当前只允许动态修改 `dataCollect`，不能作为通用运行时配置入口使用。传入其他字段不会扩展核心状态。
+
+微信小程序分享能力不是全局自动注入。业务页需要显式用包装器包住自己的 `onShareAppMessage` / `onShareTimeline` / `onAddToFavorites`，这样只代理业务本来定义了分享钩子的页面。
+
+## Demo 初始化
 
 当前 demo 初始化时只会传这几个配置：
 
@@ -29,6 +40,13 @@
 - `dataCollect`
 
 对应源码见 [main.uts](./main.uts)。
+
+SDK 入口还会归一化这些配置：
+
+- `originalSource`：默认 `true`
+- `followShare`：仅 `mp-weixin` 生效，默认 `true`；其他端固定关闭
+- `storageType`：仅 web 端生效，默认 `cookie`
+- `cookieDomain`：仅 web cookie 存储生效
 
 当前 demo 会默认通过 `gdp('registerPlugins', [{ name: 'gioABTest', options }])` 注册 `gioABTest` 插件，并额外提供一个 ABTest 页面做最小联调入口。该页面按单实例方式演示 `gdp('getABTest', layerId, callback)`，不包含 `trackingId` 多实例调用。
 
@@ -80,8 +98,22 @@ SDK 以 `uni_modules` 集成包的形态放在 `uni_modules/gio-uniappx-autotrac
 - `utssdk/common/utils`：公共工具函数、容器封装、请求与调试辅助
 - `utssdk/<platform>`：平台薄封装与平台注册
 
+入口文件必须保持齐全：
+
+- `utssdk/web/index.uts` 与 `utssdk/web/package.json`
+- `utssdk/app-android/index.uts` 与 `utssdk/app-android/config.json`
+- `utssdk/app-ios/index.uts` 与 `utssdk/app-ios/config.json`
+- `utssdk/app-harmony/index.uts` 与 `utssdk/app-harmony/config.json`
+- `utssdk/mp-weixin/index.uts`
+
 补充约束：
 
 - `utssdk/common` 里只放真正无平台语义的公共能力，不放 `miniprogram`、`web-only`、`ios-*` 这类带端命名的文件
 - `BoxArray` 这类轻量容器封装，与请求拼装、调试输出、校验函数一样，统一收敛到 `utssdk/common/utils`；不要为了单个小工具再拆一个零散文件
 - 某段逻辑如果只服务某一端，即使实现里有可复用片段，也应优先留在对应平台目录，再通过 interface / resolver 注入公共层
+
+## 文档索引
+
+- [QA.md](./QA.md)：高频坑、平台限制、桥接与编译边界
+- [设计文档](./docs/uniappx-sdk-design.md)：模块职责、事件模型、生命周期策略
+- [UTS 编码规范](./docs/uts-coding-guidelines.md)：类型、`UTSJSONObject`、`uni.request()`、空值模型

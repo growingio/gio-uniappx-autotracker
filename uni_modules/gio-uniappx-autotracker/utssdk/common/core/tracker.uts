@@ -918,6 +918,25 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return true
   }
 
+  setLocation(latitude : number, longitude : number) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (platformName() == 'web') {
+      consoleText('setLocation 仅支持非 web 端', 'warn')
+      return false
+    }
+    if (!(latitude >= -90 && latitude <= 90)) {
+      consoleText('setLocation latitude 参数不合法', 'error')
+      return false
+    }
+    if (!(longitude >= -180 && longitude <= 180)) {
+      consoleText('setLocation longitude 参数不合法', 'error')
+      return false
+    }
+    return this.dataStore.setLocation(latitude, longitude)
+  }
+
   // ── GioABTestHost：首访 session 快照（实际存储分平台，见 runtime 注册表）──
 
   readVisitSessionId() : string {

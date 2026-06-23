@@ -8,6 +8,7 @@ import {
   initialize,
   registerPlugins,
   setOptions,
+  setLocation,
   setUserAttributes,
   setUserId,
   track
@@ -56,6 +57,10 @@ function asCallback(
   return typeof value == 'function'
     ? value as (result : any) => void
     : null
+}
+
+function isNumberArgument(value : any | null) : boolean {
+  return value != null && typeof value == 'number'
 }
 
 function seedScreenSize(rawOptions : UTSJSONObject) {
@@ -150,6 +155,13 @@ export function gdp(
       return false
     }
     return setOptions(arg0 as UTSJSONObject)
+  }
+  if (command == 'setLocation') {
+    if (!isNumberArgument(arg0) || !isNumberArgument(arg1)) {
+      consoleText('gdp("setLocation") 必须传入 latitude 和 longitude 数字参数', 'error')
+      return false
+    }
+    return setLocation(arg0 as number, arg1 as number)
   }
   if (command == 'setUserAttributes') {
     if (arg0 != null && !isObjectArgument(arg0)) {

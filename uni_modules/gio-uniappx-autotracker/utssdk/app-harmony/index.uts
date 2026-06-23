@@ -1,0 +1,2 @@
+// Harmony 平台入口当前直接复用公共 utssdk API。
+export * from '../index.uts'

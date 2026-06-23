@@ -49,7 +49,9 @@ export class GioEventBuilder {
     properties : UTSJSONObject | null,
     pageContext : GioPageContext | null,
     appChannel : string | null,
-    originalSource : GioOriginalSource | null
+    originalSource : GioOriginalSource | null,
+    latitude : number | null,
+    longitude : number | null
   ) : GioTrackEvent {
     const userStore = this.userStore as GioUserStore
     const context = userStore.getContext()
@@ -99,8 +101,8 @@ export class GioEventBuilder {
       eventSequenceId: eventSequenceId,
       eventType: eventType,
       language: systemContext.language,
-      latitude: null,
-      longitude: null,
+      latitude: latitude,
+      longitude: longitude,
       networkState: systemContext.networkState,
       operatingSystem: systemContext.operatingSystem,
       path: path,

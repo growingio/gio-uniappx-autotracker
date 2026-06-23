@@ -69,6 +69,10 @@ export function updateNetworkState (networkType : string) : boolean {
   return tracker.updateNetworkState(networkType)
 }
 
+export function setLocation(latitude : number, longitude : number) : boolean {
+  return tracker.setLocation(latitude, longitude)
+}
+
 export function setUserAttributes (userAttributes : UTSJSONObject | null) : boolean {
   return tracker.setUserAttributes(userAttributes)
 }

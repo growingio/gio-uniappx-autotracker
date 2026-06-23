@@ -41,6 +41,8 @@ export class GioDataStore {
   private sessionUpdateHandlers : GioSessionUpdateHandlers | null = null
   private sessionListenerBound : boolean = false
   private startupPageContext : GioPageContext | null = null
+  private locationLatitude : number | null = null
+  private locationLongitude : number | null = null
 
   initialize(
     options : GioInitOptions,
@@ -135,6 +137,20 @@ export class GioDataStore {
 
   updateNetworkState(networkType : string) {
     this.systemContext.setNetworkState(networkType)
+  }
+
+  setLocation(latitude : number, longitude : number) : boolean {
+    if (
+      this.locationLatitude != null &&
+      this.locationLongitude != null &&
+      this.locationLatitude == latitude &&
+      this.locationLongitude == longitude
+    ) {
+      return true
+    }
+    this.locationLatitude = latitude
+    this.locationLongitude = longitude
+    return true
   }
 
   isSystemReady() : boolean {
@@ -279,7 +295,9 @@ export class GioDataStore {
       properties,
       pageContext,
       appChannel,
-      eventType == 'VISIT' ? this.getCurrentOriginalSource() : null
+      eventType == 'VISIT' ? this.getCurrentOriginalSource() : null,
+      this.locationLatitude,
+      this.locationLongitude
     )
   }
 
