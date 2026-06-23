@@ -202,7 +202,3 @@ export function resolvePageRoute(
     signature: buildRouteSignature(path, query)
   } as GioResolvedRoute
 }
-
-export function isPageRouteTarget(target : GioPageSnapshot | null) : boolean {
-  return getPagePath(target).length > 0
-}
