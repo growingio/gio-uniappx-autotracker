@@ -6,24 +6,23 @@ export function consoleText(
   message : any,
   type : string | null = null
 ) {
+  // #ifdef WEB
   const styles = {
     info: 'color: #3B82F6;',
     error: 'color: #EF4444;',
     warn: 'color: #F59E0B;',
     success: 'color: #10B981;'
   } as UTSJSONObject
-  let style = ''
-  if (type != null && styles[type] != null) {
-    style = `${styles[type]}`
-  }
+  const style = type != null ? styles.getString(type, '') : ''
   // Web 控制台优先保留对象原貌，避免被模板字符串压成不可展开的文本。
-  // #ifdef WEB
   if (message != null && typeof message == 'object') {
     console.log('%c [GrowingIO]：', style, message)
     return
   }
-  // #endif
   console.log(`%c [GrowingIO]：${message}`, style)
+  return
+  // #endif
+  console.log(`[GrowingIO]：${message}`)
 }
 
 function stringifyDebugData(data : any) : string {
@@ -54,6 +53,23 @@ function escapeDebugString(text : string) : string {
     .replaceAll('\n', '\\n')
     .replaceAll('\r', '\\r')
     .replaceAll('\t', '\\t')
+}
+
+function renderDebugMember(obj : UTSJSONObject, key : string, indentLevel : number) : string {
+  const value = obj[key]
+  if (value == null) {
+    return 'null'
+  }
+  if (typeof value == 'string') {
+    return `"${escapeDebugString(obj.getString(key, ''))}"`
+  }
+  if (typeof value == 'boolean') {
+    return `${obj.getBoolean(key, false)}`
+  }
+  if (typeof value == 'number') {
+    return `${obj.getNumber(key, 0)}`
+  }
+  return prettyPrintDebugJson(value, indentLevel)
 }
 
 function prettyPrintDebugJson(value : any | null, indentLevel : number = 0) : string {
@@ -88,7 +104,7 @@ function prettyPrintDebugJson(value : any | null, indentLevel : number = 0) : st
     const lines = [] as Array<string>
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
-      const rendered = prettyPrintDebugJson(raw[key], indentLevel + 1)
+      const rendered = renderDebugMember(raw, key, indentLevel + 1)
       lines.push(`${nextIndent}"${escapeDebugString(key)}": ${rendered}`)
     }
     return `{\n${lines.join(',\n')}\n${currentIndent}}`
@@ -151,7 +167,7 @@ function padDatePart(value : number, size : number = 2) : string {
 
 function formatDebugTimestamp() : string {
   const c = epochMsToCivil(now())
-  const datePart = `${c.year}-${padDatePart(c.month)}-${padDatePart(c.day)}`
+  const datePart = `${padDatePart(c.year, 4)}-${padDatePart(c.month)}-${padDatePart(c.day)}`
   const timePart = `${padDatePart(c.hour)}:${padDatePart(c.minute)}:${padDatePart(c.second)}.${padDatePart(c.milli, 3)}`
   return `${datePart}T${timePart}Z`
 }
@@ -163,7 +179,7 @@ function buildDebugMessage(message : string) : string {
 export function formatBeijingTimestamp(ts : number) : string {
   const beijingMs = ts + 480 * 60 * 1000
   const c = epochMsToCivil(beijingMs)
-  const datePart = `${c.year}-${padDatePart(c.month)}-${padDatePart(c.day)}`
+  const datePart = `${padDatePart(c.year, 4)}-${padDatePart(c.month)}-${padDatePart(c.day)}`
   const timePart = `${padDatePart(c.hour)}:${padDatePart(c.minute)}:${padDatePart(c.second)}.${padDatePart(c.milli, 3)}`
   return `${datePart} ${timePart} GMT+8`
 }
@@ -186,4 +202,18 @@ export function debugLog(enabled : boolean, message : string, data : any | null 
   return
   // #endif
   console.log(buildDebugMessage(`${message}\n${prettyPrintDebugJson(data)}`))
+}
+
+export function debugLogRequest(
+  enabled : boolean,
+  title : string,
+  url : string,
+  body : any | null
+) {
+  if (!enabled) {
+    return
+  }
+  const bodyText = body == null ? 'null' : prettyPrintDebugJson(body)
+  const text = `${title}\nurl: ${url}\nbody: ${bodyText}`
+  console.log(buildDebugMessage(text))
 }

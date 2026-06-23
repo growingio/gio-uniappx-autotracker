@@ -2,7 +2,7 @@
 import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
 import { BoxArray, guid } from '../utils/base.uts'
-import { debugLog } from '../utils/debug.uts'
+import { debugLogRequest } from '../utils/debug.uts'
 import { buildCollectUrl } from '../utils/request.uts'
 import { platformName } from '../utils/system.uts'
 import { dispatchViaEventSender } from '../runtime/index.uts'
@@ -250,9 +250,9 @@ export class GioUploader {
     const sendAt = Date.now()
     this.inflight = true
     const payload = JSON.stringify(requestData)
-    debugLog(options.debug as boolean, 'request payload', requestData)
 
-    const collectUrl = `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`
+    const collectUrl = `${buildCollectUrl(options.serverUrl, options.projectId)}?stm=${sendAt}&compress=0`
+    debugLogRequest(options.debug as boolean, 'request', collectUrl, requestData)
     const dispatched = dispatchViaEventSender(
       collectUrl,
       requestData,
