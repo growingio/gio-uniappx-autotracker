@@ -10,8 +10,7 @@ import {
   setOptions,
   setUserAttributes,
   setUserId,
-  track,
-  updateNetworkState
+  track
 } from '@/uni_modules/gio-uniappx-autotracker'
 import type { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker'
 import { installGioLifecycle } from './plugin.uts'
@@ -69,28 +68,6 @@ function seedScreenSize(rawOptions : UTSJSONObject) {
   }
 }
 
-function bindNetworkState() {
-  try {
-    uni.getNetworkType({
-      success: (res) => {
-        updateNetworkState(res.networkType)
-      },
-      fail: (_) => {
-        consoleText('gdp("init") 读取网络状态失败', 'warn')
-      }
-    })
-  } catch (_error) {
-    consoleText('gdp("init") getNetworkType 调用异常', 'warn')
-  }
-  try {
-    uni.onNetworkStatusChange((res) => {
-      updateNetworkState(res.networkType)
-    })
-  } catch (_error) {
-    consoleText('gdp("init") onNetworkStatusChange 注册异常', 'warn')
-  }
-}
-
 function handleInit(options : any | null) : boolean {
   if (!isObjectArgument(options)) {
     consoleText(
@@ -123,7 +100,6 @@ function handleInit(options : any | null) : boolean {
   if (!initialized) {
     return false
   }
-  bindNetworkState()
   return installGioLifecycle(initOptions.app as VueApp)
 }
 

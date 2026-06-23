@@ -95,7 +95,12 @@ export class GioSystemContextManager {
   private networkReady : boolean = false
   private readyCallbacks : Array<GioSystemReadyCallback> = []
 
-  initialize(debugEnabled : boolean, screenWidth : number, screenHeight : number) {
+  initialize(
+    debugEnabled : boolean,
+    screenWidth : number,
+    screenHeight : number,
+    waitForNetworkState : boolean
+  ) {
     this.debugEnabled = debugEnabled
     if (this.initialized) {
       return
@@ -104,12 +109,16 @@ export class GioSystemContextManager {
     this.screenWidth = screenWidth
     this.screenHeight = screenHeight
     this.loadSystemInfo()
-    this.markNetworkReady()
+    if (waitForNetworkState) {
+      this.loadNetworkState()
+    } else {
+      this.markNetworkReady()
+    }
   }
 
   setNetworkState(networkType : string) {
     this.networkState = networkType
-    this.updateContext()
+    this.markNetworkReady()
   }
 
   getContext() : GioSystemContext {
@@ -173,6 +182,34 @@ export class GioSystemContextManager {
       debugLog(this.debugEnabled, 'system info snapshot is empty', null)
     }
     this.markSystemReady()
+  }
+
+  private loadNetworkState() {
+    try {
+      uni.getNetworkType({
+        success: (res : GetNetworkTypeSuccess) => {
+          this.setNetworkState(res.networkType)
+        },
+        fail: (_error : GetNetworkTypeFail) => {
+          debugLog(this.debugEnabled, 'network state snapshot is empty', null)
+          this.markNetworkReady()
+        }
+      } as GetNetworkTypeOptions)
+    } catch (_error) {
+      debugLog(this.debugEnabled, 'getNetworkType is unavailable', null)
+      this.markNetworkReady()
+    }
+    this.bindNetworkStatusChange()
+  }
+
+  private bindNetworkStatusChange() {
+    try {
+      uni.onNetworkStatusChange((res : OnNetworkStatusChangeCallbackResult) => {
+        this.setNetworkState(res.networkType)
+      })
+    } catch (_error) {
+      debugLog(this.debugEnabled, 'onNetworkStatusChange is unavailable', null)
+    }
   }
 
 }

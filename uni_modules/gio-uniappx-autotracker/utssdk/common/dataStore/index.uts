@@ -54,10 +54,12 @@ export class GioDataStore {
     this.storage = storage
     this.sessionUpdateHandlers = sessionUpdateHandlers
     this.eventBuilder.configure(userStore)
+    const platform = platformName()
     this.systemContext.initialize(
       options.debug == true,
       options.screenWidth,
-      options.screenHeight
+      options.screenHeight,
+      platform != 'web'
     )
     this.pageStore.configure(options.appId)
     this.bindSessionUpdateListener()
