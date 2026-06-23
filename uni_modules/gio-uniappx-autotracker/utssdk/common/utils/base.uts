@@ -4,11 +4,9 @@ export function now () : number {
   return Date.now()
 }
 
-// 原生侧 Date 没有 getTimezoneOffset，只有 web / 小程序的 JS Date 才有。
-// 因此 App 平台直接返回 0，避免把不存在的方法带进 Swift / Kotlin 类型检查。
 export function readTimezoneOffsetMinutes () : number {
   // #ifdef APP
-  return 0
+  return -480
   // #endif
   // #ifndef APP
   return new Date().getTimezoneOffset()

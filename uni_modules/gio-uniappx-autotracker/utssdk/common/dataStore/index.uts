@@ -135,6 +135,10 @@ export class GioDataStore {
     this.systemContext.setNetworkState(networkType)
   }
 
+  updateAppState(appState : string) {
+    this.systemContext.setAppState(appState)
+  }
+
   isSystemReady() : boolean {
     return this.systemContext.isReady()
   }
