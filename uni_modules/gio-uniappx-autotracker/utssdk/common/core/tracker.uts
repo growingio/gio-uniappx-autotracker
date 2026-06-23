@@ -763,7 +763,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     }
   }
 
-  onLaunch(options : any | null = null) {
+  onLaunch(options : UTSJSONObject | null = null) {
     if (!this.ensureReady() || !this.mpWeixinEnabled) {
       return
     }

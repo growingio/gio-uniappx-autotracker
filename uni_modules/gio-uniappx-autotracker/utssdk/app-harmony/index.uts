@@ -9,8 +9,8 @@ function bindAppLifecycleCallbacks() {
     return
   }
   appLifecycleBound = true
-  const appShowHandler = (options : any | null) => {
-    onAppShow(options as any)
+  const appShowHandler = (options : UTSJSONObject | null) => {
+    onAppShow(options)
   }
   const appHideHandler = () => {
     onAppHide()
