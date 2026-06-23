@@ -87,9 +87,10 @@ export class GioEventBuilder {
     const appVersionText : string = options.appVersion as string
     const titleText : string = title != null ? (title as string) : ''
     const timestamp : number = now()
-    const timezoneOffset : number = readTimezoneOffsetMinutes()
+    const timezoneOffset : string = `${readTimezoneOffsetMinutes()}`
     return shapeTrackEvent({
       appChannel: appChannel,
+      appState: systemContext.appState,
       appVersion: appVersionText,
       dataSourceId: options.dataSourceId,
       deviceBrand: systemContext.deviceBrand,

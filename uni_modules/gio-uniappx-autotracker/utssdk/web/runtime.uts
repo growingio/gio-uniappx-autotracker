@@ -654,6 +654,7 @@ registerConfigSyncer({
 registerEventShaper({
   shapeTrackEvent(event : GioTrackEvent) : GioTrackEvent {
     event.appChannel = null
+    event.appState = null
     event.deviceModel = null
     event.deviceType = null
     const runtimeDomain = readRuntimeDomain()

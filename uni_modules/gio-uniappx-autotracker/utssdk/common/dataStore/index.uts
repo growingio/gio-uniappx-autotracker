@@ -135,8 +135,8 @@ export class GioDataStore {
     }
   }
 
-  updateNetworkState(networkType : string) {
-    this.systemContext.setNetworkState(networkType)
+  updateAppState(appState : string) {
+    this.systemContext.setAppState(appState)
   }
 
   setLocation(latitude : number, longitude : number) : boolean {

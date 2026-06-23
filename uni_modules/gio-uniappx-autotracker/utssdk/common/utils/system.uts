@@ -1,6 +1,7 @@
 // system.uts 放系统信息快照、平台识别和标准系统上下文组装。
 
 export type GioSystemContext = {
+  appState : string
   deviceBrand : string
   deviceModel : string
   deviceType : string
@@ -42,6 +43,7 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
     snapshot['osName'] = device.osName
     snapshot['osVersion'] = device.osVersion
     snapshot['platform'] = device.platform
+    snapshot['deviceType'] = device.deviceType
 
     const appBase = uni.getAppBaseInfo()
     snapshot['uniPlatform'] = appBase.uniPlatform
@@ -62,55 +64,4 @@ export function platformName () : string {
     return platform
   }
   return 'unknown'
-}
-
-export function getSystemContext () : GioSystemContext {
-  const system = getSystemInfoSnapshot()
-  const platformText = readSystemText(system, ['uniPlatform', 'platform'])
-  const platform = platformText.length > 0 ? platformText : 'unknown'
-
-  let operatingSystem = platform
-  const lowerPlatform = platform.toLowerCase()
-  if (lowerPlatform.indexOf('android') >= 0) {
-    operatingSystem = 'uni-app-x-Android'
-  } else if (lowerPlatform.indexOf('ios') >= 0) {
-    operatingSystem = 'uni-app-x-iOS'
-  } else if (
-    lowerPlatform.indexOf('harmony') >= 0 ||
-    lowerPlatform.indexOf('ohos') >= 0
-  ) {
-    operatingSystem = 'uni-app-x-HarmonyOS'
-  } else {
-    const osName = readSystemText(system, ['osName'])
-    const lowerOsName = osName.toLowerCase()
-    if (lowerOsName.indexOf('android') >= 0) {
-      operatingSystem = 'uni-app-x-Android'
-    } else if (lowerOsName.indexOf('ios') >= 0) {
-      operatingSystem = 'uni-app-x-iOS'
-    } else if (
-      lowerOsName.indexOf('harmony') >= 0 ||
-      lowerOsName.indexOf('ohos') >= 0
-    ) {
-      operatingSystem = 'uni-app-x-HarmonyOS'
-    }
-  }
-
-  let platformVersion = operatingSystem
-  const osVersion = readSystemText(system, ['osVersion', 'version'])
-  if (osVersion.length > 0) {
-    platformVersion = `${operatingSystem} ${osVersion}`
-  }
-
-  return {
-    deviceBrand: readSystemText(system, ['deviceBrand', 'brand']),
-    deviceModel: readSystemText(system, ['deviceModel', 'model']),
-    deviceType: operatingSystem,
-    language: readSystemText(system, ['language', 'appLanguage']),
-    networkState: readSystemText(system, ['networkType']),
-    operatingSystem: operatingSystem,
-    platform: platform,
-    platformVersion: platformVersion,
-    screenHeight: system != null ? (system as UTSJSONObject).getNumber('screenHeight', 0) : 0,
-    screenWidth: system != null ? (system as UTSJSONObject).getNumber('screenWidth', 0) : 0
-  } as GioSystemContext
 }

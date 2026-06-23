@@ -123,6 +123,7 @@ export type GioOriginalSource = {
 
 export type GioTrackEvent = {
   appChannel : string | null
+  appState : string | null
   appVersion : string
   dataSourceId : string
   deviceBrand : string
@@ -149,7 +150,7 @@ export type GioTrackEvent = {
   sdkVersion : string
   sessionId : string
   timestamp : number
-  timezoneOffset : number
+  timezoneOffset : string
   title : string
   userId : string | null
   userKey : string | null

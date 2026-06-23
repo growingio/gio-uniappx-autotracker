@@ -1,6 +1,7 @@
 // system-context 负责异步拉取系统信息、网络状态，并在 ready 后统一回填给事件构建层。
 import { debugLog } from '../../utils/debug.uts'
 import { GioSystemContext, getSystemInfoSnapshot } from '../../utils/system.uts'
+import { resolveIosDeviceModel } from '../../utils/device-model.uts'
 
 
 type GioSystemReadyCallback = () => void
@@ -19,22 +20,79 @@ function readTextField(source : any | null, keys : Array<string>) : string {
   return ''
 }
 
-function mapOperatingSystem(rawValue : string) : string {
+function osDisplayName(rawValue : string) : string {
   if (rawValue.length == 0) {
     return 'unknown'
   }
   const lowerValue = rawValue.toLowerCase()
   if (lowerValue.indexOf('android') >= 0) {
-    return 'uni-app-x-Android'
+    return 'Android'
   }
   if (lowerValue.indexOf('ios') >= 0) {
-    return 'uni-app-x-iOS'
+    return 'iOS'
   }
   if (
     lowerValue.indexOf('harmony') >= 0 ||
     lowerValue.indexOf('ohos') >= 0
   ) {
-    return 'uni-app-x-HarmonyOS'
+    return 'HarmonyOS'
+  }
+  if (lowerValue.indexOf('mac') >= 0) {
+    return 'macOS'
+  }
+  if (lowerValue.indexOf('windows') >= 0) {
+    return 'Windows'
+  }
+  if (lowerValue.indexOf('linux') >= 0) {
+    return 'Linux'
+  }
+  return rawValue
+}
+
+function mapDeviceType(osName : string, deviceType : string) : string {
+  if (osName.toLowerCase().indexOf('ios') >= 0) {
+    return deviceType.toLowerCase() == 'pad' ? 'iPad' : 'iPhone'
+  }
+  if (deviceType.length > 0) {
+    return deviceType
+  }
+  return osDisplayName(osName)
+}
+
+function normalizeDeviceBrand(osName : string, deviceBrand : string) : string {
+  if (osName.toLowerCase().indexOf('ios') >= 0) {
+    return 'Apple'
+  }
+  return deviceBrand
+}
+
+function normalizeNetworkState(rawValue : string) : string {
+  const lowerValue = rawValue.toLowerCase()
+  if (lowerValue == '2g') {
+    return '2G'
+  }
+  if (lowerValue == '3g') {
+    return '3G'
+  }
+  if (lowerValue == '4g') {
+    return '4G'
+  }
+  if (lowerValue == '5g') {
+    return '5G'
+  }
+  if (lowerValue == 'wifi' || lowerValue == 'ethernet') {
+    return 'WIFI'
+  }
+  return 'UNKNOWN'
+}
+
+function normalizeLanguage(rawValue : string) : string {
+  if (rawValue.length == 0) {
+    return ''
+  }
+  const separator = rawValue.indexOf('-')
+  if (separator > 0) {
+    return rawValue.slice(0, separator)
   }
   return rawValue
 }
@@ -42,31 +100,28 @@ function mapOperatingSystem(rawValue : string) : string {
 function buildSystemContext(
   systemInfo : any | null,
   networkState : string,
+  appState : string,
   screenWidth : number,
   screenHeight : number
 ) : GioSystemContext {
-  const platform = readTextField(
-    systemInfo,
-    ['uniPlatform', 'platform', 'osName']
-  )
-  const operatingSystem = mapOperatingSystem(
-    readTextField(systemInfo, ['osName', 'platform', 'uniPlatform'])
-  )
+  const osName = readTextField(systemInfo, ['osName', 'platform'])
+  const osLabel = osDisplayName(osName)
   const version = readTextField(systemInfo, ['osVersion', 'version'])
-  let platformVersion = operatingSystem
-  if (version.length > 0) {
-    platformVersion = `${operatingSystem} ${version}`
-  }
+  const deviceType = mapDeviceType(
+    osName,
+    readTextField(systemInfo, ['deviceType'])
+  )
 
   return {
-    deviceBrand: readTextField(systemInfo, ['deviceBrand', 'brand']),
-    deviceModel: readTextField(systemInfo, ['deviceModel', 'model']),
-    deviceType: operatingSystem,
-    language: readTextField(systemInfo, ['appLanguage', 'language']),
-    networkState: networkState,
-    operatingSystem: operatingSystem,
-    platform: platform.length > 0 ? platform : 'unknown',
-    platformVersion: platformVersion,
+    appState: appState,
+    deviceBrand: normalizeDeviceBrand(osName, readTextField(systemInfo, ['deviceBrand', 'brand'])),
+    deviceModel: resolveIosDeviceModel(readTextField(systemInfo, ['deviceModel', 'model'])),
+    deviceType: deviceType,
+    language: normalizeLanguage(readTextField(systemInfo, ['appLanguage', 'language'])),
+    networkState: normalizeNetworkState(networkState),
+    operatingSystem: osLabel,
+    platform: osLabel,
+    platformVersion: version.length > 0 ? version : osLabel,
     screenHeight: screenHeight,
     screenWidth: screenWidth
   } as GioSystemContext
@@ -76,9 +131,11 @@ export class GioSystemContextManager {
   private debugEnabled : boolean = false
   private systemInfo : any | null = null
   private networkState : string = ''
+  private appState : string = 'FOREGROUND'
   private screenWidth : number = 0
   private screenHeight : number = 0
   private context : GioSystemContext = {
+    appState: 'FOREGROUND',
     deviceBrand: '',
     deviceModel: '',
     deviceType: '',
@@ -121,6 +178,11 @@ export class GioSystemContextManager {
     this.markNetworkReady()
   }
 
+  setAppState(appState : string) {
+    this.appState = appState
+    this.updateContext()
+  }
+
   getContext() : GioSystemContext {
     return this.context
   }
@@ -145,6 +207,7 @@ export class GioSystemContextManager {
     this.context = buildSystemContext(
       this.systemInfo,
       this.networkState,
+      this.appState,
       this.screenWidth,
       this.screenHeight
     )
