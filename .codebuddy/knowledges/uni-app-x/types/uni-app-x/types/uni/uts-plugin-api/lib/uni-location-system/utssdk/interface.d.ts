@@ -1,3 +1,0 @@
-
-
-export interface UniLocationSystemProvider extends UniLocationProvider { }
