@@ -361,9 +361,9 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.pushInternalEvent('visit', 'VISIT', null, pageContext)
   }
 
-  private maybeEmitVisit(pageContext : GioPageContext | null) {
+  private maybeEmitVisit(pageContext : GioPageContext | null) : boolean {
     if (!this.ensureReady()) {
-      return
+      return false
     }
     const previousSessionId = this.userStore.ensureSession(
       this.getSessionTimeoutMs()
@@ -372,13 +372,16 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       if (previousSessionId.length == 0) {
         this.pendingVisit = true
       } else {
-        return
+        // 旧 session 续期时，session 监听器已经立即补发 VISIT / PAGE，
+        // 当前调用链不应再补同一页的 PAGE。
+        return false
       }
     }
     if (this.pendingVisit) {
       this.pendingVisit = false
       this.emitVisitEvent(pageContext)
     }
+    return true
   }
 
   private buildAttributes(
@@ -475,7 +478,9 @@ export class GioTracker implements GioABTestHost, GioShareHost {
 
   private dispatchVisitAndPage(pageContext : GioPageContext | null) {
     scheduleVisitAndPage(() => {
-      this.maybeEmitVisit(pageContext)
+      if (!this.maybeEmitVisit(pageContext)) {
+        return
+      }
       this.emitPageEvent(pageContext)
     })
   }
@@ -838,6 +843,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     const pageContext = this.updateCurrentPage(page, null)
     this.logLifecycle('page', 'onShow', pageContext)
     if (!shouldEmitPageOnShow()) {
+      this.maybeEmitVisit(pageContext)
       return
     }
     this.dispatchFirstPageWhenReady(pageContext)
