@@ -736,14 +736,6 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return true
   }
 
-  setUserKey(userKey : string) : boolean {
-    if (!this.ensureReady()) {
-      return false
-    }
-    this.userStore.setUserKey(userKey)
-    return true
-  }
-
   private flushPendingEvents() {
     this.dataStore.ensureSystemReady(() => {
       this.uploader.flush(null, null)
