@@ -2,7 +2,8 @@
 import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
 import { BoxArray, guid, jsonStringify, utf8ByteLength } from '../utils/base.uts'
-import { debugLog } from '../utils/debug.uts'
+import { stringifyScalar } from '../utils/validate.uts'
+import { debugLog, debugLogRequest } from '../utils/debug.uts'
 import { buildCollectUrl } from '../utils/request.uts'
 import { platformName } from '../utils/system.uts'
 import {
@@ -302,9 +303,9 @@ export class GioUploader {
     const sendAt = Date.now()
     this.inflight = true
     const payload = jsonStringify(requestData)
-    debugLog(options.debug as boolean, 'request payload', requestData)
 
-    const collectUrl = `${buildCollectUrl(options)}?stm=${sendAt}&compress=0`
+    const collectUrl = `${buildCollectUrl(options.serverUrl, options.projectId)}?stm=${sendAt}&compress=0`
+    debugLogRequest(options.debug as boolean, 'request', collectUrl, requestData)
     const dispatched = dispatchViaEventSender(
       collectUrl,
       requestData,
@@ -329,14 +330,16 @@ export class GioUploader {
       header: this.buildRequestHeader(),
       data: payload,
       success: (res : RequestSuccess<string>) => {
-        const statusCode = parseFloat(`${res.statusCode}`)
+        const statusCode = res.statusCode
         if (statusCode == 200 || statusCode == 204) {
           this.settleBatch(batch, true, success)
           return
         }
+        debugLog(options.debug as boolean, `request non-2xx statusCode=${stringifyScalar(statusCode)} data=${stringifyScalar(res.data)}`)
         this.settleBatch(batch, false, fail)
       },
-      fail: (_ : RequestFail) => {
+      fail: (err : RequestFail) => {
+        debugLog(options.debug as boolean, `request fail errCode=${stringifyScalar(err.errCode)} errMsg=${stringifyScalar(err.errMsg)}`)
         this.settleBatch(batch, false, fail)
       }
     } as RequestOptions<string>)

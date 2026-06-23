@@ -13,7 +13,7 @@ import {
   jsonStringify,
   now
 } from '../utils/base.uts'
-import { consoleText } from '../utils/debug.uts'
+import { consoleText, debugLogRequest } from '../utils/debug.uts'
 import { stringifyScalar } from '../utils/validate.uts'
 
 const ABTEST_DEFAULT_SERVER_URL = 'https://ab.growingio.com'
@@ -57,11 +57,7 @@ function readRequestErrorMessage(source : any | null) : string {
   if (source == null) {
     return ''
   }
-  const errMsg = (source as UTSJSONObject)['errMsg']
-  if (errMsg == null) {
-    return ''
-  }
-  return `${errMsg}`
+  return (source as UTSJSONObject).getString('errMsg', '')
 }
 
 function endOfNextDay() : number {
@@ -108,7 +104,7 @@ export class GioABTestPlugin {
 
     const abServerUrl = options != null ? options.abServerUrl : null
     const serverUrl = abServerUrl != null && abServerUrl.length > 0
-      ? abServerUrl
+      ? stringifyScalar(abServerUrl)
       : ABTEST_DEFAULT_SERVER_URL
     this.url = serverUrl.startsWith('http')
       ? `${serverUrl}/diversion/specified-layer-variables`
@@ -137,8 +133,11 @@ export class GioABTestPlugin {
     }
     const opts = options as GioInitOptions
     const ctx = context as GioContext
+    const projectId = stringifyScalar(opts.projectId)
+    const deviceId = stringifyScalar(ctx.deviceId)
+    const layer = stringifyScalar(layerId)
     return hashCode(
-      `g0#${opts.projectId}#${ctx.deviceId}#${layerId}`,
+      `g0#${projectId}#${deviceId}#${layer}`,
       true
     )
   }
@@ -247,11 +246,12 @@ export class GioABTestPlugin {
     const requestHeader = {} as UTSJSONObject
     requestHeader['Content-Type'] = 'application/x-www-form-urlencoded'
     const requestData = {} as UTSJSONObject
-    requestData['accountId'] = opts.projectId
-    requestData['datasourceId'] = opts.dataSourceId
-    requestData['distinctId'] = ctx.deviceId
-    requestData['layerId'] = `${layerId}`
+    requestData['accountId'] = stringifyScalar(opts.projectId)
+    requestData['datasourceId'] = stringifyScalar(opts.dataSourceId)
+    requestData['distinctId'] = stringifyScalar(ctx.deviceId)
+    requestData['layerId'] = stringifyScalar(layerId)
     requestData['newDevice'] = newDevice
+    debugLogRequest(opts.debug as boolean, 'abtest request', this.url, requestData)
     uni.request<UTSJSONObject>({
       url: this.url,
       header: requestHeader,
@@ -266,7 +266,7 @@ export class GioABTestPlugin {
         // 不同。按 ADR-014/015，传输层失败一律回 stale（上一次存储的实验数据），且仍写 sign
         // 节流（复刻独立 web xhr.onload 的节流）。无缓存时 originData 已是 {}，首访失败不变。
         if (res.statusCode >= 400) {
-          consoleText(`获取ABTest数据失败! 请求状态码 ${res.statusCode}!`, 'error')
+          consoleText(`获取ABTest数据失败! 请求状态码 ${stringifyScalar(res.statusCode)}!`, 'error')
           niceCallback(callback, originData)
           this.updateSign(this.getHashKey(layerId))
           return
