@@ -847,6 +847,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return
     }
+    this.dataStore.updateAppState('FOREGROUND')
     const entryInfo = this.mpWeixinEnabled
       ? this.resolveMiniProgramEntryInfo(options)
       : null
@@ -878,6 +879,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return
     }
+    this.dataStore.updateAppState('BACKGROUND')
     this.currentPageShown = false
     let duration : number | null = null
     const currentPageShowAt = this.dataStore.getCurrentPageShowAt()
