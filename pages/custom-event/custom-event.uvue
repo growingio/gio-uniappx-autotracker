@@ -8,6 +8,7 @@
 			<button class="btn" @click="onEmojiTrack">多语言与 emoji</button>
 			<button class="btn" @click="onTypedValuesTrack">字符串 / 数字 / 布尔 / 数组</button>
 			<button class="btn" @click="onLongTextTrack">长文本属性截断</button>
+			<button class="btn" @click="onLongTextTrackBurst">长文本属性 Burst</button>
 			<button class="btn" @click="onBurstTrack">循环 burst 中等属性 / x50</button>
 		</view>
 
@@ -165,6 +166,20 @@ function onLongTextTrack() {
 		body: text,
 		length: text.length,
 	} as UTSJSONObject)
+}
+
+function onLongTextTrackBurst() {
+	const text = buildLongText()
+	const properties = {} as UTSJSONObject
+	for (let i = 0; i < 100; i++) {
+		properties['longText_' + i] = text + '_' + i
+	}
+	sendTrackBurst(
+		'custom_long_textcustom_long_textcustom_long_textcustom_long_textcustom_long_textcustom_long_text',
+		properties,
+		50,
+		'long text burst x50'
+	)
 }
 
 function onBurstTrack() {
