@@ -915,11 +915,6 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return this.userStore.getContext()
   }
 
-  updateNetworkState(networkType : string) : boolean {
-    this.dataStore.updateNetworkState(networkType)
-    return true
-  }
-
   // ── GioABTestHost：首访 session 快照（实际存储分平台，见 runtime 注册表）──
 
   readVisitSessionId() : string {

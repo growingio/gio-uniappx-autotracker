@@ -65,10 +65,6 @@ export function setOptions (options : UTSJSONObject) : boolean {
   return tracker.setOptions(options)
 }
 
-export function updateNetworkState (networkType : string) : boolean {
-  return tracker.updateNetworkState(networkType)
-}
-
 export function setUserAttributes (userAttributes : UTSJSONObject | null) : boolean {
   return tracker.setUserAttributes(userAttributes)
 }

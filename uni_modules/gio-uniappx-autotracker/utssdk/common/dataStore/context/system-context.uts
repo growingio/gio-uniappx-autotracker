@@ -67,9 +67,6 @@ function normalizeDeviceBrand(osName : string, deviceBrand : string) : string {
 }
 
 function normalizeNetworkState(rawValue : string) : string {
-  // #ifdef WEB
-  return ''
-  // #endif
   const lowerValue = rawValue.toLowerCase()
   if (lowerValue == '2g') {
     return '2G'
