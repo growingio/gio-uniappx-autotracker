@@ -185,8 +185,6 @@ export class GioUploader {
       eventSequenceId: event.eventSequenceId,
       eventType: event.eventType,
       language: event.language,
-      latitude: event.latitude,
-      longitude: event.longitude,
       networkState: event.networkState,
       operatingSystem: event.operatingSystem,
       path: event.path,
@@ -207,6 +205,12 @@ export class GioUploader {
     } as UTSJSONObject
     if (event.protocolType != null && event.protocolType.length > 0) {
       payload['protocolType'] = event.protocolType
+    }
+    if (event.latitude != null) {
+      payload['latitude'] = event.latitude as number
+    }
+    if (event.longitude != null) {
+      payload['longitude'] = event.longitude as number
     }
     return payload
   }

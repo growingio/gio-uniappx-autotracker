@@ -517,7 +517,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
     "sdkVersion": "0.1.0",
     "sessionId": "...",
     "timestamp": 1710000000000,
-    "timezoneOffset": -480,
+    "timezoneOffset": "-480",
     "title": "Home",
     "userId": "user-123"
   },
@@ -544,7 +544,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
     "sdkVersion": "0.1.0",
     "sessionId": "...",
     "timestamp": 1710000000200,
-    "timezoneOffset": -480,
+    "timezoneOffset": "-480",
     "title": "确认订单",
     "userId": "user-123",
     "attributes": {
