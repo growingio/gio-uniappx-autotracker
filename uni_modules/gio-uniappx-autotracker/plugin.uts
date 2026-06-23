@@ -23,131 +23,124 @@ export {
 // #endif
 let lifecycleInstalled = false
 
-function copyLooseObject(source : any | null) : UTSJSONObject | null {
+function copyJSONObject(source : any | null) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
-  const copied = {} as UTSJSONObject
-  let hasValue = false
-  for (const key in source) {
-    const value = source[key]
-    if (value == null) {
-      continue
-    }
-    copied[key] = value
-    hasValue = true
+  const text = JSON.stringify(source)
+  if (text == null || text.length == 0) {
+    return null
   }
-  return hasValue ? copied : null
+  const copied = JSON.parseObject(text)
+  if (copied == null || UTSJSONObject.keys(copied).length == 0) {
+    return null
+  }
+  return copied
 }
 
-function copyLifecycleOptionValue(value : any | null) : any | null {
+function stringifyScalar(value : any | null) : string | null {
   if (value == null) {
     return null
   }
-  if (typeof value == 'object' && !Array.isArray(value)) {
-    return copyLooseObject(value)
+  if (typeof value == 'string') {
+    const text = value as string
+    return text.length > 0 ? text : null
   }
-  return value
+  if (typeof value == 'number') {
+    return `${value as number}`
+  }
+  if (typeof value == 'boolean') {
+    return `${value as boolean}`
+  }
+  return null
 }
 
-function copyReferrerInfo(source : any | null) : UTSJSONObject | null {
-  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null {
+  if (source == null) {
     return null
   }
   const copied = {} as UTSJSONObject
-  const appId = source['appId']
+  const appId = stringifyScalar(source['appId'])
   if (appId != null) {
-    copied['appId'] = `${appId}`
+    copied['appId'] = appId
   }
-  const extraData = copyLooseObject(source['extraData'])
+  const extraData = source.getJSON('extraData')
   if (extraData != null) {
     copied['extraData'] = extraData
   }
   return UTSJSONObject.keys(copied).length > 0 ? copied : null
 }
 
-// 页面实例不能直接进入 utssdk。
-// 这里先在 JS 层做浅拷贝，只保留公共层真正需要的 route / options / title 字段。
-function buildPageSnapshot(page : any | null) : UTSJSONObject | null {
-  if (page == null || typeof page != 'object') {
+function getCurrentUniPage() : UniPage | null {
+  const pages = getCurrentPages()
+  if (pages.length == 0) {
     return null
   }
-  let route : string | null = null
-  const routeValue = page['route']
-  if (routeValue != null && `${routeValue}`.length > 0) {
-    route = `${routeValue}`
-  }
+  return pages[pages.length - 1]
+}
 
-  let mpRoute : string | null = null
-  let mpOptions : UTSJSONObject | null = null
-  const scope = page['$scope']
-  if (scope != null && typeof scope == 'object') {
-    const scopeRoute = scope['route']
-    if (scopeRoute != null && `${scopeRoute}`.length > 0) {
-      mpRoute = `${scopeRoute}`
-    }
-    mpOptions = copyLooseObject(scope['options'])
-  }
-
-  const options = copyLooseObject(page['options'])
-
-  let title : string | null = null
+function readCurrentPageTitle(page : UniPage) : string | null {
   try {
-    const pageStyle = page.getPageStyle()
-    if (pageStyle != null && typeof pageStyle == 'object') {
-      const titleValue = pageStyle['navigationBarTitleText']
-      if (titleValue != null && `${titleValue}`.length > 0) {
-        title = `${titleValue}`
-      }
-    }
-  } catch (_error) {}
+    const pageStyle = page.$getPageStyle()
+    const titleValue = pageStyle.getString('navigationBarTitleText', '')
+    return titleValue.length > 0 ? titleValue : null
+  } catch (_error) {
+    return null
+  }
+}
 
-  if (route == null && mpRoute == null) {
+// 页面实例不能直接进入 utssdk。
+// App 端通过官方页面栈读取稳定 UniPage 字段，再转成明确 UTSJSONObject 快照。
+function buildPageSnapshot() : UTSJSONObject | null {
+  const page = getCurrentUniPage()
+  if (page == null || page.route.length == 0) {
     return null
   }
 
   const snapshot = {} as UTSJSONObject
-  if (route != null) {
-    snapshot['route'] = route
-  }
-  if (mpRoute != null) {
-    snapshot['mpRoute'] = mpRoute
-  }
+  snapshot['route'] = page.route
+  const title = readCurrentPageTitle(page)
   if (title != null) {
     snapshot['title'] = title
   }
+  const options = copyJSONObject(page.options)
   if (options != null) {
     snapshot['options'] = options
   }
-  if (mpOptions != null) {
-    snapshot['mpOptions'] = mpOptions
+  // 微信端 route.uts 优先读取 mpRoute/mpOptions；这里仍然只放稳定快照字段。
+  // #ifdef MP-WEIXIN
+  snapshot['mpRoute'] = page.route
+  if (options != null) {
+    snapshot['mpOptions'] = options
   }
+  // #endif
   return snapshot
 }
 
 // 启动参数同样先裁成稳定快照，避免把原始 options 直接传入原生编译层。
 function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null {
-  if (options == null || typeof options != 'object' || Array.isArray(options)) {
+  const raw = copyJSONObject(options)
+  if (raw == null) {
     return null
   }
   const copied = {} as UTSJSONObject
-  const path = options['path']
+  const path = stringifyScalar(raw['path'])
   if (path != null) {
-    copied['path'] = `${path}`
+    copied['path'] = path
   }
-  const scene = options['scene']
+  const scene = stringifyScalar(raw['scene'])
   if (scene != null) {
-    copied['scene'] = `${scene}`
+    copied['scene'] = scene
   }
-  const query = copyLooseObject(options['query'])
+  const query = raw.getJSON('query')
   if (query != null) {
     copied['query'] = query
   }
-  const referrerInfo = copyReferrerInfo(options['referrerInfo'])
+  const referrerInfo = copyReferrerInfo(raw.getJSON('referrerInfo'))
   if (referrerInfo != null) {
     copied['referrerInfo'] = referrerInfo
   }
-  const refererInfo = copyReferrerInfo(options['refererInfo'])
+  const refererInfo = copyReferrerInfo(raw.getJSON('refererInfo'))
   if (refererInfo != null) {
     copied['refererInfo'] = refererInfo
   }
@@ -157,57 +150,42 @@ function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null
 // 页面生命周期参数通常就是 route query 的平铺对象。
 // 这里仍然做浅拷贝，但不能按启动参数那套白名单裁剪，否则普通页面参数会被误丢弃。
 function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
-  if (options == null || typeof options != 'object' || Array.isArray(options)) {
-    return null
-  }
-  const copied = {} as UTSJSONObject
-  let hasValue = false
-  for (const key in options) {
-    const normalizedValue = copyLifecycleOptionValue(options[key])
-    if (normalizedValue == null) {
-      continue
-    }
-    copied[key] = normalizedValue
-    hasValue = true
-  }
-  return hasValue ? copied : null
+  return copyJSONObject(options)
 }
 
 const lifecycle = defineMixin({
   // 各端页面实例类型不同，mixin 生命周期函数的 this / options 只能在桥接层按 any 接住，
   // 再尽快转换成明确快照对象。
   // @ts-ignore
-  onLaunch(options : any | null = null) {
+  onLaunch(options : any | null) {
     handleOnLaunch(buildLaunchOptionsSnapshot(options))
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onLoad(options : OnLoadOptions) {
     handleOnPageLoad(
-      buildPageSnapshot(this),
+      buildPageSnapshot(),
       buildPageOptionsSnapshot(options)
     )
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
-  onShow(options : any | null = null) {
-    const pageSnapshot = buildPageSnapshot(this)
+  onShow() {
+    const pageSnapshot = buildPageSnapshot()
     handleOnShow(
       pageSnapshot,
-      pageSnapshot != null
-        ? buildPageOptionsSnapshot(options)
-        : buildLaunchOptionsSnapshot(options)
+      null
     )
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onHide() {
-    handleOnHide(buildPageSnapshot(this))
+    handleOnHide(buildPageSnapshot())
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onUnload() {
-    handleOnPageUnload(buildPageSnapshot(this))
+    handleOnPageUnload(buildPageSnapshot())
   }
 })
 

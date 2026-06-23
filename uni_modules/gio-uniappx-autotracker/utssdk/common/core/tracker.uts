@@ -238,7 +238,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   // JS 经原生桥传来的页面对象是 UTSJSONObject，不是原生 GioPageSnapshot 结构。
   // 直接 `as GioPageSnapshot` 在 iOS 上会编成 Swift 强制转型并断言失败崩溃，
   // 这里逐字段读出来重建快照。
-  private toPageSnapshot(target : any | null) : GioPageSnapshot | null {
+  private toPageSnapshot(target : UTSJSONObject | null) : GioPageSnapshot | null {
     if (target == null || typeof target != 'object' || Array.isArray(target)) {
       return null
     }
@@ -252,7 +252,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     } as GioPageSnapshot
   }
 
-  private isPageTarget(target : any | null) : boolean {
+  private isPageTarget(target : UTSJSONObject | null) : boolean {
     return this.dataStore.buildPageContextFromTarget(
       this.toPageSnapshot(target),
       null
@@ -264,8 +264,8 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   private buildPageContextFromTarget(
-    page : any | null,
-    options : any | null,
+    page : UTSJSONObject | null,
+    options : UTSJSONObject | null,
     duration : number | null = null
   ) : GioPageContext | null {
     return this.dataStore.buildPageContextFromTarget(
@@ -305,7 +305,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.dataStore.handleFlushSuccess(events)
   }
 
-  private updateCurrentPage(page : any | null, options : any | null) : GioPageContext | null {
+  private updateCurrentPage(page : UTSJSONObject | null, options : UTSJSONObject | null) : GioPageContext | null {
     return this.dataStore.updateCurrentPage(
       this.toPageSnapshot(page),
       options as UTSJSONObject | null
@@ -750,7 +750,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     })
   }
 
-  onPageLoad(page : any, options : any | null) {
+  onPageLoad(page : UTSJSONObject | null, options : UTSJSONObject | null) {
     if (!this.ensureReady()) {
       return
     }
@@ -760,7 +760,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.logLifecycle('page', 'onLoad', pageContext)
   }
 
-  private cachePageQueryOptions(page : any | null, options : any | null) {
+  private cachePageQueryOptions(page : UTSJSONObject | null, options : UTSJSONObject | null) {
     const routeInfo = resolvePageRoute(
       this.toPageSnapshot(page),
       options as UTSJSONObject | null
@@ -777,7 +777,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.syncMiniProgramEntry(this.resolveMiniProgramEntryInfo(options))
   }
 
-  onShow(target : any | null, options : any | null = null) {
+  onShow(target : UTSJSONObject | null, options : UTSJSONObject | null = null) {
     if (!this.ensureReady()) {
       return
     }
@@ -788,7 +788,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.onAppShow(options)
   }
 
-  onHide(target : any | null) {
+  onHide(target : UTSJSONObject | null) {
     if (!this.ensureReady()) {
       return
     }
@@ -799,7 +799,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.onAppHide()
   }
 
-  onPageHide(page : any | null) {
+  onPageHide(page : UTSJSONObject | null) {
     if (!this.ensureReady()) {
       return
     }
@@ -812,7 +812,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     )
   }
 
-  onPageShow(page : any | null) {
+  onPageShow(page : UTSJSONObject | null) {
     if (!this.ensureReady()) {
       return
     }
@@ -828,7 +828,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.dispatchFirstPageWhenReady(pageContext)
   }
 
-  onPageUnload(page : any | null) {
+  onPageUnload(page : UTSJSONObject | null) {
     if (!this.ensureReady()) {
       return
     }
