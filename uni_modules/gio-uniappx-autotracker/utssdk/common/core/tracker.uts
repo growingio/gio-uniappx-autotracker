@@ -844,7 +844,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.dataStore.resetCurrentPageShowAt(pagePath)
   }
 
-  onAppShow(options : any | null = null) {
+  onAppShow(options : UTSJSONObject | null = null) {
     if (!this.ensureReady()) {
       return
     }

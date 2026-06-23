@@ -1,2 +1,49 @@
-// Android 平台入口当前直接复用公共 utssdk API。
+import { onAppHide, onAppShow } from '../index.uts'
+import Activity from 'android.app.Activity'
+
 export * from '../index.uts'
+
+// 确保只对真正 start 过的 Activity 做计数扣除，避免首次启动时
+// 最早几个 Activity 的 onStop 先于 onStart 被回调导致计数异常。
+const activityList : Array<Activity> = []
+let activityCount : number = 0
+let hasBeenToBackground : boolean = false
+
+class UTSActivityLifeCycleCallback extends UniActivityLifeCycleCallback {
+  constructor() {
+    super()
+  }
+
+  override onStart(params : UniActivityParams) {
+    const activity = params.activity
+    if (activity != null) {
+      const idx = activityList.indexOf(activity)
+      if (idx == -1) {
+        activityList.push(activity)
+        activityCount++
+        if (hasBeenToBackground && activityCount == 1) {
+          hasBeenToBackground = false
+          onAppShow()
+        }
+      }
+    }
+  }
+
+  override onStop(params : UniActivityParams) {
+    const activity = params.activity
+    if (activity != null) {
+      const idx = activityList.indexOf(activity)
+      if (idx != -1) {
+        activityList.splice(idx as number, 1)
+        activityCount--
+        if (activityCount == 0) {
+          hasBeenToBackground = true
+          onAppHide()
+        }
+      }
+    }
+  }
+}
+
+const activityLifeCycleCallback = new UTSActivityLifeCycleCallback()
+UTSAndroid.onActivityCallback(activityLifeCycleCallback)
