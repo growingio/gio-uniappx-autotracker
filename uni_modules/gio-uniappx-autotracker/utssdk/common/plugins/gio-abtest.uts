@@ -266,7 +266,7 @@ export class GioABTestPlugin {
         // 不同。按 ADR-014/015，传输层失败一律回 stale（上一次存储的实验数据），且仍写 sign
         // 节流（复刻独立 web xhr.onload 的节流）。无缓存时 originData 已是 {}，首访失败不变。
         if (res.statusCode >= 400) {
-          consoleText(`获取ABTest数据失败! 请求状态码 ${res.statusCode}!`, 'error')
+          consoleText(`获取ABTest数据失败! 请求状态码 ${stringifyScalar(res.statusCode)}!`, 'error')
           niceCallback(callback, originData)
           this.updateSign(this.getHashKey(layerId))
           return
