@@ -1,2 +1,40 @@
-// iOS 平台入口当前直接复用公共 utssdk API。
+import { onAppHide, onAppShow } from '../index.uts'
+
 export * from '../index.uts'
+
+let appLifecycleBound : boolean = false
+
+function bindAppLifecycleCallbacks() {
+  if (appLifecycleBound) {
+    return
+  }
+  appLifecycleBound = true
+  const appShowHandler = (options : any | null) => {
+    onAppShow(options as any)
+  }
+  const appHideHandler = () => {
+    onAppHide()
+  }
+  if (
+    typeof uni.onAppShow == 'function' &&
+    typeof uni.offAppShow == 'function'
+  ) {
+    uni.offAppShow(appShowHandler)
+    uni.onAppShow(appShowHandler)
+  } else if (typeof uni.onAppShow == 'function') {
+    uni.onAppShow(appShowHandler)
+  }
+  if (
+    typeof uni.onAppHide == 'function' &&
+    typeof uni.offAppHide == 'function'
+  ) {
+    uni.offAppHide(appHideHandler)
+    uni.onAppHide(appHideHandler)
+  } else if (typeof uni.onAppHide == 'function') {
+    uni.onAppHide(appHideHandler)
+  }
+}
+
+bindAppLifecycleCallbacks()
+
+// iOS 平台入口复用公共 utssdk API，额外补齐应用前后台监听。
