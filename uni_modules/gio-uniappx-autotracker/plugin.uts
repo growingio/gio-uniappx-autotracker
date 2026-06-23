@@ -9,7 +9,6 @@ import {
   onPageUnload as handleOnPageUnload,
   onShow as handleOnShow
 } from '@/uni_modules/gio-uniappx-autotracker'
-import { GioPageSnapshot } from '@/uni_modules/gio-uniappx-autotracker'
 import { gdp } from './gdp.uts'
 
 export { gdp }
@@ -69,7 +68,7 @@ function copyReferrerInfo(source : any | null) : UTSJSONObject | null {
 
 // 页面实例不能直接进入 utssdk。
 // 这里先在 JS 层做浅拷贝，只保留公共层真正需要的 route / options / title 字段。
-function buildPageSnapshot(page : any | null) : GioPageSnapshot | null {
+function buildPageSnapshot(page : any | null) : UTSJSONObject | null {
   if (page == null || typeof page != 'object') {
     return null
   }
@@ -107,13 +106,23 @@ function buildPageSnapshot(page : any | null) : GioPageSnapshot | null {
     return null
   }
 
-  return {
-    route: route,
-    mpRoute: mpRoute,
-    title: title,
-    options: options,
-    mpOptions: mpOptions
-  } as GioPageSnapshot
+  const snapshot = {} as UTSJSONObject
+  if (route != null) {
+    snapshot['route'] = route
+  }
+  if (mpRoute != null) {
+    snapshot['mpRoute'] = mpRoute
+  }
+  if (title != null) {
+    snapshot['title'] = title
+  }
+  if (options != null) {
+    snapshot['options'] = options
+  }
+  if (mpOptions != null) {
+    snapshot['mpOptions'] = mpOptions
+  }
+  return snapshot
 }
 
 // 启动参数同样先裁成稳定快照，避免把原始 options 直接传入原生编译层。

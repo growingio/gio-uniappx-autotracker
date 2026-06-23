@@ -235,20 +235,41 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     }
   }
 
-  // JS 经原生桥传来的页面对象是 UTSJSONObject，不是原生 GioPageSnapshot 结构。
-  // 直接 `as GioPageSnapshot` 在 iOS 上会编成 Swift 强制转型并断言失败崩溃，
-  // 这里逐字段读出来重建快照。
+  // JS 桥接层传来的页面快照，在不同端上可能是 UTSJSONObject，也可能还是普通对象；
+  // 不能直接 `as GioPageSnapshot`，否则 iOS 上会编成 Swift 强制转型并断言失败，
+  // Web 上也可能因为对象没有 UTSJSONObject 实例方法而在运行时抛 TypeError。
+  // 这里统一逐字段归一化后重建快照。
+  private readSnapshotStringField(target : any, key : string) : string | null {
+    const value = target[key]
+    if (value == null) {
+      return null
+    }
+    const text = `${value}`
+    return text.length > 0 ? text : null
+  }
+
+  private readSnapshotJsonField(target : any, key : string) : UTSJSONObject | null {
+    const value = target[key]
+    if (value == null || typeof value != 'object' || Array.isArray(value)) {
+      return null
+    }
+    const serialized = JSON.stringify(value)
+    if (serialized == null || serialized.length == 0) {
+      return null
+    }
+    return JSON.parseObject(serialized)
+  }
+
   private toPageSnapshot(target : any | null) : GioPageSnapshot | null {
     if (target == null || typeof target != 'object' || Array.isArray(target)) {
       return null
     }
-    const raw = target as UTSJSONObject
     return {
-      route: raw.getString('route'),
-      mpRoute: raw.getString('mpRoute'),
-      title: raw.getString('title'),
-      options: raw.getJSON('options'),
-      mpOptions: raw.getJSON('mpOptions')
+      route: this.readSnapshotStringField(target, 'route'),
+      mpRoute: this.readSnapshotStringField(target, 'mpRoute'),
+      title: this.readSnapshotStringField(target, 'title'),
+      options: this.readSnapshotJsonField(target, 'options'),
+      mpOptions: this.readSnapshotJsonField(target, 'mpOptions')
     } as GioPageSnapshot
   }
 
