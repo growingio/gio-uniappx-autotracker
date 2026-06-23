@@ -49,12 +49,15 @@ export function onHide(target : UTSJSONObject | null) {
   tracker.onHide(target)
 }
 
-export function onAppShow(options : UTSJSONObject | null = null) {
-  tracker.onAppShow(options)
+export function onAppShow(
+  options : UTSJSONObject | null = null,
+  appState : string | null = null
+) {
+  tracker.onAppShow(options, appState)
 }
 
-export function onAppHide() {
-  tracker.onAppHide()
+export function onAppHide(appState : string | null = null) {
+  tracker.onAppHide(appState)
 }
 
 export function onPageUnload(page : UTSJSONObject | null) {

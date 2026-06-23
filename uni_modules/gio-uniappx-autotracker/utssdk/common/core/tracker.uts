@@ -836,11 +836,17 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.dataStore.resetCurrentPageShowAt(pagePath)
   }
 
-  onAppShow(options : UTSJSONObject | null = null) {
+  onAppShow(
+    options : UTSJSONObject | null = null,
+    appState : string | null = null
+  ) {
     if (!this.ensureReady()) {
       return
     }
-    this.dataStore.updateAppState('FOREGROUND')
+    const resolvedAppState = this.resolveAppState(appState, true)
+    this.dataStore.updateAppState(
+      resolvedAppState
+    )
     const entryInfo = this.mpWeixinEnabled
       ? this.resolveMiniProgramEntryInfo(options)
       : null
@@ -868,11 +874,14 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.flushPendingEvents()
   }
 
-  onAppHide() {
+  onAppHide(appState : string | null = null) {
     if (!this.ensureReady()) {
       return
     }
-    this.dataStore.updateAppState('BACKGROUND')
+    const resolvedAppState = this.resolveAppState(appState, false)
+    this.dataStore.updateAppState(
+      resolvedAppState
+    )
     this.currentPageShown = false
     let duration : number | null = null
     const currentPageShowAt = this.dataStore.getCurrentPageShowAt()
@@ -906,6 +915,20 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       return null
     }
     return this.userStore.getContext()
+  }
+
+  private resolveAppState(
+    appState : string | null,
+    isForeground : boolean
+  ) : string | null {
+    const platform = platformName()
+    if (platform == 'web' || platform.startsWith('mp-')) {
+      return null
+    }
+    if (appState != null && appState.length > 0) {
+      return appState
+    }
+    return isForeground ? 'FOREGROUND' : 'BACKGROUND'
   }
 
   setLocation(latitude : number, longitude : number) : boolean {

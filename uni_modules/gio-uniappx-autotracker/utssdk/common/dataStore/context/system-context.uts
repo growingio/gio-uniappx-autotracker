@@ -1,6 +1,10 @@
 // system-context 负责异步拉取系统信息、网络状态，并在 ready 后统一回填给事件构建层。
 import { debugLog } from '../../utils/debug.uts'
-import { GioSystemContext, getSystemInfoSnapshot } from '../../utils/system.uts'
+import {
+  GioSystemContext,
+  getSystemInfoSnapshot,
+  platformName
+} from '../../utils/system.uts'
 import { resolveIosDeviceModel } from '../../utils/device-model.uts'
 
 
@@ -100,7 +104,7 @@ function normalizeLanguage(rawValue : string) : string {
 function buildSystemContext(
   systemInfo : any | null,
   networkState : string,
-  appState : string,
+  appState : string | null,
   screenWidth : number,
   screenHeight : number
 ) : GioSystemContext {
@@ -127,15 +131,23 @@ function buildSystemContext(
   } as GioSystemContext
 }
 
+function getDefaultAppState() : string | null {
+  const currentPlatform = platformName()
+  if (currentPlatform == 'web' || currentPlatform.startsWith('mp-')) {
+    return null
+  }
+  return 'FOREGROUND'
+}
+
 export class GioSystemContextManager {
   private debugEnabled : boolean = false
   private systemInfo : any | null = null
   private networkState : string = ''
-  private appState : string = 'FOREGROUND'
+  private appState : string | null = getDefaultAppState()
   private screenWidth : number = 0
   private screenHeight : number = 0
   private context : GioSystemContext = {
-    appState: 'FOREGROUND',
+    appState: getDefaultAppState(),
     deviceBrand: '',
     deviceModel: '',
     deviceType: '',
@@ -178,7 +190,7 @@ export class GioSystemContextManager {
     this.markNetworkReady()
   }
 
-  setAppState(appState : string) {
+  setAppState(appState : string | null) {
     this.appState = appState
     this.updateContext()
   }

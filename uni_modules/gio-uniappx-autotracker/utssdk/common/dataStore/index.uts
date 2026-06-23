@@ -135,7 +135,7 @@ export class GioDataStore {
     }
   }
 
-  updateAppState(appState : string) {
+  updateAppState(appState : string | null) {
     this.systemContext.setAppState(appState)
   }
 
