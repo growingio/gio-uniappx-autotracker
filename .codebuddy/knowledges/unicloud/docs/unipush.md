@@ -1,1 +1,0 @@
-文档已移至：[统一推送服务扩展库](./uni-cloud-push/api.md)

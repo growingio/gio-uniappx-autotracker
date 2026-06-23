@@ -1,1 +1,0 @@
-文档已移至：[uni-cloud-ext-storage 扩展库](./ext-storage/dev.md)

@@ -737,14 +737,6 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return true
   }
 
-  setUserKey(userKey : string) : boolean {
-    if (!this.ensureReady()) {
-      return false
-    }
-    this.userStore.setUserKey(userKey)
-    return true
-  }
-
   private flushPendingEvents() {
     this.dataStore.ensureSystemReady(() => {
       this.uploader.flush(null, null)
@@ -934,7 +926,6 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     }
     return this.dataStore.setLocation(latitude, longitude)
   }
-
   // ── GioABTestHost：首访 session 快照（实际存储分平台，见 runtime 注册表）──
 
   readVisitSessionId() : string {

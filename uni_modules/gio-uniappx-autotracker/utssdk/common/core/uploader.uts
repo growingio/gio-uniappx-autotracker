@@ -126,15 +126,6 @@ export class GioUploader {
     }
   }
 
-  getPendingCount() : number {
-    // Swift 里数组长度是 Int，而这里的返回类型是 number，对外返回前要显式转一次。
-    return this.pending.length as number
-  }
-
-  getHoardingCount() : number {
-    return this.hoarding.length as number
-  }
-
   setForceLogin(forceLogin : boolean) {
     this.forceLogin = forceLogin
   }
@@ -288,10 +279,6 @@ export class GioUploader {
       callback()
     }
     this.inflight = false
-    if (success) {
-      this.continueFlush()
-      return
-    }
     this.continueFlush()
   }
 
