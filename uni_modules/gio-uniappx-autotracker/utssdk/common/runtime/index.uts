@@ -118,10 +118,6 @@ export function syncConfigToGlobal (options : GioInitOptions) {
   syncer.syncConfig(options)
 }
 
-export function resolveEventSender () : GioEventSender | null {
-  return registeredEventSender
-}
-
 export function registerVisitSessionStore (
   store : GioVisitSessionStore | null
 ) {
