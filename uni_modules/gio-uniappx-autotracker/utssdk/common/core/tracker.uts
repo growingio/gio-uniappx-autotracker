@@ -468,14 +468,15 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return false
     }
-    if (raw['dataCollect'] == null) {
+    const dataCollectValue = raw['dataCollect']
+    if (dataCollectValue == null || typeof dataCollectValue != 'boolean') {
       consoleText(
         'setOptions 参数不合法，请传入 { dataCollect: boolean }',
         'error'
       )
       return false
     }
-    const dataCollect = raw.getBoolean('dataCollect', false)
+    const dataCollect = dataCollectValue as boolean
     if (this.options == null) {
       return false
     }

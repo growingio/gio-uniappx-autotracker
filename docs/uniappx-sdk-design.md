@@ -245,7 +245,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - `APP_CLOSED` 后 flush
 - `track` 后 flush
 
-这样做的好处是第一版逻辑简单、易观察、易调试。后续如果需要更强的 batching 或 retry，再在上传层继续演进即可。
+这样做的好处是当前基线逻辑简单、易观察、易调试。后续如果需要更强的 batching 或 retry，再在上传层继续演进即可。
 
 当前这些发送策略完全由 SDK 内部固定控制，不提供外部手动 `flush()` 入口。
 
@@ -573,9 +573,9 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - `mp-weixin` 会优先读取启动上下文里的 `scene` / `wxShoppingListScene`，并把它映射到 `appChannel`
 - 如果后续要继续做更细粒度的 collector 对齐，主要改动点仍然集中在 `uploader.uts` 和 `tracker.uts`
 
-## 11. 为什么这是合适的第一版
+## 11. 为什么这是合适的当前基线
 
-这版先保留了那些“以后很难回头补”的核心结构：
+当前基线保留了那些“以后很难回头补”的核心结构：
 
 - 清晰的 uni-app x 模块组织方式
 - 独立的身份存储层
