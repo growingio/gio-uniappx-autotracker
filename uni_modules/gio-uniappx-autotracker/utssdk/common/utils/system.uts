@@ -1,7 +1,7 @@
 // system.uts 放系统信息快照、平台识别和标准系统上下文组装。
 
 export type GioSystemContext = {
-  appState : string
+  appState : string | null
   deviceBrand : string
   deviceModel : string
   deviceType : string
