@@ -1,27 +1,5 @@
 // interface.uts 定义 SDK 的公共类型契约。
 // 公共层、平台层和 JS 桥接层之间只通过这里暴露的稳定类型交互。
-export type GioReportSuccess = {
-  errMsg : string
-}
-
-export type GioReportErrorCode =
-  62000 |
-  62001 |
-  62002 |
-  62003
-
-export type GioReportError = {
-  errCode : GioReportErrorCode
-  errMsg : string
-  message : string
-  name : string
-}
-
-export type GioReportFail = GioReportError
-export type GioReportSuccessCallback = (res : GioReportSuccess) => void
-export type GioReportFailCallback = (err : GioReportFail) => void
-export type GioReportCompleteCallback = (res : any) => void
-
 export type GioInitOptions = {
   projectId : string
   dataSourceId : string

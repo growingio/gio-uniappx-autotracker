@@ -118,6 +118,4 @@ export function getABTest(
 
 // 这些类型和工具通过模块根路径重新导出，供 plugin.uts / gdp.uts 等外层文件使用，
 // 外层不需要再深入 import 内部实现路径。
-export { GioTracker } from './common/core/tracker.uts'
 export { GioGdpInitOptions } from './interface.uts'
-export { GioPageSnapshot } from './interface.uts'
