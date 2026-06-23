@@ -49,6 +49,14 @@ export function onHide(target : UTSJSONObject | null) {
   tracker.onHide(target)
 }
 
+export function onAppShow(options : any | null = null) {
+  tracker.onAppShow(options)
+}
+
+export function onAppHide() {
+  tracker.onAppHide()
+}
+
 export function onPageUnload(page : UTSJSONObject | null) {
   tracker.onPageUnload(page)
 }

@@ -1,0 +1,52 @@
+export * from '../index.uts'
+
+import { onAppHide, onAppShow } from '../index.uts';
+import Activity from 'android.app.Activity';
+
+// 确保只对真正 start 过的 Activity 做计数扣除，避免首次启动时
+// 最早几个 Activity 的 onStop 先于 onStart 被回调导致计数异常。
+const activityList : Array<Activity> = []
+let activityCount : number = 0
+let hasBeenToBackground : boolean = false
+
+class UTSAcvitiyLifeCycleCallback extends UniActivityLifeCycleCallback {
+  constructor() {
+    super()
+  }
+
+  override onStart(params : UniActivityParams) {
+    let activity = params.activity
+    if (activity != null) {
+      activityList.push(activity)
+      activityCount++
+      // 必须进入过后台 且 当前是第一个 Activity 启动，才是真正从后台回到前台
+      if (hasBeenToBackground && activityCount == 1) {
+        hasBeenToBackground = false
+		console.log('onAppShow')
+        onAppShow()
+      }
+    }
+  }
+
+  override onStop(params : UniActivityParams) {
+	console.log('onStop')
+    let activity = params.activity
+    if (activity != null) {
+      const idx = activityList.indexOf(activity)
+      // 只有曾经 onStart 过的 Activity 才计入扣除
+      if (idx != -1) {
+        activityList.splice(idx, 1)
+        activityCount--
+      }
+      // 所有的 Activity 都已停止 → App 进入后台
+      if (activityCount == 0) {
+        hasBeenToBackground = true
+		console.log('onAppHide')
+        onAppHide()
+      }
+    }
+  }
+}
+
+const activityLifeCycleCallback = new UTSAcvitiyLifeCycleCallback()
+UTSAndroid.onActivityCallback(activityLifeCycleCallback)
