@@ -168,9 +168,11 @@ function onLongTextTrack() {
 	} as UTSJSONObject)
 }
 
+// 极端 payload 压力场景：单条事件会超过 Web beacon 的体积限制，
+// 预期用于验证 XHR fallback 是否稳定，不用于验证普通 payload 优先 beacon。
 function onLongTextTrackBurst() {
 	const text = buildLongText()
-	const properties = {} as UTSJSONObject
+	const properties: UTSJSONObject = {}
 	for (let i = 0; i < 100; i++) {
 		properties['longText_' + i] = text + '_' + i
 	}
