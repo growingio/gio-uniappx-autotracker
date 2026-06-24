@@ -118,6 +118,7 @@ export class GioDataStore {
       idMapping: false,
       storageType: null,
       cookieDomain: null,
+      urlScheme: null,
       screenWidth: 0,
       screenHeight: 0
     } as GioInitOptions

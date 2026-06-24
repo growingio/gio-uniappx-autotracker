@@ -14,6 +14,7 @@ export type GioInitOptions = {
   idMapping : boolean
   storageType : string | null
   cookieDomain : string | null
+  urlScheme : string | null
   screenWidth : number
   screenHeight : number
 }
@@ -33,6 +34,7 @@ export type GioGdpInitOptions = {
   idMapping : boolean
   storageType : string | null
   cookieDomain : string | null
+  urlScheme : string | null
 }
 
 export type GioPluginItem = {
@@ -101,9 +103,11 @@ export type GioOriginalSource = {
 
 export type GioTrackEvent = {
   appChannel : string | null
+  appName : string | null
   appState : string | null
   appVersion : string
   dataSourceId : string
+  urlScheme : string | null
   deviceBrand : string
   deviceId : string
   deviceModel : string | null
