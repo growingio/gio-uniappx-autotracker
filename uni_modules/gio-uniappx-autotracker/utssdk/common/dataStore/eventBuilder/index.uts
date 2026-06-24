@@ -89,8 +89,20 @@ export class GioEventBuilder {
     const timestamp : number = now()
     const timezoneOffset : string = `${readTimezoneOffsetMinutes()}`
     const userKey : string | null = options.idMapping ? context.userKey : null
+    const domainText : string = systemContext.bundleId.length > 0
+      ? systemContext.bundleId
+      : options.appId
+    const isApp : boolean = systemContext.isApp
+    const operatingSystemText : string | null = isApp ? null : systemContext.operatingSystem
+    const appChannelText : string | null = (isApp && systemContext.platform != 'Android')
+      ? null
+      : appChannel
+    const referralPageText : string | null = (isApp && eventType != 'PAGE')
+      ? null
+      : referralPage
     return shapeTrackEvent({
-      appChannel: appChannel,
+      appChannel: appChannelText,
+      appName: systemContext.appName,
       appState: systemContext.appState,
       appVersion: appVersionText,
       dataSourceId: options.dataSourceId,
@@ -98,7 +110,8 @@ export class GioEventBuilder {
       deviceId: context.deviceId,
       deviceModel: systemContext.deviceModel,
       deviceType: systemContext.deviceType,
-      domain: options.appId,
+      domain: domainText,
+      urlScheme: options.urlScheme,
       eventName: eventName,
       eventSequenceId: eventSequenceId,
       eventType: eventType,
@@ -106,13 +119,13 @@ export class GioEventBuilder {
       latitude: latitude,
       longitude: longitude,
       networkState: systemContext.networkState,
-      operatingSystem: systemContext.operatingSystem,
+      operatingSystem: operatingSystemText,
       path: path,
       platform: systemContext.platform,
       platformVersion: systemContext.platformVersion,
       protocolType: null,
       query: query,
-      referralPage: referralPage,
+      referralPage: referralPageText,
       screenHeight: systemContext.screenHeight,
       screenWidth: systemContext.screenWidth,
       sdkVersion: SDK_VERSION,

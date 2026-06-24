@@ -90,7 +90,7 @@ function normalizeNetworkState(rawValue : string) : string {
   return 'UNKNOWN'
 }
 
-function normalizeLanguage(rawValue : string) : string {
+function shortLanguage(rawValue : string) : string {
   if (rawValue.length == 0) {
     return ''
   }
@@ -115,13 +115,19 @@ function buildSystemContext(
     osName,
     readTextField(systemInfo, ['deviceType'])
   )
+  const currentPlatform = readTextField(systemInfo, ['uniPlatform', 'platform'])
+  const isApp = !(currentPlatform == 'web' || currentPlatform.startsWith('mp-'))
+  const rawLanguage = readTextField(systemInfo, ['appLanguage', 'language'])
 
   return {
+    appName: isApp ? readTextField(systemInfo, ['appName']) : '',
     appState: appState,
+    bundleId: readTextField(systemInfo, ['bundleId']),
+    isApp: isApp,
     deviceBrand: normalizeDeviceBrand(osName, readTextField(systemInfo, ['deviceBrand', 'brand'])),
     deviceModel: resolveIosDeviceModel(readTextField(systemInfo, ['deviceModel', 'model'])),
     deviceType: deviceType,
-    language: normalizeLanguage(readTextField(systemInfo, ['appLanguage', 'language'])),
+    language: isApp ? rawLanguage : shortLanguage(rawLanguage),
     networkState: normalizeNetworkState(networkState),
     operatingSystem: osLabel,
     platform: osLabel,
@@ -147,7 +153,10 @@ export class GioSystemContextManager {
   private screenWidth : number = 0
   private screenHeight : number = 0
   private context : GioSystemContext = {
+    appName: '',
     appState: getDefaultAppState(),
+    bundleId: '',
+    isApp: false,
     deviceBrand: '',
     deviceModel: '',
     deviceType: '',

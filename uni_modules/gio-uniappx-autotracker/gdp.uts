@@ -67,8 +67,17 @@ function isNumberArgument(value : any | null) : boolean {
 function seedScreenSize(rawOptions : UTSJSONObject) {
   try {
     const win = uni.getWindowInfo()
-    rawOptions['screenWidth'] = win.screenWidth
-    rawOptions['screenHeight'] = win.screenHeight
+    let width = win.screenWidth
+    let height = win.screenHeight
+    // #ifdef APP
+    const ratio = win.pixelRatio
+    if (ratio > 0) {
+      width = Math.round(width * ratio)
+      height = Math.round(height * ratio)
+    }
+    // #endif
+    rawOptions['screenWidth'] = width
+    rawOptions['screenHeight'] = height
   } catch (_error) {
     consoleText('gdp("init") 读取屏幕尺寸失败', 'warn')
   }
@@ -101,6 +110,7 @@ function handleInit(options : any | null) : boolean {
   rawOptions['idMapping'] = initOptions.idMapping
   rawOptions['storageType'] = initOptions.storageType
   rawOptions['cookieDomain'] = initOptions.cookieDomain
+  rawOptions['urlScheme'] = initOptions.urlScheme
   seedScreenSize(rawOptions)
   const initialized = initialize(rawOptions)
   if (!initialized) {

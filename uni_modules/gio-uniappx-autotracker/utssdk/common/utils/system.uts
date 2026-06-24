@@ -1,7 +1,10 @@
 // system.uts 放系统信息快照、平台识别和标准系统上下文组装。
 
 export type GioSystemContext = {
+  appName : string
   appState : string | null
+  bundleId : string
+  isApp : boolean
   deviceBrand : string
   deviceModel : string
   deviceType : string
@@ -50,6 +53,16 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
     snapshot['version'] = appBase.version
     snapshot['appLanguage'] = appBase.appLanguage
     snapshot['language'] = appBase.language
+    snapshot['appName'] = appBase.appName
+    // #ifdef APP-IOS
+    snapshot['bundleId'] = appBase.bundleId
+    // #endif
+    // #ifdef APP-ANDROID
+    snapshot['bundleId'] = appBase.packageName
+    // #endif
+    // #ifdef APP-HARMONY
+    snapshot['bundleId'] = appBase.bundleName
+    // #endif
 
     return snapshot
   } catch (_error) {
