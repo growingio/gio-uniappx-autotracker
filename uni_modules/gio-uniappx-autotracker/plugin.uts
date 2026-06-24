@@ -154,12 +154,12 @@ function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
 }
 
 // #ifdef APP-IOS || APP-HARMONY
-function isAppInstance(self : any | null) : boolean {
-  if (self == null) {
+function isAppInstance(instance : any | null) : boolean {
+  if (instance == null) {
     return true
   }
   // @ts-ignore
-  const page = self.$page
+  const page = instance.$page
   return page == null
 }
 // #endif
