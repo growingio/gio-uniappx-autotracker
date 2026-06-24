@@ -1,5 +1,5 @@
 <template>
-	<view class="page">
+	<scroll-view class="page">
 		<view class="section">
 			<text class="section-title">设置身份</text>
 			<text class="field-label">userId</text>
@@ -82,7 +82,7 @@
 			<text class="label">最新动作：</text>
 			<text class="val">{{ lastAction }}</text>
 		</view>
-	</view>
+	</scroll-view>
 </template>
 
 <script setup lang="uts">
@@ -219,7 +219,7 @@ function onClearLocation() {
 </script>
 
 <style>
-.page { padding: 20rpx; }
+.page { padding: 20rpx; flex: 1; }
 .section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
 .section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
 .sub-section { margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #f0f0f0; }

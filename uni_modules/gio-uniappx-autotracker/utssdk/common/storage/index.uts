@@ -29,10 +29,6 @@ function shouldAttemptJsonParse(text : string) : boolean {
   )
 }
 
-export function getStorageKey (prefix : string, name : string) : string {
-  return `${prefix}:${name}`
-}
-
 export function getActualStorageKey (key : string) : string {
   if (!key.endsWith(STORAGE_ENCRYPTED_SUFFIX)) {
     return key

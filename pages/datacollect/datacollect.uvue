@@ -1,5 +1,5 @@
 <template>
-	<view class="page">
+	<scroll-view class="page">
 		<view class="section">
 			<text class="h2">数据采集开关 · setOptions</text>
 			<text class="desc">通过 setOptions({ dataCollect: boolean }) 动态控制 SDK 是否采集数据。关闭后 track / 自动事件均不会上报，重新开启后恢复。</text>
@@ -35,7 +35,7 @@
 			<text class="label">操作记录：</text>
 			<text class="val" v-for="(log, index) in logs" :key="index">{{ log }}</text>
 		</view>
-	</view>
+	</scroll-view>
 </template>
 
 <script setup lang="uts">
@@ -79,7 +79,7 @@ function onInvalidParams() {
 </script>
 
 <style>
-.page { padding: 20rpx; }
+.page { padding: 20rpx; flex: 1; }
 .section { background: #fff; padding: 20rpx; margin-bottom: 20rpx; border-radius: 10rpx; }
 .h2 { font-size: 30rpx; font-weight: bold; }
 .desc { font-size: 24rpx; color: #666; margin: 8rpx 0 12rpx; }
