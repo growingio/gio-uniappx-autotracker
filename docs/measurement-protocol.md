@@ -28,16 +28,16 @@
 | `userId` | string | ○ | ○ | ○ | 登录用户 ID |
 | `userKey` | string | ○ | ○ | ○ | 登录用户 ID 类型：`phone` / `email` / … |
 | `sessionId` | string | ● | ● | ● | 访问会话 ID |
-| `dataSourceId` | string | ○ | ○ | ○ | CDP 特有，CDP 上为必填 |
+| `dataSourceId` | string | ● | ● | ● | 数据源 ID |
 | `eventType` | string | ● | ● | ● | 事件类型（见上表枚举） |
-| `platform` | string | ● | ● | ● | Web：`web`；小程序：`MinP`/`alip`/`bytedance`/…；App：`iOS`/`Android`/`HarmonyOS` |
+| `platform` | string | ● | ● | ● | Web：`web`；小程序：`MinP`；App：`iOS`/`Android`/`HarmonyOS` |
 | `platformVersion` | string | — | ● | ● | 小程序：宿主（微信等）版本；App：操作系统版本 |
 | `timestamp` | long | ● | ● | ● | 事件时间戳 |
 | `domain` | string | ● | ● | ● | Web：网页域名；小程序：appId；App：包标识（iOS BundleID / Android·Harmony 包名）；Hybrid 为 H5 域名 |
 | `urlScheme` | string | — | — | ● | App 链接协议（`growing.xxx`）；iOS / Android / HarmonyOS 必须上报 |
 | `appState` | string | — | — | ● | 应用前后台：`FOREGROUND` / `BACKGROUND` |
 | `appName` | string | — | — | ● | 应用名称 |
-| `path` | string | ● | ● | ○ | 页面路径。App 仅在 `PAGE`/`PAGE_ATTRIBUTES`/`CUSTOM`/`VIEW_*` 等关联页面的事件携带 |
+| `path` | string | ● | ● | ○ | 页面路径。App 仅在 `PAGE`/`VIEW_*` 等关联页面的事件携带 |
 | `query` | string | ○ | ○ | ○ | 页面查询参数（App 为 Hybrid 页面 url 的 query） |
 | `title` | string | ○ | ○ | ○ | 页面标题（App 仅 `PAGE`） |
 | `referralPage` | string | ○ | ○ | ○ | 来源页面。Web 所有事件携带；小程序 / App 仅 `PAGE` 携带 |
@@ -83,33 +83,25 @@
 
 > Web 端：同站不同页可能集成不同 SDK，`PAGE` 会再次携带 `sdkVersion` / `appVersion`。
 
-### 3.3 PAGE_ATTRIBUTES（页面级属性事件，仅 App）
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|:--:|---|
-| `pageShowTimestamp` | long | ● | 页面显示时间 |
-| `attributes` | Map<string,string> | ● | 页面级属性 |
-
-### 3.4 CUSTOM（自定义事件）
+### 3.3 CUSTOM（自定义事件）
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
 | `eventName` | string | ● | ● | ● | 自定义事件名称 |
 | `pageShowTimestamp` | long | ● | ○ | ○ | 关联页面的显示时间戳 |
 | `attributes` | Map<string,string> | ○ | ○ | ○ | 自定义事件属性 |
-| `resourceItem` | ResourceItem | ○ | ○ | ○ | 物品模型（CDP 特有，见 [4](#4-resourceitem-子模型)） |
 
-### 3.5 LOGIN_USER_ATTRIBUTES（登录用户属性事件）
+### 3.4 LOGIN_USER_ATTRIBUTES（登录用户属性事件）
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
 | `attributes` | Map<string,string> | ● | ● | ● | 登录用户属性 |
 
-### 3.6 APP_CLOSED（关闭事件）
+### 3.5 APP_CLOSED（关闭事件）
 
 无专有字段，仅携带公共字段（Web 无此事件）。
 
-### 3.7 VIEW_CLICK（元素点击事件）
+### 3.6 VIEW_CLICK（元素点击事件）
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
@@ -119,7 +111,7 @@
 | `index` | int | ○ | ○ | ○ | 列表元素序号 |
 | `hyperlink` | string | ○ | ○ | ○ | 元素的 href（Hybrid） |
 
-### 3.8 VIEW_CHANGE（输入元素改变事件）
+### 3.7 VIEW_CHANGE（输入元素改变事件）
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
@@ -129,7 +121,7 @@
 | `index` | int | ○ | ○ | ○ | 列表元素序号 |
 | `hyperlink` | string | — | — | ○ | 元素的 href（Hybrid） |
 
-### 3.9 FORM_SUBMIT（表单提交事件）
+### 3.8 FORM_SUBMIT（表单提交事件）
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
@@ -139,23 +131,11 @@
 
 ---
 
-## 4. ResourceItem 子模型
-
-`CUSTOM` 事件的 `resourceItem` 字段结构（CDP 特有）：
-
-| 字段 | 类型 | 必填 | 说明 |
-|---|---|:--:|---|
-| `id` | string | ● | 物品模型 id |
-| `key` | string | ● | 物品模型 key |
-| `attributes` | Map<string,string> | ○ | 物品模型属性 |
-
----
-
-## 5. 端间口径差异速查
+## 4. 端间口径差异速查
 
 | 维度 | Web | 小程序 | App |
 |---|---|---|---|
-| `platform` | `web` | `MinP` / `alip` / … | `iOS` / `Android` / `HarmonyOS` |
+| `platform` | `web` | `MinP` | `iOS` / `Android` / `HarmonyOS` |
 | `domain` | 网页域名 | 小程序 appId | 包标识（BundleID / 包名） |
 | `screenWidth/Height` | 逻辑像素 | 逻辑像素 | 物理像素 |
 | `path`/`title`/`referralPage` | 公共字段 | 公共字段 | 仅关联页面的事件 |
@@ -164,13 +144,12 @@
 | `operatingSystem` | 无 | 有 | 无 |
 | `networkState`/设备型号品牌 | 无 | 有 | 有 |
 | `APP_CLOSED` | 无此事件 | 有 | 有 |
-| 专属事件 | — | — | `PAGE_ATTRIBUTES` |
 | App 专属字段 | — | — | `urlScheme` / `appState` / `appName` |
 | App 专属标识 | — | — | `idfa`/`idfv`（iOS）、`oaid`/`androidId`/`imei`（Android） |
 
 ---
 
-## 6. 报文示例
+## 5. 报文示例
 
 ### Web — PAGE
 
@@ -214,7 +193,7 @@
   "domain": "wx265d0fa6fa70fae9",
   "path": "pages/index/index",
   "eventSequenceId": 1,
-  "networkState": "wifi",
+  "networkState": "WIFI",
   "appChannel": "scn:1001",
   "screenWidth": 1080,
   "screenHeight": 2400,
@@ -236,6 +215,7 @@
   "deviceId": "7196f014-d7bc-4bd8-b920-757cb2375ff6",
   "userId": "张三",
   "sessionId": "d5cbcf77-b38b-4223-954f-c6a2fdc0c098",
+  "dataSourceId": "ab66825b9f9c701a",
   "eventType": "VISIT",
   "platform": "Android",
   "platformVersion": "7.1.2",
@@ -253,7 +233,7 @@
   "deviceType": "PHONE",
   "appName": "看数小助手",
   "appVersion": "1.2.4",
-  "language": "zh_CN",
+  "language": "zh-Hans",
   "timezoneOffset": "-480",
   "oaid": "eeefbf75-3df7-15e0-ffb5-ff1ff09f1ec3",
   "sdkVersion": "3.0.1"
@@ -267,6 +247,7 @@
   "deviceId": "7196f014-d7bc-4bd8-b920-757cb2375ff6",
   "userId": "张三",
   "sessionId": "d5cbcf77-b38b-4223-954f-c6a2fdc0c098",
+  "dataSourceId": "ab66825b9f9c701a",
   "eventType": "PAGE",
   "platform": "Android",
   "platformVersion": "7.1.2",
@@ -287,7 +268,7 @@
   "deviceType": "PHONE",
   "appName": "看数小助手",
   "appVersion": "1.2.4",
-  "language": "zh_CN",
+  "language": "zh-Hans",
   "timezoneOffset": "-480",
   "sdkVersion": "3.0.1"
 }
@@ -300,6 +281,7 @@
   "deviceId": "7196f014-d7bc-4bd8-b920-757cb2375ff6",
   "userId": "张三",
   "sessionId": "d5cbcf77-b38b-4223-954f-c6a2fdc0c098",
+  "dataSourceId": "ab66825b9f9c701a",
   "eventType": "APP_CLOSED",
   "platform": "Android",
   "platformVersion": "7.1.2",
@@ -316,7 +298,7 @@
   "deviceType": "PHONE",
   "appName": "看数小助手",
   "appVersion": "1.2.4",
-  "language": "zh_CN",
+  "language": "zh-Hans",
   "timezoneOffset": "-480",
   "sdkVersion": "3.0.1"
 }
