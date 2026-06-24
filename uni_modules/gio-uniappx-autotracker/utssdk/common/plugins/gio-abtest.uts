@@ -53,17 +53,13 @@ function readObject(value : any | null) : UTSJSONObject {
   return value as UTSJSONObject
 }
 
-function readRequestErrorMessage(source : any | null) : string {
+function readRequestErrorMessage(source : RequestFail | null) : string {
   if (source == null) {
     return ''
   }
   const errMsg = source.errMsg
   if (errMsg != null) {
     return stringifyScalar(errMsg)
-  }
-  const message = source.message
-  if (message != null) {
-    return stringifyScalar(message)
   }
   const errCode = source.errCode
   if (errCode != null) {
