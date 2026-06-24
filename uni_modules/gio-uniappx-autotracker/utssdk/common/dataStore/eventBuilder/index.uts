@@ -88,6 +88,7 @@ export class GioEventBuilder {
     const titleText : string = title != null ? (title as string) : ''
     const timestamp : number = now()
     const timezoneOffset : string = `${readTimezoneOffsetMinutes()}`
+    const userKey : string | null = options.idMapping ? context.userKey : null
     return shapeTrackEvent({
       appChannel: appChannel,
       appState: systemContext.appState,
@@ -120,7 +121,7 @@ export class GioEventBuilder {
       timezoneOffset: timezoneOffset,
       title: titleText,
       userId: context.userId,
-      userKey: context.userKey,
+      userKey: userKey,
       attributes: properties
     } as GioTrackEvent)
   }

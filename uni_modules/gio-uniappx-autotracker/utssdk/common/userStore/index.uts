@@ -40,6 +40,9 @@ export class GioUserStore {
       this.getMainStorage().setItem(this.getDeviceIdKey(), this.deviceId, null)
       this.newDeviceFlag = true
     }
+    if (!options.idMapping) {
+      this.getMainStorage().removeItem(this.getUserKeyKey())
+    }
   }
 
   isNewDevice() : boolean {
