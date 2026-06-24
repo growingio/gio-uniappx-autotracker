@@ -57,7 +57,19 @@ function readRequestErrorMessage(source : any | null) : string {
   if (source == null) {
     return ''
   }
-  return (source as UTSJSONObject).getString('errMsg', '')
+  const errMsg = source.errMsg
+  if (errMsg != null) {
+    return stringifyScalar(errMsg)
+  }
+  const message = source.message
+  if (message != null) {
+    return stringifyScalar(message)
+  }
+  const errCode = source.errCode
+  if (errCode != null) {
+    return stringifyScalar(errCode)
+  }
+  return '请求失败'
 }
 
 function endOfNextDay() : number {
