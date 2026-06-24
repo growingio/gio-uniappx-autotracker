@@ -1,5 +1,5 @@
 <template>
-	<view class="page">
+	<scroll-view class="page">
 		<view class="section">
 			<text class="h2">自定义事件 · track</text>
 			<text class="desc">参考 develop showcase 补齐了常见 track 测试面，但只保留当前公开 API 能稳定验证的场景，调用方式统一为 `gdp('track', ...)`。</text>
@@ -52,7 +52,7 @@
 			<text class="label">最新动作：</text>
 			<text class="val">{{ lastAction }}</text>
 		</view>
-	</view>
+	</scroll-view>
 </template>
 
 <script setup lang="uts">
@@ -328,7 +328,7 @@ function goRoute() {
 </script>
 
 <style>
-.page { padding: 20rpx; }
+.page { padding: 20rpx; flex: 1; }
 .section { background: #fff; padding: 20rpx; margin-bottom: 20rpx; border-radius: 10rpx; }
 .h2 { font-size: 30rpx; font-weight: bold; }
 .desc { font-size: 24rpx; color: #666; margin: 8rpx 0 12rpx; }

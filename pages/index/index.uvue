@@ -1,5 +1,5 @@
 <template>
-	<view class="container">
+	<scroll-view class="container">
 		<view class="header">
 			<text class="title">GrowingIO uni-app-x SDK</text>
 			<text class="subtitle">Minimal showcase · VISIT / PAGE / APP_CLOSED / ABTest / setOptions</text>
@@ -59,7 +59,7 @@
 			</view>
 			<text class="hint">{{ lastNote }}</text>
 		</view>
-	</view>
+	</scroll-view>
 </template>
 
 <script lang="uts">
@@ -111,7 +111,7 @@ export default {
 </script>
 
 <style>
-.container { padding: 20rpx; }
+.container { padding: 20rpx; flex: 1; }
 .header { padding: 40rpx 20rpx; text-align: center; }
 .title { font-size: 40rpx; font-weight: bold; }
 .subtitle { font-size: 24rpx; color: #888; margin-top: 10rpx; }
