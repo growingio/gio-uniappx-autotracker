@@ -153,6 +153,17 @@ function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
   return copyJSONObject(options)
 }
 
+// #ifdef APP-IOS || APP-HARMONY
+function isAppInstance(self : any | null) : boolean {
+  if (self == null) {
+    return true
+  }
+  // @ts-ignore
+  const page = self.$page
+  return page == null
+}
+// #endif
+
 const lifecycle = defineMixin({
   // 各端页面实例类型不同，mixin 生命周期函数的 this / options 只能在桥接层按 any 接住，
   // 再尽快转换成明确快照对象。
@@ -171,6 +182,12 @@ const lifecycle = defineMixin({
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onShow() {
+    // #ifdef APP-IOS || APP-HARMONY
+    if (isAppInstance(this)) {
+      handleOnShow(null, null)
+      return
+    }
+    // #endif
     const pageSnapshot = buildPageSnapshot()
     handleOnShow(
       pageSnapshot,
@@ -180,6 +197,12 @@ const lifecycle = defineMixin({
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onHide() {
+    // #ifdef APP-IOS || APP-HARMONY
+    if (isAppInstance(this)) {
+      handleOnHide(null)
+      return
+    }
+    // #endif
     handleOnHide(buildPageSnapshot())
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
