@@ -22,6 +22,7 @@ type GioQueuedEvent = {
 
 const MAX_BATCH_SIZE = 50
 const MAX_RETRY_COUNT = 2
+const DEFAULT_MAX_BATCH_PAYLOAD_BYTES = 512 * 1024
 const DEFAULT_MP_REQUEST_TIMEOUT_MS = 5000
 
 export class GioUploader {
@@ -251,7 +252,7 @@ export class GioUploader {
 
   private dequeueBatch() : Array<GioQueuedEvent> {
     const maxBatchSize = this.getMaxBatchSize()
-    const maxPayloadBytes = resolveUploadMaxBatchPayloadBytes()
+    const maxPayloadBytes = resolveUploadMaxBatchPayloadBytes(DEFAULT_MAX_BATCH_PAYLOAD_BYTES)
     if (maxPayloadBytes > 0) {
       return this.dequeuePayloadLimitedBatch(maxBatchSize, maxPayloadBytes)
     }

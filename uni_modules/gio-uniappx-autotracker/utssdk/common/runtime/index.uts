@@ -194,13 +194,13 @@ export function resolveUploadMaxBatchSize (fallback : number) : number {
   return size > 0 ? size : fallback
 }
 
-export function resolveUploadMaxBatchPayloadBytes () : number {
+export function resolveUploadMaxBatchPayloadBytes (fallback : number) : number {
   const policy = registeredUploadPolicy
   if (policy == null) {
-    return 0
+    return fallback
   }
   const bytes = policy.getMaxBatchPayloadBytes()
-  return bytes > 0 ? bytes : 0
+  return bytes > 0 ? bytes : fallback
 }
 
 export function resolveMainStorage (
