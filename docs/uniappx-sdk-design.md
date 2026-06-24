@@ -237,7 +237,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 控制队列上限
 - 序列化批量请求体
 - 通过 `uni.request` 发起请求
-- 避免并发重复 flush
+- 控制受限并发，避免无界重复 flush
 - `identify` 成功后把积压队列释放到正式发送队列
 
 当前实现选择“积极 flush”策略：
@@ -251,7 +251,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 当前这些发送策略完全由 SDK 内部固定控制，不提供外部手动 `flush()` 入口。
 
-`mp-weixin` 端会对 flush 做固定节流，避免小程序端高频事件触发过密请求；其他端是否延迟 flush 由平台 runtime resolver 决定。
+`mp-weixin` 端会对 flush 做固定节流，避免小程序端高频事件触发过密请求；节流窗口触发后，如果请求体超过大小阈值被拆成多批，拆出的批次会立即受控并发发送，最多同时 3 个请求。其他端是否延迟 flush 由平台 runtime resolver 决定，默认不启用小程序的 3 并发策略。
 
 ### `forceLogin` / `identify`
 
