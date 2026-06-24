@@ -12,6 +12,7 @@
 - `gdp('setUserId', ...)`
 - `gdp('setOptions', { dataCollect })`
 - `gdp('setLocation', latitude, longitude)`（非 web 端）
+- `gdp('clearLocation')`（非 web 端）
 - `gdp('setUserAttributes', ...)`
 - `gdp('clearUserId')`
 - `gdp('identify', ...)`
@@ -19,7 +20,7 @@
 - `gdp('getABTest', ...)`
 - 微信小程序端分享包装器：`wrapShareAppMessage`、`wrapShareTimeline`、`wrapAddToFavorites`
 
-`setLocation` 只在非 web 端生效。参数必须是合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`。设置后，后续事件会携带 `latitude` / `longitude`；该值当前保存在运行时内存中，不做持久化。
+`setLocation` / `clearLocation` 只在非 web 端生效。`setLocation` 参数必须是合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`。设置后，后续事件会携带 `latitude` / `longitude`；调用 `clearLocation` 后，后续事件不再携带经纬度。该值当前保存在运行时内存中，不做持久化。
 
 `setOptions` 当前只允许动态修改 `dataCollect`，不能作为通用运行时配置入口使用。传入其他字段不会扩展核心状态。
 

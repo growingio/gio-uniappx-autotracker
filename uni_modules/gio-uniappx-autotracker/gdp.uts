@@ -2,6 +2,7 @@
 // 该文件位于 utssdk 之外，属于 JS 编译层，只负责参数校验、命令分发和生命周期安装，
 // 不直接承接原生编译层的核心采集逻辑。
 import {
+  clearLocation,
   clearUserId,
   getABTest,
   identify,
@@ -162,6 +163,9 @@ export function gdp(
       return false
     }
     return setLocation(arg0 as number, arg1 as number)
+  }
+  if (command == 'clearLocation') {
+    return clearLocation()
   }
   if (command == 'setUserAttributes') {
     if (arg0 != null && !isObjectArgument(arg0)) {

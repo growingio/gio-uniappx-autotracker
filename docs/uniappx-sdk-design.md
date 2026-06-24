@@ -129,6 +129,7 @@ gio-uniappx-autotracker/
 - `gdp('setUserId', userId, userKey = null)`
 - `gdp('setOptions', { dataCollect })`
 - `gdp('setLocation', latitude, longitude)`（非 web 端）
+- `gdp('clearLocation')`（非 web 端）
 - `gdp('setUserAttributes', userAttributes)`
 - `gdp('clearUserId')`
 - `gdp('registerPlugins', plugins)`
@@ -159,6 +160,7 @@ UTS 约束说明：
 - `track` 直接按独立 SDK 风格使用 `gdp('track', eventName, properties)`
 - `setOptions` 参数必须显式包含布尔字段 `dataCollect`，当前不允许借此修改其他初始化项
 - `setLocation` 只接受合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`；web 端调用会返回 `false`
+- `clearLocation` 清空运行时经纬度状态；web 端调用会返回 `false`
 - `flush`、`autoTrackLifecycle`、`requestTimeoutMs`、`maxQueueSize`、`storagePrefix`、`header` 都不再对外透出，也不允许传入初始化配置
 - 当前插件层只支持 `gioABTest`
 - 插件注册方式先按小程序独立 SDK 思路对齐：先 `gdp('registerPlugins', [...])`，再调用 `gdp('getABTest', ...)`
@@ -183,7 +185,7 @@ UTS 约束说明：
 - 等待异步设备信息和网络信息就绪后，再真正构建事件并入队
 - 首屏 `VISIT` / `PAGE` 也不能例外，必须等上下文 ready 后才能发送
 - 只消费稳定的初始化配置、页面快照、启动参数快照，不直接依赖原始页面实例
-- 只编排 `setLocation` 的校验和平台限制，实际经纬度状态由 `dataStore` 保存并进入事件构建
+- 只编排 `setLocation` / `clearLocation` 的校验和平台限制，实际经纬度状态由 `dataStore` 保存并进入事件构建
 
 边界约束：
 
@@ -396,7 +398,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 其中 `protocolType` 按独立 web SDK 的行为对齐：只在 `web` 端的 `PAGE` 事件上报，例如 `http`、`https`；其他事件和其他平台都不带这个字段。
 
-其中 `latitude` / `longitude` 由 `gdp('setLocation', latitude, longitude)` 写入运行时状态。该 API 仅非 web 端支持，设置后影响后续事件构建；当前不做持久化，运行时重建后需要业务重新设置。
+其中 `latitude` / `longitude` 由 `gdp('setLocation', latitude, longitude)` 写入运行时状态，由 `gdp('clearLocation')` 清空。该能力仅非 web 端支持，设置或清空后影响后续事件构建；当前不做持久化，运行时重建后需要业务重新设置。
 
 对外 API 直接按独立 SDK 风格使用 `gdp('track', eventName, properties)`。业务传入的 `properties` 在真正构建请求体时会被归一化后映射到独立 SDK 风格的 `attributes` 字段。
 
@@ -623,7 +625,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 业务事件可通过 `gdp('track', eventName, properties)` 上报
 - `userId` 和 `userKey` 可在运行时更新
 - `dataCollect` 可通过 `setOptions({ dataCollect })` 动态切换
-- 非 web 端可通过 `setLocation(latitude, longitude)` 给后续事件补充经纬度
+- 非 web 端可通过 `setLocation(latitude, longitude)` 给后续事件补充经纬度，也可通过 `clearLocation()` 清空经纬度
 - 待发送事件会按 SDK 内部发送策略自动上报
 
 ## 14. 当前已知缺口
@@ -634,6 +636,6 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 当前 route / title 提取仍然只是“尽力提取”策略，后续还需要结合真实 uni-app x 页面对象继续收敛
 - 当前虽然已经把路由解析集中到了 `route.uts`，但不同端的页面对象字段还需要继续补充更多真实样本验证
 - 当前设备与网络字段虽然已经切到官方异步 API 驱动，但还需要继续做五端真机 / 模拟器样本校验，确认各端返回字段名没有额外差异
-- 当前 `setLocation` 保存在运行时内存，不跨运行时重建持久化；如果后续要长期沿用，需要补存储语义并更新事件构建规则
+- 当前 `setLocation` / `clearLocation` 只操作运行时内存，不跨运行时重建持久化；如果后续要长期沿用，需要补存储语义并更新事件构建规则
 
 这些缺口是当前基线的已知边界。对外交付或对齐独立 SDK 前，需要逐项补验证证据，不能把文档里的能力边界当作真实五端通过证明。

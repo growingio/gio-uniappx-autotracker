@@ -65,6 +65,19 @@
 			<text class="hint">该调用会通过 `gdp('setUserAttributes', ...)` 单独发送一条 LOGIN_USER_ATTRIBUTES 类型事件。</text>
 		</view>
 
+		<view class="section">
+			<text class="section-title">位置信息 / setLocation / clearLocation</text>
+			<text class="field-label">latitude</text>
+			<input class="input" v-model="latitudeInput" placeholder="纬度，如 31.2304" />
+			<text class="field-label">longitude</text>
+			<input class="input" v-model="longitudeInput" placeholder="经度，如 121.4737" />
+			<view class="btn-row">
+				<button class="btn subtle" @click="onSetLocation">setLocation(latitude, longitude)</button>
+				<button class="btn danger" @click="onClearLocation">clearLocation()</button>
+			</view>
+			<text class="expect">非 web 端：设置后后续事件携带经纬度；clear 后不再携带。web 端调用返回 false。</text>
+		</view>
+
 		<view class="result">
 			<text class="label">最新动作：</text>
 			<text class="val">{{ lastAction }}</text>
@@ -80,6 +93,8 @@ const userKeyInput = ref('mobile')
 const identifyValidInput = ref('demo_openid_001')
 const attributeKeyInput = ref('member_level')
 const attributeValueInput = ref('gold')
+const latitudeInput = ref('31.2304')
+const longitudeInput = ref('121.4737')
 const lastAction = ref('(none)')
 
 function note(msg: string) {
@@ -162,6 +177,44 @@ function onSetUserAttributes() {
 	attributes[key] = attributeValueInput.value
 	gdp('setUserAttributes', attributes)
 	note('setUserAttributes({ ' + key + ': ' + attributeValueInput.value + ' })')
+}
+
+function parseCoordinate(value : string) : number | null {
+	const trimmed = value.trim()
+	if (trimmed.length == 0) {
+		return null
+	}
+	if (trimmed.match(/^[-+]?\d+(\.\d+)?$/) == null) {
+		return null
+	}
+	const coordinate = parseFloat(trimmed)
+	if (coordinate != coordinate) {
+		return null
+	}
+	return coordinate
+}
+
+function onSetLocation() {
+	const latitude = parseCoordinate(latitudeInput.value)
+	const longitude = parseCoordinate(longitudeInput.value)
+	if (latitude == null || longitude == null) {
+		note('latitude/longitude 需为有效数字')
+		return
+	}
+	const ok = gdp('setLocation', latitude, longitude) as boolean
+	note(
+		'setLocation(' +
+			latitude.toString() +
+			', ' +
+			longitude.toString() +
+			') → ' +
+			ok,
+	)
+}
+
+function onClearLocation() {
+	const ok = gdp('clearLocation') as boolean
+	note('clearLocation() → ' + ok)
 }
 </script>
 

@@ -153,6 +153,12 @@ export class GioDataStore {
     return true
   }
 
+  clearLocation() : boolean {
+    this.locationLatitude = null
+    this.locationLongitude = null
+    return true
+  }
+
   isSystemReady() : boolean {
     return this.systemContext.isReady()
   }

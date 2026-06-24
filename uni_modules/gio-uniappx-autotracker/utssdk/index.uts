@@ -80,6 +80,10 @@ export function setLocation(latitude : number, longitude : number) : boolean {
   return tracker.setLocation(latitude, longitude)
 }
 
+export function clearLocation () : boolean {
+  return tracker.clearLocation()
+}
+
 export function setUserAttributes (userAttributes : UTSJSONObject | null) : boolean {
   return tracker.setUserAttributes(userAttributes)
 }
