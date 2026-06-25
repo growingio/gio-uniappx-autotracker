@@ -115,8 +115,8 @@ export class GioUserStore {
     return numberifyScalar(value)
   }
 
-  private persistLastActiveAt(ts : number, expiredAt : number) {
-    this.getMainStorage().setItem(this.getLastActiveKey(), ts, expiredAt)
+  private persistLastActiveAt(ts : number) {
+    this.getMainStorage().setItem(this.getLastActiveKey(), ts, null)
   }
 
   private readLegacySessionExpiresAt() : number {
@@ -226,7 +226,7 @@ export class GioUserStore {
     } else {
       this.memorySessionId = sessionId
     }
-    this.persistLastActiveAt(ts, ts + timeoutMs)
+    this.persistLastActiveAt(ts)
     this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
     if (timedOut) {
       this.emitSessionIdUpdate(sessionId, previousSessionId)
@@ -235,8 +235,8 @@ export class GioUserStore {
     return null
   }
 
-  touchSession(timeoutMs : number) {
-    this.persistLastActiveAt(now(), now() + timeoutMs)
+  touchSession(_timeoutMs : number) {
+    this.persistLastActiveAt(now())
   }
 
   setUserId(userId : string) {
@@ -272,7 +272,7 @@ export class GioUserStore {
     } else {
       this.memorySessionId = sessionId
     }
-    this.persistLastActiveAt(ts, ts + timeoutMs)
+    this.persistLastActiveAt(ts)
     this.emitSessionIdUpdate(sessionId, previousSessionId)
   }
 

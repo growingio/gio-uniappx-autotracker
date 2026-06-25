@@ -415,6 +415,21 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.syncMiniProgramEntry(this.resolveMiniProgramEntryInfo(null))
   }
 
+  private shouldRenewMiniProgramSessionOnAppShow(
+    entryInfo : GioMiniProgramEntryInfo | null
+  ) : boolean {
+    if (!this.mpWeixinEnabled || this.lastAppHideAt <= 0) {
+      return false
+    }
+    if (now() - this.lastAppHideAt > this.getSessionTimeoutMs()) {
+      return true
+    }
+    return entryInfo != null &&
+      entryInfo.scene.length > 0 &&
+      this.lastAppScene.length > 0 &&
+      entryInfo.scene != this.lastAppScene
+  }
+
   private pushInternalEvent(
     name : string,
     eventType : string,
@@ -854,13 +869,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       : null
     this.syncMiniProgramEntry(entryInfo)
     this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))
-    if (
-      entryInfo != null &&
-      this.lastAppHideAt > 0 &&
-      entryInfo.scene.length > 0 &&
-      this.lastAppScene.length > 0 &&
-      entryInfo.scene != this.lastAppScene
-    ) {
+    if (this.shouldRenewMiniProgramSessionOnAppShow(entryInfo)) {
       this.userStore.renewSession(this.getSessionTimeoutMs())
     }
     if (!this.dataStore.hasCurrentPage()) {
