@@ -28,9 +28,8 @@ export class GioEventBuilder {
     pageContext : GioPageContext | null,
     originalSource : GioOriginalSource | null
   ) : GioPageContext | null {
-    let resolvedPageContext = resolveRuntimePageContext(pageContext)
     if (eventType == 'VISIT' && originalSource != null) {
-      resolvedPageContext = {
+      return {
         path: originalSource.path,
         query: originalSource.query,
         title: originalSource.title,
@@ -38,7 +37,7 @@ export class GioEventBuilder {
         duration: pageContext != null ? pageContext.duration : null
       } as GioPageContext
     }
-    return resolvedPageContext
+    return resolveRuntimePageContext(pageContext)
   }
 
   buildEvent(
