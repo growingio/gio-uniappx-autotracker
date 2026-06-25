@@ -93,10 +93,18 @@ export class GioPageStore {
     // 这里显式收成 string，避免 Swift 把路由结果的非空字符串局部变量降成 `String?`，
     // 影响后续 `.length` 判断和当前页字段赋值。
     const nextPath : string = routeInfo.path
-    const nextQuery : string = routeInfo.query
+    let nextQuery : string = routeInfo.query
     const nextTitle : string = routeInfo.title
     if (nextPath.length == 0 && this.currentPagePath.length == 0) {
       return null
+    }
+    if (
+      nextQuery.length == 0 &&
+      nextPath.length > 0 &&
+      nextPath == this.currentPagePath &&
+      this.currentPageQuery.length > 0
+    ) {
+      nextQuery = this.currentPageQuery
     }
     const currentSignature = buildRouteSignature(
       this.currentPagePath,
