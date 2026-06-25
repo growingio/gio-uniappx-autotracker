@@ -85,7 +85,10 @@ export class GioDataStore {
     if (handlers == null) {
       return
     }
-    const pageContext = this.buildCurrentPageContext(null)
+    let pageContext = this.buildCurrentPageContext(null)
+    if (pageContext == null) {
+      pageContext = this.buildLastVisitPageContext()
+    }
     handlers.emitVisit(pageContext)
     if (handlers.shouldEmitPage()) {
       handlers.emitPage(pageContext)

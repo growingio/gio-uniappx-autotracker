@@ -131,13 +131,13 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       this.storage,
       {
         emitVisit: (pageContext : GioPageContext | null) => {
-          this.emitVisitEvent(pageContext)
+          this.emitVisitEvent(pageContext, true)
         },
         emitPage: (pageContext : GioPageContext | null) => {
           this.emitPageEvent(pageContext)
         },
         shouldEmitPage: () : boolean => {
-          return this.currentPageShown
+          return platformName() == 'web' && this.currentPageShown
         }
       }
     )
@@ -335,9 +335,9 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.dataStore.setStartupPageContext(this.buildStartupPageContext(entryInfo))
   }
 
-  private emitVisitEvent(pageContext : GioPageContext | null) {
+  private emitVisitEvent(pageContext : GioPageContext | null, flushAfter : boolean = false) {
     this.dataStore.maybeStoreOriginalSource(pageContext)
-    this.pushInternalEvent('visit', 'VISIT', null, pageContext)
+    this.pushInternalEvent('visit', 'VISIT', null, pageContext, flushAfter)
   }
 
   private maybeEmitVisit(pageContext : GioPageContext | null) : boolean {
