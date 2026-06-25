@@ -363,31 +363,16 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return true
   }
 
-  private buildAttributes(
-    eventType : string,
-    properties : UTSJSONObject | null,
-    pageContext : GioPageContext | null
-  ) : UTSJSONObject | null {
-    let attributes : UTSJSONObject | null = properties
-    if (eventType == 'APP_CLOSED' && pageContext != null && pageContext.duration != null) {
-      attributes = {
-        duration: pageContext.duration
-      } as UTSJSONObject
-    }
-    return attributes
-  }
-
   private buildEvent(
     name : string,
     eventType : string,
     properties : UTSJSONObject | null,
     pageContext : GioPageContext | null
   ) : GioTrackEvent {
-    const attributes = this.buildAttributes(eventType, properties, pageContext)
     return this.dataStore.buildEvent(
       name,
       eventType,
-      attributes,
+      properties,
       pageContext,
       this.buildAppChannel()
     )
@@ -879,10 +864,6 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return
     }
-    const resolvedAppState = this.resolveAppState(appState, false)
-    this.dataStore.updateAppState(
-      resolvedAppState
-    )
     this.currentPageShown = false
     let duration : number | null = null
     const currentPageShowAt = this.dataStore.getCurrentPageShowAt()
@@ -896,19 +877,19 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       pageContext,
       duration != null ? `duration=${duration}` : null
     )
-    if (!shouldTrackAppClosed()) {
-      return
+    if (shouldTrackAppClosed()) {
+      this.lastAppHideAt = now()
+      this.lastAppScene = this.miniProgramScene
+      this.userStore.touchSession(this.getSessionTimeoutMs())
+      this.pushInternalEvent(
+        'close',
+        'APP_CLOSED',
+        null,
+        pageContext,
+        true
+      )
     }
-    this.lastAppHideAt = now()
-    this.lastAppScene = this.miniProgramScene
-    this.userStore.touchSession(this.getSessionTimeoutMs())
-    this.pushInternalEvent(
-      'close',
-      'APP_CLOSED',
-      null,
-      pageContext,
-      true
-    )
+    this.dataStore.updateAppState(this.resolveAppState(appState, false))
   }
 
   getContext() : GioContext | null {

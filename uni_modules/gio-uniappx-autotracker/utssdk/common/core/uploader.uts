@@ -185,9 +185,11 @@ export class GioUploader {
   private toEventJSONObject(event : GioTrackEvent) : UTSJSONObject {
     const payload = {
       appChannel: event.appChannel,
+      appName: event.appName,
       appState: event.appState,
       appVersion: event.appVersion,
       dataSourceId: event.dataSourceId,
+      urlScheme: event.urlScheme,
       deviceBrand: event.deviceBrand,
       deviceId: event.deviceId,
       deviceModel: event.deviceModel,
