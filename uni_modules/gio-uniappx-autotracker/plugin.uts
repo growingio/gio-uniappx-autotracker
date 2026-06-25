@@ -214,15 +214,25 @@ const lifecycle = defineMixin({
       buildPageOptionsSnapshot(options)
     )
   },
+  // #ifdef MP-WEIXIN
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onShow(options : any | null) {
-    // #ifdef MP-WEIXIN
     const launchOptions = buildLaunchOptionsSnapshot(options)
     if (isLaunchOptionsSnapshot(launchOptions)) {
       return
     }
-    // #endif
+    const pageSnapshot = buildPageSnapshot()
+    handleOnShow(
+      pageSnapshot,
+      null
+    )
+  },
+  // #endif
+  // #ifndef MP-WEIXIN
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onShow() {
     // #ifdef APP-IOS || APP-HARMONY
     if (isAppInstance(this)) {
       handleOnShow(null, null)
@@ -235,6 +245,7 @@ const lifecycle = defineMixin({
       null
     )
   },
+  // #endif
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onHide() {
