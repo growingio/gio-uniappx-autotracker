@@ -1,7 +1,14 @@
 <script lang="uts">
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
+
 export default {
+	onLaunch() {
+		console.log('app onLaunch')
+		gdp('track', 'app_onLaunch')
+	},
 	onShow() {
 		console.log('app onShow')
+		gdp('track', 'app_onShow')
 	},
 }
 </script>
