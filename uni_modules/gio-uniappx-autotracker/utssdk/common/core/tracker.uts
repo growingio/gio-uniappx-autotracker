@@ -70,6 +70,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   private uploader : GioUploader = new GioUploader()
   private dataStore : GioDataStore = new GioDataStore()
   private pendingVisit : boolean = false
+  private sessionUpdateReady : boolean = false
   private abTestPlugin : GioABTestPlugin | null = null
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
   private firstPageDispatchWaiting : boolean = false
@@ -116,6 +117,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       return false
     }
     this.options = resolvedOptions
+    this.sessionUpdateReady = false
     syncConfigToGlobal(this.options)
     this.mpWeixinEnabled = this.isMpWeixinPlatform()
     this.storage.initialize(this.options)
@@ -137,8 +139,11 @@ export class GioTracker implements GioABTestHost, GioShareHost {
         emitPage: (pageContext : GioPageContext | null) => {
           this.emitPageEvent(pageContext)
         },
-        shouldEmitPage: () : boolean => {
-          return platformName() == 'web' && this.currentPageShown
+        shouldHandleSessionUpdate: () : boolean => {
+          return this.sessionUpdateReady
+        },
+        shouldEmitPage: (pageContext : GioPageContext | null) : boolean => {
+          return platformName() == 'web' && pageContext != null
         }
       }
     )
@@ -146,6 +151,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     this.initialized = true
     this.initializeSessionState()
     this.recordVisitSessionIfNewDevice()
+    this.sessionUpdateReady = true
     consoleText(this.getInitCompleteMessage(), 'success')
     if (this.options.forceLogin == true) {
       consoleText(
@@ -354,7 +360,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       this.getSessionTimeoutMs()
     )
     if (previousSessionId != null) {
-      if (previousSessionId.length == 0) {
+      if (previousSessionId.length == 0 && !this.sessionUpdateReady) {
         this.pendingVisit = true
       } else {
         // 旧 session 续期时，session 监听器已经立即补发 VISIT / PAGE，

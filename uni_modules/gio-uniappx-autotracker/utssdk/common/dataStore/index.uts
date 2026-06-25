@@ -28,7 +28,8 @@ const SENT_SIGN_SUFFIX = '_gdp_session_id_sent'
 export type GioSessionUpdateHandlers = {
   emitVisit : (pageContext : GioPageContext | null) => void
   emitPage : (pageContext : GioPageContext | null) => void
-  shouldEmitPage : () => boolean
+  shouldHandleSessionUpdate : () => boolean
+  shouldEmitPage : (pageContext : GioPageContext | null) => boolean
 }
 
 export class GioDataStore {
@@ -79,12 +80,9 @@ export class GioDataStore {
     })
   }
 
-  private handleSessionIdUpdate(payload : GioSessionIdUpdatePayload) {
-    if (payload.oldSessionId.length == 0) {
-      return
-    }
+  private handleSessionIdUpdate(_payload : GioSessionIdUpdatePayload) {
     const handlers = this.sessionUpdateHandlers
-    if (handlers == null) {
+    if (handlers == null || !handlers.shouldHandleSessionUpdate()) {
       return
     }
     let pageContext = this.buildCurrentPageContext(null)
@@ -92,7 +90,7 @@ export class GioDataStore {
       pageContext = this.buildLastVisitPageContext()
     }
     handlers.emitVisit(pageContext)
-    if (handlers.shouldEmitPage()) {
+    if (handlers.shouldEmitPage(pageContext)) {
       handlers.emitPage(pageContext)
     }
   }
