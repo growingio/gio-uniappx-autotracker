@@ -70,6 +70,13 @@ function normalizeDeviceBrand(osName : string, deviceBrand : string) : string {
   return deviceBrand
 }
 
+function miniProgramHostName(platform : string) : string {
+  if (platform == 'mp-weixin') {
+    return 'Weixin'
+  }
+  return 'MinP'
+}
+
 function normalizeNetworkState(rawValue : string) : string {
   const lowerValue = rawValue.toLowerCase()
   if (lowerValue == '2g') {
@@ -117,21 +124,29 @@ function buildSystemContext(
   )
   const currentPlatform = readTextField(systemInfo, ['uniPlatform', 'platform'])
   const isApp = !(currentPlatform == 'web' || currentPlatform.startsWith('mp-'))
+  const isMiniProgram = currentPlatform.startsWith('mp-')
   const rawLanguage = readTextField(systemInfo, ['appLanguage', 'language'])
+  const rawDeviceBrand = readTextField(systemInfo, ['deviceBrand', 'brand'])
+  const miniProgramHost = miniProgramHostName(currentPlatform)
+  const miniProgramOS = miniProgramHost + '-' + osLabel
+  let platformVersion = version.length > 0 ? version : osLabel
+  if (isMiniProgram) {
+    platformVersion = version.length > 0 ? miniProgramHost + ' ' + version : miniProgramHost
+  }
 
   return {
     appName: isApp ? readTextField(systemInfo, ['appName']) : '',
     appState: appState,
     bundleId: readTextField(systemInfo, ['bundleId']),
     isApp: isApp,
-    deviceBrand: normalizeDeviceBrand(osName, readTextField(systemInfo, ['deviceBrand', 'brand'])),
+    deviceBrand: isMiniProgram ? rawDeviceBrand : normalizeDeviceBrand(osName, rawDeviceBrand),
     deviceModel: resolveIosDeviceModel(readTextField(systemInfo, ['deviceModel', 'model'])),
-    deviceType: deviceType,
+    deviceType: isMiniProgram ? miniProgramOS : deviceType,
     language: isApp ? rawLanguage : shortLanguage(rawLanguage),
     networkState: normalizeNetworkState(networkState),
-    operatingSystem: osLabel,
-    platform: osLabel,
-    platformVersion: version.length > 0 ? version : osLabel,
+    operatingSystem: isMiniProgram ? miniProgramOS : osLabel,
+    platform: isMiniProgram ? 'MinP' : osLabel,
+    platformVersion: platformVersion,
     screenHeight: screenHeight,
     screenWidth: screenWidth
   } as GioSystemContext
