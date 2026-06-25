@@ -6,6 +6,7 @@ import {
   GioPageContext,
   GioPageSnapshot,
   GioStorage,
+  GioSystemContextResolver,
   GioTrackEvent
 } from '../../interface.uts'
 import {
@@ -141,6 +142,10 @@ export class GioDataStore {
 
   updateAppState(appState : string | null) {
     this.systemContext.setAppState(appState)
+  }
+
+  setSystemContextResolver(resolver : GioSystemContextResolver | null) {
+    this.systemContext.setSystemContextResolver(resolver)
   }
 
   setLocation(latitude : number, longitude : number) : boolean {

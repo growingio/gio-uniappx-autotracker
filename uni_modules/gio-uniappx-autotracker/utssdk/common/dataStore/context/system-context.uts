@@ -6,6 +6,10 @@ import {
   platformName
 } from '../../utils/system.uts'
 import { resolveIosDeviceModel } from '../../utils/device-model.uts'
+import {
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../../../interface.uts'
 
 
 type GioSystemReadyCallback = () => void
@@ -53,30 +57,6 @@ function osDisplayName(rawValue : string) : string {
   return rawValue
 }
 
-function mapDeviceType(osName : string, deviceType : string) : string {
-  if (osName.toLowerCase().indexOf('ios') >= 0) {
-    return deviceType.toLowerCase() == 'pad' ? 'iPad' : 'iPhone'
-  }
-  if (deviceType.length > 0) {
-    return deviceType
-  }
-  return osDisplayName(osName)
-}
-
-function normalizeDeviceBrand(osName : string, deviceBrand : string) : string {
-  if (osName.toLowerCase().indexOf('ios') >= 0) {
-    return 'Apple'
-  }
-  return deviceBrand
-}
-
-function miniProgramHostName(platform : string) : string {
-  if (platform == 'mp-weixin') {
-    return 'Weixin'
-  }
-  return 'MinP'
-}
-
 function normalizeNetworkState(rawValue : string) : string {
   const lowerValue = rawValue.toLowerCase()
   if (lowerValue == '2g') {
@@ -113,25 +93,41 @@ function buildSystemContext(
   networkState : string,
   appState : string | null,
   screenWidth : number,
-  screenHeight : number
+  screenHeight : number,
+  systemContextResolver : GioSystemContextResolver | null
 ) : GioSystemContext {
   const osName = readTextField(systemInfo, ['osName', 'platform'])
   const osLabel = osDisplayName(osName)
   const version = readTextField(systemInfo, ['osVersion', 'version'])
-  const deviceType = mapDeviceType(
-    osName,
-    readTextField(systemInfo, ['deviceType'])
-  )
+  const rawDeviceType = readTextField(systemInfo, ['deviceType'])
+  const deviceType = rawDeviceType.length > 0 ? rawDeviceType : osLabel
   const currentPlatform = readTextField(systemInfo, ['uniPlatform', 'platform'])
-  const isApp = !(currentPlatform == 'web' || currentPlatform.startsWith('mp-'))
   const isMiniProgram = currentPlatform.startsWith('mp-')
+  const isApp = !(currentPlatform == 'web' || isMiniProgram)
   const rawLanguage = readTextField(systemInfo, ['appLanguage', 'language'])
   const rawDeviceBrand = readTextField(systemInfo, ['deviceBrand', 'brand'])
-  const miniProgramHost = miniProgramHostName(currentPlatform)
-  const miniProgramOS = miniProgramHost + '-' + osLabel
-  let platformVersion = version.length > 0 ? version : osLabel
-  if (isMiniProgram) {
-    platformVersion = version.length > 0 ? miniProgramHost + ' ' + version : miniProgramHost
+  let resolvedDeviceBrand = rawDeviceBrand
+  let resolvedDeviceType = deviceType
+  let resolvedOperatingSystem = osLabel
+  let resolvedPlatform = osLabel
+  let resolvedPlatformVersion = version.length > 0 ? version : osLabel
+  if (systemContextResolver != null) {
+    const resolvedSystemContext : GioSystemContextFields | null =
+      systemContextResolver.resolveSystemContext(
+        systemInfo,
+        osName,
+        osLabel,
+        version,
+        rawDeviceBrand,
+        deviceType
+      )
+    if (resolvedSystemContext != null) {
+      resolvedDeviceBrand = resolvedSystemContext.deviceBrand
+      resolvedDeviceType = resolvedSystemContext.deviceType
+      resolvedOperatingSystem = resolvedSystemContext.operatingSystem
+      resolvedPlatform = resolvedSystemContext.platform
+      resolvedPlatformVersion = resolvedSystemContext.platformVersion
+    }
   }
 
   return {
@@ -139,14 +135,14 @@ function buildSystemContext(
     appState: appState,
     bundleId: readTextField(systemInfo, ['bundleId']),
     isApp: isApp,
-    deviceBrand: isMiniProgram ? rawDeviceBrand : normalizeDeviceBrand(osName, rawDeviceBrand),
+    deviceBrand: resolvedDeviceBrand,
     deviceModel: resolveIosDeviceModel(readTextField(systemInfo, ['deviceModel', 'model'])),
-    deviceType: isMiniProgram ? miniProgramOS : deviceType,
+    deviceType: resolvedDeviceType,
     language: isApp ? rawLanguage : shortLanguage(rawLanguage),
     networkState: normalizeNetworkState(networkState),
-    operatingSystem: isMiniProgram ? miniProgramOS : osLabel,
-    platform: isMiniProgram ? 'MinP' : osLabel,
-    platformVersion: platformVersion,
+    operatingSystem: resolvedOperatingSystem,
+    platform: resolvedPlatform,
+    platformVersion: resolvedPlatformVersion,
     screenHeight: screenHeight,
     screenWidth: screenWidth
   } as GioSystemContext
@@ -167,6 +163,7 @@ export class GioSystemContextManager {
   private appState : string | null = getDefaultAppState()
   private screenWidth : number = 0
   private screenHeight : number = 0
+  private systemContextResolver : GioSystemContextResolver | null = null
   private context : GioSystemContext = {
     appName: '',
     appState: getDefaultAppState(),
@@ -219,6 +216,13 @@ export class GioSystemContextManager {
     this.updateContext()
   }
 
+  setSystemContextResolver(resolver : GioSystemContextResolver | null) {
+    this.systemContextResolver = resolver
+    if (this.systemReady) {
+      this.updateContext()
+    }
+  }
+
   getContext() : GioSystemContext {
     return this.context
   }
@@ -245,7 +249,8 @@ export class GioSystemContextManager {
       this.networkState,
       this.appState,
       this.screenWidth,
-      this.screenHeight
+      this.screenHeight,
+      this.systemContextResolver
     )
   }
 
