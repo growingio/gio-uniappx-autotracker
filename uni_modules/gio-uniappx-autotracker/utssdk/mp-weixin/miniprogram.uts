@@ -12,10 +12,10 @@ function readSceneFromQuery(source : any | null) : string {
   }
   const raw = source as UTSJSONObject
   const shoppingListScene = raw['wxShoppingListScene']
-  if (shoppingListScene == null) {
-    return ''
+  if (shoppingListScene != null) {
+    return `${shoppingListScene}`
   }
-  return `${shoppingListScene}`
+  return ''
 }
 
 function readSceneFromOptions(source : any | null) : string {
@@ -273,6 +273,7 @@ function buildReferralPage(
 }
 
 function getMiniProgramEnterOptions() : any | null {
+  // @ts-ignore: HBuilderX 当前 mp-weixin lint 未把 uni-getEnterOptionsSync 扩展合入 Uni。
   return uni.getEnterOptionsSync()
 }
 
@@ -293,35 +294,36 @@ export function resolveMiniProgramEntryInfo(
   fallbackOptions : any | null = null
 ) : GioMiniProgramEntryInfo | null {
   const enterOptions = getMiniProgramEnterOptions()
-  const primary = enterOptions != null ? enterOptions : fallbackOptions
+  const primary = fallbackOptions != null ? fallbackOptions : enterOptions
+  const secondary = fallbackOptions != null ? enterOptions : null
   if (primary == null) {
     return null
   }
   const primaryRaw = primary as UTSJSONObject
-  const fallbackRaw = fallbackOptions != null ? (fallbackOptions as UTSJSONObject) : null
+  const secondaryRaw = secondary != null ? (secondary as UTSJSONObject) : null
 
   let path = normalizeEntryPath(
     primaryRaw['path'] != null ? `${primaryRaw['path']}` : null
   )
-  if (path.length == 0 && fallbackRaw != null) {
+  if (path.length == 0 && secondaryRaw != null) {
     path = normalizeEntryPath(
-      fallbackRaw['path'] != null ? `${fallbackRaw['path']}` : null
+      secondaryRaw['path'] != null ? `${secondaryRaw['path']}` : null
     )
   }
 
   let query = stringifyEntryQuery(primaryRaw['query'])
-  if (query.length == 0 && fallbackRaw != null) {
-    query = stringifyEntryQuery(fallbackRaw['query'])
+  if (query.length == 0 && secondaryRaw != null) {
+    query = stringifyEntryQuery(secondaryRaw['query'])
   }
 
-  const referrerExtraData = resolveReferrerExtraData(primary, fallbackOptions)
+  const referrerExtraData = resolveReferrerExtraData(primary, secondary)
   query = mergeEntryQuery(query, referrerExtraData)
 
-  const scene = resolveScene(primary, fallbackOptions)
+  const scene = resolveScene(primary, secondary)
   return {
     path: path,
     query: query,
-    referralPage: buildReferralPage(scene, primary, fallbackOptions),
+    referralPage: buildReferralPage(scene, primary, secondary),
     scene: scene
   } as GioMiniProgramEntryInfo
 }

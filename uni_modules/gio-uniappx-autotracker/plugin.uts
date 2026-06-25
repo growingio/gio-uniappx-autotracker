@@ -22,6 +22,9 @@ export {
 } from '@/uni_modules/gio-uniappx-autotracker'
 // #endif
 let lifecycleInstalled = false
+// #ifdef MP-WEIXIN
+let mpAppLifecycleInstalled = false
+// #endif
 
 function copyJSONObject(source : any | null) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
@@ -153,6 +156,38 @@ function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
   return copyJSONObject(options)
 }
 
+// #ifdef MP-WEIXIN
+// uni-app x 的 MP-WEIXIN global mixin 会收到一轮带 App 入口参数的 onShow。
+// App 生命周期已由 uni.onAppShow/uni.onAppHide 显式桥接，这里只过滤掉这轮
+// App-like mixin 回调，避免被当作 Page onShow 重复发送 PAGE。
+function isLaunchOptionsSnapshot(source : UTSJSONObject | null) : boolean {
+  if (source == null) {
+    return false
+  }
+  return source['path'] != null && source['scene'] != null
+}
+
+function installMpAppLifecycle() {
+  if (mpAppLifecycleInstalled) {
+    return
+  }
+  mpAppLifecycleInstalled = true
+  const runtime = uni as any
+  const onAppShow = runtime.onAppShow
+  if (typeof onAppShow == 'function') {
+    onAppShow((options : any | null) => {
+      handleOnShow(null, buildLaunchOptionsSnapshot(options))
+    })
+  }
+  const onAppHide = runtime.onAppHide
+  if (typeof onAppHide == 'function') {
+    onAppHide(() => {
+      handleOnHide(null)
+    })
+  }
+}
+// #endif
+
 // #ifdef APP-IOS || APP-HARMONY
 function isAppInstance(instance : any | null) : boolean {
   if (instance == null) {
@@ -181,7 +216,13 @@ const lifecycle = defineMixin({
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
-  onShow() {
+  onShow(options : any | null) {
+    // #ifdef MP-WEIXIN
+    const launchOptions = buildLaunchOptionsSnapshot(options)
+    if (isLaunchOptionsSnapshot(launchOptions)) {
+      return
+    }
+    // #endif
     // #ifdef APP-IOS || APP-HARMONY
     if (isAppInstance(this)) {
       handleOnShow(null, null)
@@ -203,7 +244,8 @@ const lifecycle = defineMixin({
       return
     }
     // #endif
-    handleOnHide(buildPageSnapshot())
+    const pageSnapshot = buildPageSnapshot()
+    handleOnHide(pageSnapshot)
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
@@ -216,6 +258,9 @@ export function installGioLifecycle(app : VueApp) : boolean {
   if (lifecycleInstalled) {
     return true
   }
+  // #ifdef MP-WEIXIN
+  installMpAppLifecycle()
+  // #endif
   app.mixin(lifecycle)
   lifecycleInstalled = true
   return true

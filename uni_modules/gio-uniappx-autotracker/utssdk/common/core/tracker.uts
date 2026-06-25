@@ -397,9 +397,10 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.mpWeixinEnabled) {
       return 'scn:NA'
     }
-    const scene = this.miniProgramScene.length > 0
-      ? this.miniProgramScene
-      : this.resolveMiniProgramScene()
+    let scene = this.miniProgramScene
+    if (scene.length == 0) {
+      scene = this.resolveMiniProgramScene()
+    }
     if (scene.length == 0) {
       return 'scn:NA'
     }
