@@ -5,10 +5,10 @@ export function now () : number {
 }
 
 export function readTimezoneOffsetMinutes () : number {
-  // #ifdef APP
-  return -480
+  // #ifdef APP-IOS
+  return TimeZoneHelper.getTimeZoneOffset() as number
   // #endif
-  // #ifndef APP
+  // #ifndef APP-IOS
   return new Date().getTimezoneOffset()
   // #endif
 }
