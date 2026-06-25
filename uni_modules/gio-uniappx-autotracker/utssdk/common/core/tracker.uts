@@ -275,6 +275,10 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return this.dataStore.buildCurrentPageContext(duration)
   }
 
+  private buildEventPageContext(duration : number | null) : GioPageContext | null {
+    return this.dataStore.buildEventPageContext(duration)
+  }
+
   private buildPageContextFromTarget(
     page : UTSJSONObject | null,
     options : UTSJSONObject | null,
@@ -526,7 +530,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
       return false
     }
 
-    const pageContext = this.buildCurrentPageContext(null)
+    const pageContext = this.buildEventPageContext(null)
     this.maybeEmitVisit(pageContext)
     this.pushInternalEvent(
       eventName,
@@ -545,7 +549,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return false
     }
-    const pageContext = this.buildCurrentPageContext(null)
+    const pageContext = this.buildEventPageContext(null)
     this.maybeEmitVisit(pageContext)
     this.pushInternalEvent(
       eventName,
@@ -566,7 +570,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   }
 
   getCurrentPageContext() : GioPageContext | null {
-    return this.buildCurrentPageContext(null)
+    return this.buildEventPageContext(null)
   }
 
   setShareOut(value : boolean) {
@@ -577,7 +581,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     if (!this.ensureReady()) {
       return
     }
-    const pageContext = this.buildCurrentPageContext(null)
+    const pageContext = this.buildEventPageContext(null)
     this.maybeEmitVisit(pageContext)
     this.pushInternalEvent(
       eventName,

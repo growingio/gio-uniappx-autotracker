@@ -179,6 +179,14 @@ export class GioDataStore {
     return this.pageStore.buildCurrentPageContext(duration)
   }
 
+  buildEventPageContext(duration : number | null) : GioPageContext | null {
+    const currentPageContext = this.buildCurrentPageContext(duration)
+    if (currentPageContext != null) {
+      return currentPageContext
+    }
+    return resolvePageContext(this.startupPageContext)
+  }
+
   cacheQueryOptions(path : string, query : string) {
     this.pageStore.cacheQueryOptions(path, query)
   }
@@ -217,12 +225,11 @@ export class GioDataStore {
   }
 
   setStartupPageContext(pageContext : GioPageContext | null) {
+    this.startupPageContext = pageContext
     if (!this.shouldUseOriginalSource()) {
-      this.startupPageContext = null
       this.pageStore.setEntryReferralPage(null)
       return
     }
-    this.startupPageContext = pageContext
     this.pageStore.setEntryReferralPage(
       pageContext != null ? pageContext.referralPage : null
     )
