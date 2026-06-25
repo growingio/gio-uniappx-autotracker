@@ -1,0 +1,28 @@
+// Harmony App 端系统字段解析器。
+import {
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../interface.uts'
+
+export function resolveAppHarmonySystemContext(
+  _systemInfo : any | null,
+  _osName : string,
+  osLabel : string,
+  version : string,
+  deviceBrand : string,
+  deviceType : string
+) : GioSystemContextFields | null {
+  return {
+    deviceBrand: deviceBrand,
+    deviceType: deviceType,
+    operatingSystem: osLabel,
+    platform: osLabel,
+    platformVersion: version.length > 0 ? version : osLabel
+  } as GioSystemContextFields
+}
+
+export function createAppHarmonySystemContextResolver() : GioSystemContextResolver {
+  return {
+    resolveSystemContext: resolveAppHarmonySystemContext
+  } as GioSystemContextResolver
+}

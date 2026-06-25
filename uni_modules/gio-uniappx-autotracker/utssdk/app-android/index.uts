@@ -1,7 +1,13 @@
 import Activity from 'android.app.Activity'
+import { GioTracker } from '../common/core/tracker.uts'
+import { createAppAndroidSystemContextResolver } from './system-context.uts'
 
 export * from '../index.uts'
 import { onShow, onHide } from '../index.uts'
+
+GioTracker.getInstance().setSystemContextResolver(
+  createAppAndroidSystemContextResolver()
+)
 
 // 确保只对真正 start 过的 Activity 做计数扣除，避免首次启动时
 // 最早几个 Activity 的 onStop 先于 onStart 被回调导致计数异常。
