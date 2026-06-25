@@ -14,7 +14,6 @@
 | `APP_CLOSED` | 关闭事件 | 应用进入后台/关闭时 | — | ✅ | ✅ |
 | `VIEW_CLICK` | 元素点击事件 | 点击页面元素时 | ✅ | ✅ | ✅ |
 | `VIEW_CHANGE` | 输入元素改变事件 | 输入元素内容改变时 | ✅ | ✅ | ✅ |
-| `FORM_SUBMIT` | 表单提交事件 | H5 页面表单提交时 | ✅ | ✅ | ✅ |
 
 ---
 
@@ -41,7 +40,6 @@
 | `query` | string | ○ | ○ | ○ | 页面查询参数（App 为 Hybrid 页面 url 的 query） |
 | `title` | string | ○ | ○ | ○ | 页面标题（App 仅 `PAGE`） |
 | `referralPage` | string | ○ | ○ | ○ | 来源页面。Web 所有事件携带；小程序 / App 仅 `PAGE` 携带 |
-| `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `networkState` | string | — | ● | ● | 网络类型：`2G`/`3G`/`4G`/`5G`/`WIFI`/`UNKNOWN` |
 | `appChannel` | string | — | ● | ○ | 小程序：场景值（`scn:xxx`）；App：应用渠道（Android 特有，如“应用宝”） |
 | `screenWidth` | int | ● | ● | ● | 屏幕宽度（App 为物理像素） |
@@ -67,6 +65,7 @@
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
+| `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `idfa` | string | — | — | ○ | iOS 广告标识符 |
 | `idfv` | string | — | — | ○ | iOS 应用开发商标识符 |
 | `oaid` | string | — | — | ○ | Android 广告 ID（国内） |
@@ -78,6 +77,7 @@
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
+| `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `orientation` | string | — | — | ● | 屏幕方向：`PORTRAIT` / `LANDSCAPE` |
 | `protocolType` | string | ○ | — | ○ | 页面 url 协议头（如 `https`）；App 为 Hybrid 页面 |
 
@@ -87,6 +87,7 @@
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
+| `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `eventName` | string | ● | ● | ● | 自定义事件名称 |
 | `pageShowTimestamp` | long | ● | ○ | ○ | 关联页面的显示时间戳 |
 | `attributes` | Map<string,string> | ○ | ○ | ○ | 自定义事件属性 |
@@ -105,6 +106,7 @@
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
+| `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `pageShowTimestamp` | long | ● | ● | ● | 页面显示时间 |
 | `textValue` | string | ○ | ○ | ○ | 元素文本内容 |
 | `xpath` | string | ● | ● | ● | xpath 标识符 |
@@ -115,19 +117,12 @@
 
 | 字段 | 类型 | Web | 小程序 | App | 说明 |
 |---|---|:--:|:--:|:--:|---|
+| `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `pageShowTimestamp` | long | ● | ● | ● | 页面显示时间 |
 | `textValue` | string | ○ | ○ | ○ | 元素文本内容 |
 | `xpath` | string | ● | ● | ● | xpath 标识符 |
 | `index` | int | ○ | ○ | ○ | 列表元素序号 |
 | `hyperlink` | string | — | — | ○ | 元素的 href（Hybrid） |
-
-### 3.8 FORM_SUBMIT（表单提交事件）
-
-| 字段 | 类型 | Web | 小程序 | App | 说明 |
-|---|---|:--:|:--:|:--:|---|
-| `pageShowTimestamp` | long | ● | ● | ● | 页面显示时间 |
-| `xpath` | string | ● | ● | ● | xpath 标识符 |
-| `index` | int | ○ | ○ | ○ | 列表元素序号 |
 
 ---
 
