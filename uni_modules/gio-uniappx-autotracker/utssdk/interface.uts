@@ -177,28 +177,20 @@ export type GioSystemContextFields = {
 }
 
 export interface GioSystemContextResolver {
-  resolveSystemContext : (
+  resolveSystemContext(
     systemInfo : any | null,
     osName : string,
     osLabel : string,
     version : string,
     deviceBrand : string,
     deviceType : string
-  ) => GioSystemContextFields | null
+  ) : GioSystemContextFields | null
 }
 
-export interface GioMiniProgramResolver {
+export interface GioMiniProgramResolver extends GioSystemContextResolver {
   isMpWeixinPlatform : () => boolean
   resolveMiniProgramScene : () => string
   resolveMiniProgramEntryInfo : (fallbackOptions : any | null) => GioMiniProgramEntryInfo | null
-  resolveSystemContext : (
-    systemInfo : any | null,
-    osName : string,
-    osLabel : string,
-    version : string,
-    deviceBrand : string,
-    deviceType : string
-  ) => GioSystemContextFields | null
 }
 
 // 平台侧「分享 / 收藏」处理器所依赖的 host 能力，由 GioTracker 实现。把发事件、

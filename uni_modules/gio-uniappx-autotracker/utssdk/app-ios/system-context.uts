@@ -8,25 +8,25 @@ function mapIosDeviceType(deviceType : string) : string {
   return deviceType.toLowerCase() == 'pad' ? 'iPad' : 'iPhone'
 }
 
-export function resolveAppIosSystemContext(
-  _systemInfo : any | null,
-  _osName : string,
-  osLabel : string,
-  version : string,
-  _deviceBrand : string,
-  deviceType : string
-) : GioSystemContextFields | null {
-  return {
-    deviceBrand: 'Apple',
-    deviceType: mapIosDeviceType(deviceType),
-    operatingSystem: osLabel,
-    platform: osLabel,
-    platformVersion: version.length > 0 ? version : osLabel
-  } as GioSystemContextFields
+class AppIosSystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    _systemInfo : any | null,
+    _osName : string,
+    osLabel : string,
+    version : string,
+    _deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    return {
+      deviceBrand: 'Apple',
+      deviceType: mapIosDeviceType(deviceType),
+      operatingSystem: osLabel,
+      platform: osLabel,
+      platformVersion: version.length > 0 ? version : osLabel
+    } as GioSystemContextFields
+  }
 }
 
 export function createAppIosSystemContextResolver() : GioSystemContextResolver {
-  return {
-    resolveSystemContext: resolveAppIosSystemContext
-  } as GioSystemContextResolver
+  return new AppIosSystemContextResolver()
 }

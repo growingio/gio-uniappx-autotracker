@@ -6,6 +6,9 @@ import { GioTracker } from './common/core/tracker.uts'
 // #ifdef MP-WEIXIN
 import { createMiniProgramResolver } from './mp-weixin/miniprogram.uts'
 // #endif
+// #ifdef APP-IOS
+import { createAppIosSystemContextResolver } from './app-ios/system-context.uts'
+// #endif
 
 const tracker = GioTracker.getInstance()
 // #ifdef MP-WEIXIN
@@ -26,6 +29,9 @@ export function initialize (options : UTSJSONObject) : boolean {
   // #endif
   // #ifdef MP-WEIXIN
   try { globalThis['vdsConfig'] = options } catch (_error) {}
+  // #endif
+  // #ifdef APP-IOS
+  tracker.setSystemContextResolver(createAppIosSystemContextResolver())
   // #endif
   return tracker.initialize(normalizeInitOptions(options))
 }

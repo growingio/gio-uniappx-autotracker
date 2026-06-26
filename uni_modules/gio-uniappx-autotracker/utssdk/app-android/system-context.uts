@@ -4,25 +4,25 @@ import {
   GioSystemContextResolver
 } from '../interface.uts'
 
-export function resolveAppAndroidSystemContext(
-  _systemInfo : any | null,
-  _osName : string,
-  osLabel : string,
-  version : string,
-  deviceBrand : string,
-  deviceType : string
-) : GioSystemContextFields | null {
-  return {
-    deviceBrand: deviceBrand,
-    deviceType: deviceType,
-    operatingSystem: osLabel,
-    platform: osLabel,
-    platformVersion: version.length > 0 ? version : osLabel
-  } as GioSystemContextFields
+class AppAndroidSystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    _systemInfo : any | null,
+    _osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    return {
+      deviceBrand: deviceBrand,
+      deviceType: deviceType,
+      operatingSystem: osLabel,
+      platform: osLabel,
+      platformVersion: version.length > 0 ? version : osLabel
+    } as GioSystemContextFields
+  }
 }
 
 export function createAppAndroidSystemContextResolver() : GioSystemContextResolver {
-  return {
-    resolveSystemContext: resolveAppAndroidSystemContext
-  } as GioSystemContextResolver
+  return new AppAndroidSystemContextResolver()
 }
