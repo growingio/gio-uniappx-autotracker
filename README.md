@@ -18,13 +18,13 @@
 - `gdp('identify', ...)`
 - `gdp('registerPlugins', ...)`
 - `gdp('getABTest', ...)`
-- 微信小程序端分享包装器：`wrapShareAppMessage`、`wrapShareTimeline`、`wrapAddToFavorites`
+- 微信小程序端分享自动采集：自动代理页面已定义的 `onShareAppMessage`、`onShareTimeline`、`onAddToFavorites`
 
 `setLocation` / `clearLocation` 只在非 web 端生效。`setLocation` 参数必须是合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`。设置后，后续事件会携带 `latitude` / `longitude`；调用 `clearLocation` 后，后续事件不再携带经纬度。该值当前保存在运行时内存中，不做持久化。
 
 `setOptions` 当前只允许动态修改 `dataCollect`，不能作为通用运行时配置入口使用。传入其他字段不会扩展核心状态。
 
-微信小程序分享能力不是全局自动注入。业务页需要显式用包装器包住自己的 `onShareAppMessage` / `onShareTimeline` / `onAddToFavorites`，这样只代理业务本来定义了分享钩子的页面。
+微信小程序分享能力会自动代理业务页已定义的 `onShareAppMessage` / `onShareTimeline` / `onAddToFavorites`。SDK 不会给没有定义分享钩子的页面补方法，因此不会让其它页面平白多出转发菜单；`wrapShareAppMessage` / `wrapShareTimeline` / `wrapAddToFavorites` 仍保留为手动兜底 API。
 
 ## Demo 初始化
 

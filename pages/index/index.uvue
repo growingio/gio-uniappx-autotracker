@@ -44,7 +44,7 @@
 				<!-- #ifdef MP-WEIXIN -->
 				<view class="card" @click="go('share')">
 					<text class="card-title">⑥ 分享 / 朋友圈 / 收藏（仅小程序）</text>
-					<text class="card-desc">wrap 包装本页 onShareAppMessage 等钩子，采集 $mp_on_share / $mp_share_timeline / $mp_add_favorites。</text>
+					<text class="card-desc">按微信原生方式定义分享钩子，SDK 自动采集 $mp_on_share / $mp_share_timeline / $mp_add_favorites。</text>
 				</view>
 				<!-- #endif -->
 			</view>
@@ -104,7 +104,7 @@ export default {
 			this.lastNote = '已发送 home_quick_track，请查看请求体。'
 		},
 		onRefreshNote() {
-			this.lastNote = '当前公开 API 已收口为 gdp(...)，分享相关仍按 wrapShareAppMessage / wrapShareTimeline / wrapAddToFavorites 导出。'
+			this.lastNote = '当前公开 API 已收口为 gdp(...)，微信分享 hook 会被自动代理采集。'
 		},
 	},
 }

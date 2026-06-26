@@ -2,9 +2,8 @@
 	<scroll-view class="page">
 		<text class="h2">分享 / 分享朋友圈 / 加收藏</text>
 		<text class="desc">
-			仅微信小程序端有效。本页用 SDK 的 wrap 包装器代理了自己的 onShareAppMessage /
-			onShareTimeline / onAddToFavorites，只有定义了这些钩子的页面才会被采集，
-			不会让其它页面平白多出转发菜单。
+			仅微信小程序端有效。本页按微信原生方式定义 onShareAppMessage /
+			onShareTimeline / onAddToFavorites，SDK 会自动代理这些已存在的钩子。
 		</text>
 
 		<view class="section">
@@ -32,31 +31,6 @@
 </template>
 
 <script lang="uts">
-// #ifdef MP-WEIXIN
-import { wrapShareAppMessage, wrapShareTimeline, wrapAddToFavorites } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
-
-const handleShareAppMessage = wrapShareAppMessage((options: any | null): any | null => {
-	return {
-		title: 'GrowingIO 分享演示',
-		path: '/pages/share/share?from=on_share',
-	} as UTSJSONObject
-})
-
-const handleShareTimeline = wrapShareTimeline((options: any | null): any | null => {
-	return {
-		title: 'GrowingIO 朋友圈演示',
-		query: 'from=on_timeline',
-	} as UTSJSONObject
-})
-
-const handleAddToFavorites = wrapAddToFavorites((options: any | null): any | null => {
-	return {
-		title: 'GrowingIO 收藏演示',
-		path: '/pages/share/share?from=add_favorites',
-	} as UTSJSONObject
-})
-// #endif
-
 export default {
 	data() {
 		return {
@@ -67,17 +41,25 @@ export default {
 		const safeOptions = options != null ? options : ({} as UTSJSONObject)
 		console.log('[share] onLoad options=' + JSON.stringify(safeOptions))
 	},
-	// 仅微信小程序编译这三个钩子；用 SDK wrap 包装器代理本页自己的 handler，
-	// 既透传业务返回值给微信，又采集对应的分享 / 收藏事件。
+	// 仅微信小程序编译这三个钩子；SDK 会自动代理已定义的分享 / 收藏 hook。
 	// #ifdef MP-WEIXIN
 	onShareAppMessage(options: any | null): any | null {
-		return handleShareAppMessage(options)
+		return {
+			title: 'GrowingIO 分享演示',
+			path: '/pages/share/share?from=on_share',
+		} as UTSJSONObject
 	},
 	onShareTimeline(options: any | null): any | null {
-		return handleShareTimeline(options)
+		return {
+			title: 'GrowingIO 朋友圈演示',
+			query: 'from=on_timeline',
+		} as UTSJSONObject
 	},
 	onAddToFavorites(options: any | null): any | null {
-		return handleAddToFavorites(options)
+		return {
+			title: 'GrowingIO 收藏演示',
+			path: '/pages/share/share?from=add_favorites',
+		} as UTSJSONObject
 	},
 	// #endif
 }
