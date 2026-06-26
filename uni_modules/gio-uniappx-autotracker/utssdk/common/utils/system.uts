@@ -77,10 +77,14 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
 export function readDeviceOrientation() : string | null {
   try {
     const orientation = uni.getDeviceInfo().deviceOrientation
-    if (orientation.length == 0) {
+    if (orientation == null) {
       return null
     }
-    return orientation.toLowerCase() == 'landscape' ? 'LANDSCAPE' : 'PORTRAIT'
+    const value = orientation as string
+    if (value.length == 0) {
+      return null
+    }
+    return value.toLowerCase() == 'landscape' ? 'LANDSCAPE' : 'PORTRAIT'
   } catch (_error) {
     return null
   }
