@@ -4,6 +4,7 @@ export type GioSystemContext = {
   appName : string
   appState : string | null
   bundleId : string
+  channel : string
   isApp : boolean
   deviceBrand : string
   deviceModel : string
@@ -59,6 +60,9 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
     // #endif
     // #ifdef APP-ANDROID
     snapshot['bundleId'] = appBase.packageName
+	  // 仅app-android平台支持渠道包
+	  // https://doc.dcloud.net.cn/uni-app-x/api/get-app-base-info.html#channel
+	  snapshot['channel'] = appBase.channel
     // #endif
     // #ifdef APP-HARMONY
     snapshot['bundleId'] = appBase.bundleName

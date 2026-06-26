@@ -93,9 +93,12 @@ export class GioEventBuilder {
       : options.appId
     const isApp : boolean = systemContext.isApp
     const operatingSystemText : string | null = isApp ? null : systemContext.operatingSystem
-    const appChannelText : string | null = (isApp && systemContext.platform != 'Android')
-      ? null
-      : appChannel
+    let appChannelText : string | null = null
+    if (isApp && systemContext.platform == 'Android') {
+      appChannelText = systemContext.channel.length > 0 ? systemContext.channel : null
+    } else if (!isApp) {
+      appChannelText = appChannel
+    }
     const referralPageText : string | null = (isApp && eventType != 'PAGE')
       ? null
       : referralPage

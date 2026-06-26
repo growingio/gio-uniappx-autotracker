@@ -5,9 +5,11 @@ import {
 } from '../interface.uts'
 
 class AppAndroidSystemContextResolver implements GioSystemContextResolver {
+  // ​​warning: The corresponding parameter in the supertype 'GioSystemContextResolver' is named 'systemInfo'. This may cause problems when calling this function with named arguments.​
+  // 实现的方法参数名与interface不一致，如果使用命名参数调用会出现不一致
   resolveSystemContext(
-    _systemInfo : any | null,
-    _osName : string,
+    systemInfo : any | null,
+    osName : string,
     osLabel : string,
     version : string,
     deviceBrand : string,
