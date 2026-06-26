@@ -13,11 +13,13 @@ import {
   resolveUploadMaxBatchSize,
   shouldScheduleUploadFlush
 } from '../runtime/index.uts'
+import { GioEventPersistence } from './event-persistence.uts'
 
 type GioQueuedEvent = {
   requestId : string
   retryCount : number
   event : GioTrackEvent
+  storageKey : string | null
 }
 
 type GioUploadBatch = {
@@ -41,6 +43,7 @@ export class GioUploader {
   private onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
   private flushTimer : number = 0
   private uploadInterval : number = 1000
+  private persistence : GioEventPersistence = new GioEventPersistence()
 
   configure(
     options : GioInitOptions,
@@ -49,6 +52,28 @@ export class GioUploader {
     this.options = options
     this.forceLogin = options.forceLogin == true
     this.onFlushSuccess = onFlushSuccess
+    this.persistence.configure(options)
+    this.restorePersistedEvents()
+  }
+
+  private restorePersistedEvents() {
+    if (!this.persistence.isEnabled()) {
+      return
+    }
+    const restored = this.persistence.loadAll()
+    if (restored.length == 0) {
+      return
+    }
+    for (let i = 0; i < restored.length; i++) {
+      const item = restored[i]
+      this.pending.push({
+        requestId: item.storageKey,
+        retryCount: 0,
+        event: item.event,
+        storageKey: item.storageKey
+      } as GioQueuedEvent)
+    }
+    this.requestFlush()
   }
 
   private isMpRuntime() : boolean {
@@ -134,10 +159,17 @@ export class GioUploader {
 
   enqueue(event : GioTrackEvent, maxQueueSize : number) {
     const queue = this.forceLogin ? this.hoarding : this.pending
+    const requestId = guid()
     const queued : GioQueuedEvent = {
-      requestId: guid(),
+      requestId: requestId,
       retryCount: 0,
-      event: event
+      event: event,
+      storageKey: null
+    }
+    if (!this.forceLogin && this.persistence.isEnabled()) {
+      const key = this.persistence.buildKey(requestId)
+      queued.storageKey = key
+      this.persistence.persist(key, event)
     }
     queue.push(queued)
     if (queue.length > maxQueueSize) {
@@ -157,6 +189,11 @@ export class GioUploader {
       const queued = this.hoarding.get(i as number)
       if (queued != null) {
         queued.event.deviceId = deviceId
+        if (this.persistence.isEnabled() && queued.storageKey == null) {
+          const key = this.persistence.buildKey(queued.requestId)
+          queued.storageKey = key
+          this.persistence.persist(key, queued.event)
+        }
         this.pending.push(queued)
         if (this.pending.length > maxQueueSize) {
           this.pending.shift()
@@ -307,6 +344,14 @@ export class GioUploader {
     success : boolean,
     callback : (() => void) | null
   ) {
+    if (success) {
+      for (let i = 0; i < batch.items.length; i++) {
+        const storageKey = batch.items[i].storageKey
+        if (storageKey != null) {
+          this.persistence.remove(storageKey as string)
+        }
+      }
+    }
     if (success && this.onFlushSuccess != null) {
       const batchEvents = [] as Array<GioTrackEvent>
       for (let i = 0; i < batch.items.length; i++) {
@@ -435,7 +480,8 @@ export class GioUploader {
       const retried : GioQueuedEvent = {
         requestId: queued.requestId,
         retryCount: queued.retryCount + 1,
-        event: queued.event
+        event: queued.event,
+        storageKey: queued.storageKey
       }
       retriable.push(retried)
     }

@@ -1,0 +1,232 @@
+// event-persistence.uts 负责 app 端事件的本地落盘 / 删除 / 启动恢复。设计见 docs/event-persistence-design.md。
+import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
+import { now } from '../utils/base.uts'
+import { platformName } from '../utils/system.uts'
+import {
+  buildWrappedStorageValue,
+  readStructuredStorageValue
+} from '../storage/index.uts'
+
+export type GioPersistedEvent = {
+  storageKey : string
+  event : GioTrackEvent
+}
+
+export const MAX_PERSISTED_EVENTS = 300
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export class GioEventPersistence {
+  private enabled : boolean = false
+  private prefix : string = ''
+  private expireMs : number = 7 * DAY_MS
+  private keysInOrder : Array<string> = []
+
+  configure(options : GioInitOptions) {
+    this.enabled = this.resolveEnabled()
+    this.prefix = `${options.projectId}_${options.dataSourceId}_event_`
+    let period : number = options.dataValidityPeriod
+    if (period < 3) {
+      period = 3
+    } else if (period > 30) {
+      period = 30
+    }
+    this.expireMs = period * DAY_MS
+  }
+
+  private resolveEnabled() : boolean {
+    const platform = platformName()
+    return !(platform == 'web' || platform.startsWith('mp-'))
+  }
+
+  isEnabled() : boolean {
+    return this.enabled
+  }
+
+  buildKey(requestId : string) : string {
+    return `${this.prefix}${requestId}`
+  }
+
+  persist(storageKey : string, event : GioTrackEvent) {
+    if (!this.enabled) {
+      return
+    }
+    this.writeStorage(storageKey, event)
+    this.keysInOrder.push(storageKey)
+    while (this.keysInOrder.length > MAX_PERSISTED_EVENTS) {
+      const evicted = this.keysInOrder.shift()
+      if (evicted != null) {
+        this.deleteStorage(evicted as string)
+      }
+    }
+  }
+
+  remove(storageKey : string) {
+    if (!this.enabled) {
+      return
+    }
+    const index = this.keysInOrder.indexOf(storageKey)
+    if (index >= 0) {
+      this.keysInOrder.splice(index, 1)
+    }
+    this.deleteStorage(storageKey)
+  }
+
+  private writeStorage(storageKey : string, event : GioTrackEvent) {
+    try {
+      const wrapped = buildWrappedStorageValue(
+        storageKey,
+        this.serializeEvent(event),
+        now() + this.expireMs
+      )
+      uni.setStorage({
+        key: storageKey,
+        data: wrapped
+      } as SetStorageOptions)
+    } catch (_error) {}
+  }
+
+  private deleteStorage(storageKey : string) {
+    try {
+      uni.removeStorage({
+        key: storageKey
+      } as RemoveStorageOptions)
+    } catch (_error) {}
+  }
+
+  loadAll() : Array<GioPersistedEvent> {
+    const result = [] as Array<GioPersistedEvent>
+    this.keysInOrder = []
+    if (!this.enabled) {
+      return result
+    }
+    try {
+      const keys = this.readPersistedKeys()
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
+        const raw = uni.getStorageSync(key)
+        const parsed = readStructuredStorageValue(key, raw)
+        if (parsed == null) {
+          uni.removeStorageSync(key)
+          continue
+        }
+        result.push({
+          storageKey: key,
+          event: this.deserializeEvent(parsed as UTSJSONObject)
+        } as GioPersistedEvent)
+      }
+      result.sort((a : GioPersistedEvent, b : GioPersistedEvent) : number => {
+        if (a.event.timestamp < b.event.timestamp) {
+          return -1
+        }
+        if (a.event.timestamp > b.event.timestamp) {
+          return 1
+        }
+        return 0
+      })
+      for (let i = 0; i < result.length; i++) {
+        this.keysInOrder.push(result[i].storageKey)
+      }
+    } catch (_error) {}
+    return result
+  }
+
+  private readPersistedKeys() : Array<string> {
+    const matched = [] as Array<string>
+    try {
+      const info = uni.getStorageInfoSync()
+      if (info != null && Array.isArray(info.keys)) {
+        const keys = info.keys as Array<string>
+        for (let i = 0; i < keys.length; i++) {
+          const key = keys[i]
+          if (key.startsWith(this.prefix)) {
+            matched.push(key)
+          }
+        }
+      }
+    } catch (_error) {}
+    return matched
+  }
+
+  private serializeEvent(event : GioTrackEvent) : UTSJSONObject {
+    return {
+      appChannel: event.appChannel,
+      appName: event.appName,
+      appState: event.appState,
+      appVersion: event.appVersion,
+      dataSourceId: event.dataSourceId,
+      urlScheme: event.urlScheme,
+      deviceBrand: event.deviceBrand,
+      deviceId: event.deviceId,
+      deviceModel: event.deviceModel,
+      deviceType: event.deviceType,
+      domain: event.domain,
+      eventName: event.eventName,
+      eventSequenceId: event.eventSequenceId,
+      eventType: event.eventType,
+      language: event.language,
+      latitude: event.latitude,
+      longitude: event.longitude,
+      networkState: event.networkState,
+      operatingSystem: event.operatingSystem,
+      path: event.path,
+      platform: event.platform,
+      platformVersion: event.platformVersion,
+      protocolType: event.protocolType,
+      orientation: event.orientation,
+      query: event.query,
+      referralPage: event.referralPage,
+      screenHeight: event.screenHeight,
+      screenWidth: event.screenWidth,
+      sdkVersion: event.sdkVersion,
+      sessionId: event.sessionId,
+      timestamp: event.timestamp,
+      timezoneOffset: event.timezoneOffset,
+      title: event.title,
+      userId: event.userId,
+      userKey: event.userKey,
+      attributes: event.attributes
+    } as UTSJSONObject
+  }
+
+  private deserializeEvent(raw : UTSJSONObject) : GioTrackEvent {
+    return {
+      appChannel: raw.getString('appChannel'),
+      appName: raw.getString('appName'),
+      appState: raw.getString('appState'),
+      appVersion: raw.getString('appVersion', ''),
+      dataSourceId: raw.getString('dataSourceId', ''),
+      urlScheme: raw.getString('urlScheme'),
+      deviceBrand: raw.getString('deviceBrand', ''),
+      deviceId: raw.getString('deviceId', ''),
+      deviceModel: raw.getString('deviceModel'),
+      deviceType: raw.getString('deviceType'),
+      domain: raw.getString('domain', ''),
+      eventName: raw.getString('eventName'),
+      eventSequenceId: raw.getNumber('eventSequenceId'),
+      eventType: raw.getString('eventType', ''),
+      language: raw.getString('language', ''),
+      latitude: raw.getNumber('latitude'),
+      longitude: raw.getNumber('longitude'),
+      networkState: raw.getString('networkState'),
+      operatingSystem: raw.getString('operatingSystem'),
+      path: raw.getString('path'),
+      platform: raw.getString('platform', ''),
+      platformVersion: raw.getString('platformVersion', ''),
+      protocolType: raw.getString('protocolType'),
+      orientation: raw.getString('orientation'),
+      query: raw.getString('query'),
+      referralPage: raw.getString('referralPage'),
+      screenHeight: raw.getNumber('screenHeight', 0),
+      screenWidth: raw.getNumber('screenWidth', 0),
+      sdkVersion: raw.getString('sdkVersion', ''),
+      sessionId: raw.getString('sessionId', ''),
+      timestamp: raw.getNumber('timestamp', 0),
+      timezoneOffset: raw.getString('timezoneOffset', ''),
+      title: raw.getString('title', ''),
+      userId: raw.getString('userId'),
+      userKey: raw.getString('userKey'),
+      attributes: raw.getJSON('attributes')
+    } as GioTrackEvent
+  }
+}

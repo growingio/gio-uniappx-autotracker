@@ -121,7 +121,8 @@ export class GioDataStore {
       cookieDomain: null,
       urlScheme: null,
       screenWidth: 0,
-      screenHeight: 0
+      screenHeight: 0,
+      dataValidityPeriod: 7
     } as GioInitOptions
   }
 

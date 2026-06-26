@@ -41,6 +41,7 @@ import {
 import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
+import { MAX_PERSISTED_EVENTS } from './event-persistence.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import {
   clearVisitSessionSnapshot,
@@ -207,6 +208,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   private getMaxQueueSize() : number {
+    const platform = platformName()
+    if (!(platform == 'web' || platform.startsWith('mp-'))) {
+      return MAX_PERSISTED_EVENTS
+    }
     return DEFAULT_MAX_QUEUE_SIZE
   }
 

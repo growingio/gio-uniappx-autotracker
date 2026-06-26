@@ -15,6 +15,7 @@ export type GioInitOptions = {
   urlScheme : string | null
   screenWidth : number
   screenHeight : number
+  dataValidityPeriod : number
 }
 
 export type GioGdpInitOptions = {
@@ -31,6 +32,7 @@ export type GioGdpInitOptions = {
   idMapping : boolean
   cookieDomain : string | null
   urlScheme : string | null
+  dataValidityPeriod : number | null
 }
 
 export type GioPluginItem = {

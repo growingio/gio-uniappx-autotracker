@@ -10,6 +10,13 @@ export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
   const rawServerUrl = raw.getString('serverUrl', '')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
+  // period range is [3, 30]
+  let dataValidityPeriod = raw.getNumber('dataValidityPeriod', 7)
+  if (dataValidityPeriod < 3) {
+    dataValidityPeriod = 3
+  } else if (dataValidityPeriod > 30) {
+    dataValidityPeriod = 30
+  }
   return {
     projectId: raw.getString('projectId', ''),
     dataSourceId: raw.getString('dataSourceId', ''),
@@ -24,7 +31,8 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     cookieDomain: raw.getString('cookieDomain'),
     urlScheme: raw.getString('urlScheme'),
     screenWidth: raw.getNumber('screenWidth', 0),
-    screenHeight: raw.getNumber('screenHeight', 0)
+    screenHeight: raw.getNumber('screenHeight', 0),
+    dataValidityPeriod: dataValidityPeriod
   } as GioInitOptions
 }
 

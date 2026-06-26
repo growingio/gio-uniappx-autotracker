@@ -115,6 +115,7 @@ function handleInit(options : any | null) : boolean {
   // #endif
   rawOptions['cookieDomain'] = initOptions.cookieDomain
   rawOptions['urlScheme'] = initOptions.urlScheme
+  rawOptions['dataValidityPeriod'] = initOptions.dataValidityPeriod
   seedScreenSize(rawOptions)
   const initialized = initialize(rawOptions)
   if (!initialized) {
