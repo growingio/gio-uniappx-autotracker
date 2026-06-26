@@ -65,7 +65,7 @@ export class GioDataStore {
       options.screenHeight,
       platform != 'web'
     )
-    this.pageStore.configure(options.appId)
+    this.pageStore.configure(platform.startsWith('mp-') ? options.appId : '')
     this.resetOriginalSourceStateIfDisabled()
     this.bindSessionUpdateListener()
   }
