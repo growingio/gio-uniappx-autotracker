@@ -220,6 +220,9 @@ export class GioUploader {
     if (event.protocolType != null && event.protocolType.length > 0) {
       payload['protocolType'] = event.protocolType
     }
+    if (event.orientation != null && event.orientation.length > 0) {
+      payload['orientation'] = event.orientation
+    }
     if (event.latitude != null) {
       payload['latitude'] = event.latitude as number
     }

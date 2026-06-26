@@ -33,7 +33,7 @@
 | `platformVersion` | string | — | ● | ● | 小程序：宿主（微信等）版本；App：操作系统版本 |
 | `timestamp` | long | ● | ● | ● | 事件时间戳 |
 | `domain` | string | ● | ● | ● | Web：网页域名；小程序：appId；App：包标识（iOS BundleID / Android·Harmony 包名）；Hybrid 为 H5 域名 |
-| `urlScheme` | string | — | — | ● | App 链接协议（`growing.xxx`）；iOS / Android / HarmonyOS 必须上报 |
+| `urlScheme` | string | — | — | ○ | App 链接协议（如 `growing.xxx`）。仅在 init 配置中显式传入时才随事件携带；未配置则不上报，SDK 不会自动生成 |
 | `appState` | string | — | — | ● | 应用前后台：`FOREGROUND` / `BACKGROUND` |
 | `appName` | string | — | — | ● | 应用名称 |
 | `path` | string | ● | ● | ○ | 页面路径。App 仅在 `PAGE`/`VIEW_*` 等关联页面的事件携带 |
@@ -216,7 +216,6 @@
   "platformVersion": "7.1.2",
   "timestamp": 1506069592985,
   "domain": "com.growingio.app",
-  "urlScheme": "growing.756c39fb86f318cc",
   "appState": "FOREGROUND",
   "eventSequenceId": 3,
   "networkState": "4G",
@@ -248,7 +247,6 @@
   "platformVersion": "7.1.2",
   "timestamp": 1506069592985,
   "domain": "com.growingio.app",
-  "urlScheme": "growing.756c39fb86f318cc",
   "appState": "FOREGROUND",
   "eventSequenceId": 3,
   "path": "/NestedFragmentActivity/GreenFragment[fragment1]",
@@ -282,7 +280,6 @@
   "platformVersion": "7.1.2",
   "timestamp": 1506069592985,
   "domain": "com.growingio.app",
-  "urlScheme": "growing.756c39fb86f318cc",
   "appState": "FOREGROUND",
   "networkState": "4G",
   "appChannel": "应用宝",

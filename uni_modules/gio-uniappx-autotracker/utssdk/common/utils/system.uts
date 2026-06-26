@@ -71,6 +71,22 @@ export function getSystemInfoSnapshot() : UTSJSONObject | null {
   }
 }
 
+export function readDeviceOrientation() : string | null {
+  try {
+    const orientation = uni.getDeviceInfo().deviceOrientation
+    if (orientation == null) {
+      return null
+    }
+    const value = orientation as string
+    if (value.length == 0) {
+      return null
+    }
+    return value.toLowerCase() == 'landscape' ? 'LANDSCAPE' : 'PORTRAIT'
+  } catch (_error) {
+    return null
+  }
+}
+
 export function platformName () : string {
   const system = getSystemInfoSnapshot()
   const platform = readSystemText(system, ['uniPlatform', 'platform'])
