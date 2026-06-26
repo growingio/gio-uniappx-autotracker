@@ -138,6 +138,23 @@ export type GioTrackEvent = {
   attributes : UTSJSONObject | null
 }
 
+export interface GioOriginalSourceStore {
+  reset(options : GioInitOptions, storage : GioStorage) : void
+  store(
+    options : GioInitOptions,
+    storage : GioStorage,
+    pageContext : GioPageContext | null,
+    preferredPageContext : GioPageContext | null,
+    forceOverwrite : boolean
+  ) : void
+  read(options : GioInitOptions, storage : GioStorage) : GioOriginalSource | null
+  consume(
+    options : GioInitOptions,
+    storage : GioStorage,
+    event : GioTrackEvent
+  ) : void
+}
+
 // 由 GioStorageContainer 实现的存储提供器。
 // 之所以放在这里靠后声明，是因为 UTS 不会为 interface 成员签名做前向提升。
 export interface GioStorageProvider {

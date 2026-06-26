@@ -1,0 +1,149 @@
+// 部分平台共用的 originalSource 待消费入口来源逻辑。
+// 当前由 web 与 mp-weixin 入口接入，app 端不注册这组能力。
+import {
+  GioInitOptions,
+  GioOriginalSource,
+  GioOriginalSourceStore,
+  GioPageContext,
+  GioStorage,
+  GioTrackEvent
+} from '../interface.uts'
+
+const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
+
+function getOriginalSourceKey(options : GioInitOptions) : string {
+  return `${options.projectId}${ORIGINAL_SOURCE_SUFFIX}`
+}
+
+function readStoredOriginalSource(
+  options : GioInitOptions,
+  storage : GioStorage
+) : GioOriginalSource | null {
+  if (options.originalSource != true) {
+    return null
+  }
+  const storedValue = storage.getItem(getOriginalSourceKey(options))
+  if (storedValue == null) {
+    return null
+  }
+  const raw = storedValue as UTSJSONObject
+  return {
+    path: raw.getString('path', ''),
+    query: raw.getString('query', ''),
+    title: raw.getString('title', ''),
+    referralPage: raw.getString('referralPage', '')
+  } as GioOriginalSource
+}
+
+function writeStoredOriginalSource(
+  options : GioInitOptions,
+  storage : GioStorage,
+  originalSource : GioOriginalSource
+) {
+  storage.setItem(getOriginalSourceKey(options), {
+    path: originalSource.path,
+    query: originalSource.query,
+    title: originalSource.title,
+    referralPage: originalSource.referralPage
+  } as UTSJSONObject, null)
+}
+
+function removeStoredOriginalSource(
+  options : GioInitOptions,
+  storage : GioStorage
+) {
+  storage.removeItem(getOriginalSourceKey(options))
+}
+
+function shouldClearOriginalSource(
+  originalSource : GioOriginalSource | null,
+  event : GioTrackEvent
+) : boolean {
+  if (originalSource == null) {
+    return false
+  }
+  const eventPath = event.path != null ? event.path as string : ''
+  const eventQuery = event.query != null ? event.query as string : ''
+  const eventTitle = event.title
+  const eventReferralPage = event.referralPage != null
+    ? event.referralPage as string
+    : ''
+  return originalSource.path == eventPath &&
+    originalSource.query == eventQuery &&
+    originalSource.title == eventTitle &&
+    originalSource.referralPage == eventReferralPage
+}
+
+class OriginalSourceStore implements GioOriginalSourceStore {
+  reset(options : GioInitOptions, storage : GioStorage) {
+    removeStoredOriginalSource(options, storage)
+  }
+
+  store(
+    options : GioInitOptions,
+    storage : GioStorage,
+    pageContext : GioPageContext | null,
+    preferredPageContext : GioPageContext | null,
+    forceOverwrite : boolean
+  ) {
+    if (
+      options.originalSource != true ||
+      pageContext == null
+    ) {
+      return
+    }
+    const storedOriginalSource = readStoredOriginalSource(options, storage)
+    if (
+      storedOriginalSource != null &&
+      !forceOverwrite
+    ) {
+      if (
+        storedOriginalSource.path == pageContext.path &&
+        storedOriginalSource.title.length == 0 &&
+        pageContext.title != null &&
+        pageContext.title.length > 0
+      ) {
+        writeStoredOriginalSource(options, storage, {
+          path: storedOriginalSource.path,
+          query: storedOriginalSource.query,
+          title: pageContext.title,
+          referralPage: storedOriginalSource.referralPage
+        } as GioOriginalSource)
+      }
+      return
+    }
+    const sourceContext = preferredPageContext != null
+      ? preferredPageContext
+      : pageContext
+    writeStoredOriginalSource(options, storage, {
+      path: sourceContext.path,
+      query: sourceContext.query != null ? sourceContext.query : '',
+      title: sourceContext.title != null ? sourceContext.title : '',
+      referralPage: sourceContext.referralPage != null
+        ? sourceContext.referralPage
+        : ''
+    } as GioOriginalSource)
+  }
+
+  read(
+    options : GioInitOptions,
+    storage : GioStorage
+  ) : GioOriginalSource | null {
+    return readStoredOriginalSource(options, storage)
+  }
+
+  consume(
+    options : GioInitOptions,
+    storage : GioStorage,
+    event : GioTrackEvent
+  ) {
+    const originalSource = readStoredOriginalSource(options, storage)
+    if (shouldClearOriginalSource(originalSource, event)) {
+      removeStoredOriginalSource(options, storage)
+    }
+  }
+}
+
+export function createOriginalSourceStore() : GioOriginalSourceStore {
+  return new OriginalSourceStore()
+}

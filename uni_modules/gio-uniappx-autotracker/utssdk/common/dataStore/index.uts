@@ -1,8 +1,8 @@
 // dataStore 负责统一管理系统上下文、页面状态、原始来源和事件构建。
 import {
-  GioContext,
   GioInitOptions,
   GioOriginalSource,
+  GioOriginalSourceStore,
   GioPageContext,
   GioPageSnapshot,
   GioStorage,
@@ -22,7 +22,6 @@ import { GioEventBuilder } from './eventBuilder/index.uts'
 import { GioPageStore } from './page/page-store.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
-const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
 const SENT_SIGN_SUFFIX = '_gdp_session_id_sent'
 
 export type GioSessionUpdateHandlers = {
@@ -41,6 +40,7 @@ export class GioDataStore {
   private pageStore : GioPageStore = new GioPageStore()
   private eventBuilder : GioEventBuilder = new GioEventBuilder()
   private sessionUpdateHandlers : GioSessionUpdateHandlers | null = null
+  private originalSourceStore : GioOriginalSourceStore | null = null
   private sessionListenerBound : boolean = false
   private startupPageContext : GioPageContext | null = null
   private locationLatitude : number | null = null
@@ -146,6 +146,10 @@ export class GioDataStore {
     this.systemContext.setSystemContextResolver(resolver)
   }
 
+  setOriginalSourceStore(store : GioOriginalSourceStore | null) {
+    this.originalSourceStore = store
+  }
+
   setLocation(latitude : number, longitude : number) : boolean {
     if (
       this.locationLatitude != null &&
@@ -225,7 +229,7 @@ export class GioDataStore {
 
   setStartupPageContext(pageContext : GioPageContext | null) {
     this.startupPageContext = pageContext
-    if (!this.shouldUseOriginalSource()) {
+    if (!this.isOriginalSourceEnabled()) {
       this.pageStore.setEntryReferralPage(null)
       return
     }
@@ -233,7 +237,7 @@ export class GioDataStore {
       pageContext != null ? pageContext.referralPage : null
     )
     if (pageContext != null) {
-      this.maybeStoreOriginalSource(pageContext)
+      this.storeOriginalSource(pageContext, true)
     }
   }
 
@@ -254,55 +258,33 @@ export class GioDataStore {
   }
 
   maybeStoreOriginalSource(pageContext : GioPageContext | null) {
-    if (!this.shouldUseOriginalSource() || pageContext == null) {
+    this.storeOriginalSource(pageContext, false)
+  }
+
+  private storeOriginalSource(
+    pageContext : GioPageContext | null,
+    forceOverwrite : boolean
+  ) {
+    if (!this.isOriginalSourceEnabled() || pageContext == null) {
       return
     }
     const userStore = this.userStore as GioUserStore
     const context = userStore.getContext()
-    // 这里显式标成 string，避免 Swift 把本来非空的 sessionId 局部变量降成 `String?`，
-    // 进而影响 `.length` 判断。
     const currentSessionId : string = context.sessionId
-    if (currentSessionId.length == 0) {
+    const sourceStore = this.originalSourceStore
+    if (sourceStore == null || currentSessionId.length == 0) {
       return
     }
-    const sentVisitSessionId = this.getVisitSentSessionId()
-    if (sentVisitSessionId == currentSessionId) {
+    if (!forceOverwrite && this.getVisitSentSessionId() == currentSessionId) {
       return
     }
-    const storedOriginalSource = this.getOriginalSource()
-    if (
-      storedOriginalSource != null &&
-      storedOriginalSource.sessionId == currentSessionId
-    ) {
-      if (
-        storedOriginalSource.path == pageContext.path &&
-        storedOriginalSource.title.length == 0 &&
-        pageContext.title != null &&
-        pageContext.title.length > 0
-      ) {
-        this.setOriginalSource({
-          sessionId: storedOriginalSource.sessionId,
-          path: storedOriginalSource.path,
-          query: storedOriginalSource.query,
-          title: pageContext.title,
-          referralPage: storedOriginalSource.referralPage
-        } as GioOriginalSource)
-      }
-      return
-    }
-    const preferredPageContext = this.resolvePreferredPageContext(pageContext)
-    if (preferredPageContext == null) {
-      return
-    }
-    this.setOriginalSource({
-      sessionId: currentSessionId,
-      path: preferredPageContext.path,
-      query: preferredPageContext.query != null ? preferredPageContext.query : '',
-      title: preferredPageContext.title != null ? preferredPageContext.title : '',
-      referralPage: preferredPageContext.referralPage != null
-        ? preferredPageContext.referralPage
-        : ''
-    } as GioOriginalSource)
+    sourceStore.store(
+      this.getResolvedOptions(),
+      this.getOriginalSourceStorage(),
+      pageContext,
+      this.resolvePreferredPageContext(pageContext),
+      forceOverwrite
+    )
   }
 
   buildEvent(
@@ -339,9 +321,13 @@ export class GioDataStore {
         continue
       }
       this.markVisitSent(sessionId)
-      const originalSource = this.getOriginalSource()
-      if (originalSource != null && originalSource.sessionId == sessionId) {
-        this.clearOriginalSource()
+      const sourceStore = this.originalSourceStore
+      if (sourceStore != null) {
+        sourceStore.consume(
+          this.getResolvedOptions(),
+          this.getOriginalSourceStorage(),
+          event
+        )
       }
       this.startupPageContext = null
     }
@@ -354,30 +340,24 @@ export class GioDataStore {
     return true
   }
 
-  private isOriginalSourceSupported() : boolean {
-    const platform = platformName()
-    return platform == 'web' || platform.startsWith('mp-')
-  }
-
-  private shouldUseOriginalSource() : boolean {
-    return this.isOriginalSourceEnabled() && this.isOriginalSourceSupported()
-  }
-
   private resetOriginalSourceStateIfDisabled() {
     if (this.isOriginalSourceEnabled()) {
       return
     }
     this.startupPageContext = null
     this.pageStore.setEntryReferralPage(null)
-    this.clearOriginalSource()
+    const sourceStore = this.originalSourceStore
+    if (sourceStore == null) {
+      return
+    }
+    sourceStore.reset(
+      this.getResolvedOptions(),
+      this.getOriginalSourceStorage()
+    )
   }
 
   private buildProjectStorageKey(suffix : string) : string {
     return `${this.projectId}${suffix}`
-  }
-
-  private getOriginalSourceKey() : string {
-    return this.buildProjectStorageKey(ORIGINAL_SOURCE_SUFFIX)
   }
 
   private getSentSignKey() : string {
@@ -393,49 +373,18 @@ export class GioDataStore {
     this.getMainStorage().setItem(this.getSentSignKey(), sessionId, null)
   }
 
-  private getOriginalSource() : GioOriginalSource | null {
-    const storedValue = this.getOriginalSourceStorage().getItem(
-      this.getOriginalSourceKey()
-    )
-    if (storedValue == null) {
-      return null
-    }
-    const raw = storedValue as UTSJSONObject
-    return {
-      sessionId: raw.getString('sessionId', ''),
-      path: raw.getString('path', ''),
-      query: raw.getString('query', ''),
-      title: raw.getString('title', ''),
-      referralPage: raw.getString('referralPage', '')
-    } as GioOriginalSource
-  }
-
-  private setOriginalSource(originalSource : GioOriginalSource) {
-    this.getOriginalSourceStorage().setItem(this.getOriginalSourceKey(), {
-      sessionId: originalSource.sessionId,
-      path: originalSource.path,
-      query: originalSource.query,
-      title: originalSource.title,
-      referralPage: originalSource.referralPage
-    } as UTSJSONObject, null)
-  }
-
-  private clearOriginalSource() {
-    this.getOriginalSourceStorage().removeItem(this.getOriginalSourceKey())
-  }
-
   private getCurrentOriginalSource() : GioOriginalSource | null {
-    if (!this.shouldUseOriginalSource()) {
+    if (!this.isOriginalSourceEnabled()) {
       return null
     }
-    const userStore = this.userStore as GioUserStore
-    const context = userStore.getContext() as GioContext
-    const currentSessionId = context.sessionId
-    const originalSource = this.getOriginalSource()
-    if (originalSource == null || originalSource.sessionId != currentSessionId) {
+    const sourceStore = this.originalSourceStore
+    if (sourceStore == null) {
       return null
     }
-    return originalSource
+    return sourceStore.read(
+      this.getResolvedOptions(),
+      this.getOriginalSourceStorage()
+    )
   }
 
   private resolvePreferredPageContext(

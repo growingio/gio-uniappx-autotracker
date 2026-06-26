@@ -10,6 +10,7 @@ import {
   GioPluginItem,
   GioMiniProgramEntryInfo,
   GioMiniProgramResolver,
+  GioOriginalSourceStore,
   GioPageContext,
   GioPageSnapshot,
   GioShareTrackingHost,
@@ -188,6 +189,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
 
   setSystemContextResolver(resolver : GioSystemContextResolver | null) {
     this.dataStore.setSystemContextResolver(resolver)
+  }
+
+  setOriginalSourceStore(store : GioOriginalSourceStore | null) {
+    this.dataStore.setOriginalSourceStore(store)
   }
 
   private getSessionTimeoutMs() : number {
