@@ -154,9 +154,9 @@ export class GioUserStore {
       return numeric >= 1 && numeric < 1000000000 ? numeric : 1
     }
     const raw = value as UTSJSONObject
-    const globalKey = raw['globalKey']
-    if (globalKey != null && `${globalKey}`.length > 0) {
-      const numeric = parseFloat(`${globalKey}`)
+    const globalKey = raw.getNumber('globalKey')
+    if (globalKey != null) {
+      const numeric = globalKey as number
       return numeric >= 1 && numeric < 1000000000 ? numeric : 1
     }
     const numeric = parseFloat(text)
