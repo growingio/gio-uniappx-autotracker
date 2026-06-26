@@ -10,5 +10,17 @@ export default {
 		console.log('app onShow')
 		gdp('track', 'app_onShow')
 	},
+	onHide() {
+		console.log('app onHide')
+		gdp('track', 'app_onHide')
+	},
+	onExit() {
+		console.log('app onExit')
+		gdp('track', 'app_onExit')
+	},
+	onError() {
+		console.log('app onError')
+		gdp('track', 'app_onError')
+	},
 }
 </script>
