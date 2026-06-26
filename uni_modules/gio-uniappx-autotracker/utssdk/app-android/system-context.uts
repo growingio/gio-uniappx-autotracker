@@ -4,11 +4,27 @@ import {
   GioSystemContextResolver
 } from '../interface.uts'
 
+function readTextField(source : UTSJSONObject | null, key : string) : string | null {
+  if (source == null) {
+    return null
+  }
+  const value = source.getString(key)
+  return value != null && value.length > 0 ? value : null
+}
+
+function readAndroidChannel() : string | null {
+  try {
+    const appBase = uni.getAppBaseInfo()
+    const channel = appBase.channel
+    return channel != null && channel.length > 0 ? channel : null
+  } catch (_error) {
+    return null
+  }
+}
+
 class AppAndroidSystemContextResolver implements GioSystemContextResolver {
-  // ​​warning: The corresponding parameter in the supertype 'GioSystemContextResolver' is named 'systemInfo'. This may cause problems when calling this function with named arguments.​
-  // 实现的方法参数名与interface不一致，如果使用命名参数调用会出现不一致
   resolveSystemContext(
-    systemInfo : any | null,
+    systemInfo : UTSJSONObject | null,
     osName : string,
     osLabel : string,
     version : string,
@@ -16,8 +32,14 @@ class AppAndroidSystemContextResolver implements GioSystemContextResolver {
     deviceType : string
   ) : GioSystemContextFields | null {
     return {
+      appName: readTextField(systemInfo, 'appName'),
+      bundleId: readTextField(systemInfo, 'bundleId'),
+      channel: readAndroidChannel(),
       deviceBrand: deviceBrand,
+      deviceModel: null,
       deviceType: deviceType,
+      language: null,
+      networkState: null,
       operatingSystem: osLabel,
       platform: osLabel,
       platformVersion: version.length > 0 ? version : osLabel

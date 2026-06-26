@@ -5,7 +5,6 @@ import {
   getSystemInfoSnapshot,
   platformName
 } from '../../utils/system.uts'
-import { resolveIosDeviceModel } from '../../utils/device-model.uts'
 import {
   GioSystemContextFields,
   GioSystemContextResolver
@@ -14,13 +13,12 @@ import {
 
 type GioSystemReadyCallback = () => void
 
-function readTextField(source : any | null, keys : Array<string>) : string {
+function readTextField(source : UTSJSONObject | null, keys : Array<string>) : string {
   if (source == null) {
     return ''
   }
-  const raw = source as UTSJSONObject
   for (let i = 0; i < keys.length; i++) {
-    const value = raw.getString(keys[i])
+    const value = source.getString(keys[i])
     if (value != null && value.length > 0) {
       return value
     }
@@ -88,8 +86,15 @@ function shortLanguage(rawValue : string) : string {
   return rawValue
 }
 
+function overrideTextField(
+  currentValue : string,
+  nextValue : string | null
+) : string {
+  return nextValue != null ? `${nextValue}` : currentValue
+}
+
 function buildSystemContext(
-  systemInfo : any | null,
+  systemInfo : UTSJSONObject | null,
   networkState : string,
   appState : string | null,
   screenWidth : number,
@@ -106,8 +111,14 @@ function buildSystemContext(
   const isApp = !(currentPlatform == 'web' || isMiniProgram)
   const rawLanguage = readTextField(systemInfo, ['appLanguage', 'language'])
   const rawDeviceBrand = readTextField(systemInfo, ['deviceBrand', 'brand'])
+  let resolvedAppName = isApp ? readTextField(systemInfo, ['appName']) : ''
+  let resolvedBundleId = readTextField(systemInfo, ['bundleId'])
+  let resolvedChannel = ''
   let resolvedDeviceBrand = rawDeviceBrand
+  let resolvedDeviceModel = readTextField(systemInfo, ['deviceModel', 'model'])
   let resolvedDeviceType = deviceType
+  let resolvedLanguage = isApp ? rawLanguage : shortLanguage(rawLanguage)
+  let resolvedNetworkState = normalizeNetworkState(networkState)
   let resolvedOperatingSystem = osLabel
   let resolvedPlatform = osLabel
   let resolvedPlatformVersion = version.length > 0 ? version : osLabel
@@ -120,27 +131,66 @@ function buildSystemContext(
         version,
         rawDeviceBrand,
         deviceType
-      )
+    )
     if (resolvedSystemContext != null) {
-      resolvedDeviceBrand = resolvedSystemContext.deviceBrand
-      resolvedDeviceType = resolvedSystemContext.deviceType
-      resolvedOperatingSystem = resolvedSystemContext.operatingSystem
-      resolvedPlatform = resolvedSystemContext.platform
-      resolvedPlatformVersion = resolvedSystemContext.platformVersion
+      resolvedAppName = overrideTextField(
+        resolvedAppName,
+        resolvedSystemContext.appName
+      )
+      resolvedBundleId = overrideTextField(
+        resolvedBundleId,
+        resolvedSystemContext.bundleId
+      )
+      resolvedChannel = overrideTextField(
+        resolvedChannel,
+        resolvedSystemContext.channel
+      )
+      resolvedDeviceBrand = overrideTextField(
+        resolvedDeviceBrand,
+        resolvedSystemContext.deviceBrand
+      )
+      resolvedDeviceModel = overrideTextField(
+        resolvedDeviceModel,
+        resolvedSystemContext.deviceModel
+      )
+      resolvedDeviceType = overrideTextField(
+        resolvedDeviceType,
+        resolvedSystemContext.deviceType
+      )
+      resolvedLanguage = overrideTextField(
+        resolvedLanguage,
+        resolvedSystemContext.language
+      )
+      resolvedNetworkState = overrideTextField(
+        resolvedNetworkState,
+        resolvedSystemContext.networkState
+      )
+      resolvedOperatingSystem = overrideTextField(
+        resolvedOperatingSystem,
+        resolvedSystemContext.operatingSystem
+      )
+      resolvedPlatform = overrideTextField(
+        resolvedPlatform,
+        resolvedSystemContext.platform
+      )
+      resolvedPlatformVersion = overrideTextField(
+        resolvedPlatformVersion,
+        resolvedSystemContext.platformVersion
+      )
     }
   }
 
   return {
-    appName: isApp ? readTextField(systemInfo, ['appName']) : '',
+    appName: resolvedAppName,
     appState: appState,
-    bundleId: readTextField(systemInfo, ['bundleId']),
-    channel: readTextField(systemInfo, ['channel']),
+    bundleId: resolvedBundleId,
+    channel: resolvedChannel,
     isApp: isApp,
     deviceBrand: resolvedDeviceBrand,
-    deviceModel: resolveIosDeviceModel(readTextField(systemInfo, ['deviceModel', 'model'])),
+    deviceModel: resolvedDeviceModel,
     deviceType: resolvedDeviceType,
-    language: isApp ? rawLanguage : shortLanguage(rawLanguage),
-    networkState: normalizeNetworkState(networkState),
+    language: resolvedLanguage,
+    networkState: resolvedNetworkState,
     operatingSystem: resolvedOperatingSystem,
     platform: resolvedPlatform,
     platformVersion: resolvedPlatformVersion,
@@ -159,7 +209,7 @@ function getDefaultAppState() : string | null {
 
 export class GioSystemContextManager {
   private debugEnabled : boolean = false
-  private systemInfo : any | null = null
+  private systemInfo : UTSJSONObject | null = null
   private networkState : string = ''
   private appState : string | null = getDefaultAppState()
   private screenWidth : number = 0

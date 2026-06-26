@@ -1,0 +1,57 @@
+// 微信小程序平台 resolver 组装。
+// 入口上下文解析和系统字段解析各自独立，公共层只依赖 GioMiniProgramResolver 契约。
+import {
+  GioMiniProgramEntryInfo,
+  GioMiniProgramResolver,
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../interface.uts'
+import {
+  resolveMiniProgramEntryInfo,
+  resolveMiniProgramScene
+} from './entry-context.uts'
+import { createMiniProgramSystemContextResolver } from './system-context.uts'
+
+class MiniProgramResolver implements GioMiniProgramResolver {
+  private systemContextResolver : GioSystemContextResolver
+
+  constructor() {
+    this.systemContextResolver = createMiniProgramSystemContextResolver()
+  }
+
+  isMpWeixinPlatform() : boolean {
+    return true
+  }
+
+  resolveMiniProgramScene() : string {
+    return resolveMiniProgramScene()
+  }
+
+  resolveMiniProgramEntryInfo(
+    fallbackOptions : any | null
+  ) : GioMiniProgramEntryInfo | null {
+    return resolveMiniProgramEntryInfo(fallbackOptions)
+  }
+
+  resolveSystemContext(
+    systemInfo : UTSJSONObject | null,
+    osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    return this.systemContextResolver.resolveSystemContext(
+      systemInfo,
+      osName,
+      osLabel,
+      version,
+      deviceBrand,
+      deviceType
+    )
+  }
+}
+
+export function createMiniProgramResolver() : GioMiniProgramResolver {
+  return new MiniProgramResolver()
+}

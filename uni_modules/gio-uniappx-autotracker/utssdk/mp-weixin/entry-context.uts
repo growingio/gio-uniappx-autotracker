@@ -1,10 +1,8 @@
-// 微信小程序入口上下文解析器。
+// 微信小程序入口上下文解析。
 // 这里只处理 mp-weixin 独有的 scene、query、referrer 和入口来源拼装，
 // 供公共层 tracker 通过 resolver 回调消费，避免把平台细节放进 common。
 import {
-  GioMiniProgramEntryInfo,
-  GioMiniProgramResolver,
-  GioSystemContextFields
+  GioMiniProgramEntryInfo
 } from '../interface.uts'
 
 function readSceneFromQuery(source : any | null) : string {
@@ -273,34 +271,9 @@ function buildReferralPage(
   return `scn:${scene}`
 }
 
-function resolveWeixinSystemName(rawValue : string, fallbackValue : string) : string {
-  const host = 'Weixin'
-  if (rawValue.length == 0) {
-    return host + '-' + fallbackValue
-  }
-  const lowerValue = rawValue.toLowerCase()
-  if (lowerValue.indexOf('android') >= 0) {
-    return host + '-Android'
-  }
-  if (lowerValue.indexOf('ios') >= 0) {
-    return host + '-iOS'
-  }
-  if (
-    lowerValue.indexOf('harmonyos') >= 0 ||
-    lowerValue.indexOf('ohos') >= 0
-  ) {
-    return host + '-HarmonyOS'
-  }
-  return host + '-' + rawValue
-}
-
 function getMiniProgramEnterOptions() : any | null {
   // @ts-ignore: HBuilderX 当前 mp-weixin lint 未把 uni-getEnterOptionsSync 扩展合入 Uni。
   return uni.getEnterOptionsSync()
-}
-
-export function isMpWeixinPlatform() : boolean {
-  return true
 }
 
 export function resolveMiniProgramScene() : string {
@@ -348,31 +321,4 @@ export function resolveMiniProgramEntryInfo(
     referralPage: buildReferralPage(scene, primary, secondary),
     scene: scene
   } as GioMiniProgramEntryInfo
-}
-
-export function resolveSystemContext(
-  _systemInfo : any | null,
-  osName : string,
-  osLabel : string,
-  version : string,
-  deviceBrand : string,
-  _deviceType : string
-) : GioSystemContextFields | null {
-  const systemName = resolveWeixinSystemName(osName, osLabel)
-  return {
-    deviceBrand: deviceBrand,
-    deviceType: systemName,
-    operatingSystem: systemName,
-    platform: 'MinP',
-    platformVersion: version.length > 0 ? 'Weixin ' + version : 'Weixin'
-  } as GioSystemContextFields
-}
-
-export function createMiniProgramResolver() : GioMiniProgramResolver {
-  return {
-    isMpWeixinPlatform,
-    resolveMiniProgramScene,
-    resolveMiniProgramEntryInfo,
-    resolveSystemContext
-  }
 }

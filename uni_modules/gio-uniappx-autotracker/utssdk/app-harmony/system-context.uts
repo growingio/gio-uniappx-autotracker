@@ -4,25 +4,39 @@ import {
   GioSystemContextResolver
 } from '../interface.uts'
 
-export function resolveAppHarmonySystemContext(
-  _systemInfo : any | null,
-  _osName : string,
-  osLabel : string,
-  version : string,
-  deviceBrand : string,
-  deviceType : string
-) : GioSystemContextFields | null {
-  return {
-    deviceBrand: deviceBrand,
-    deviceType: deviceType,
-    operatingSystem: osLabel,
-    platform: osLabel,
-    platformVersion: version.length > 0 ? version : osLabel
-  } as GioSystemContextFields
+function readTextField(source : UTSJSONObject | null, key : string) : string | null {
+  if (source == null) {
+    return null
+  }
+  const value = source.getString(key)
+  return value != null && value.length > 0 ? value : null
+}
+
+class AppHarmonySystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    systemInfo : UTSJSONObject | null,
+    osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    return {
+      appName: readTextField(systemInfo, 'appName'),
+      bundleId: readTextField(systemInfo, 'bundleId'),
+      channel: null,
+      deviceBrand: deviceBrand,
+      deviceModel: null,
+      deviceType: deviceType,
+      language: null,
+      networkState: null,
+      operatingSystem: osLabel,
+      platform: osLabel,
+      platformVersion: version.length > 0 ? version : osLabel
+    } as GioSystemContextFields
+  }
 }
 
 export function createAppHarmonySystemContextResolver() : GioSystemContextResolver {
-  return {
-    resolveSystemContext: resolveAppHarmonySystemContext
-  } as GioSystemContextResolver
+  return new AppHarmonySystemContextResolver()
 }

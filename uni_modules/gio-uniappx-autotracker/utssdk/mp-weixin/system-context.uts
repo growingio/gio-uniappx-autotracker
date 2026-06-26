@@ -1,0 +1,56 @@
+// 微信小程序系统字段解析器。
+import {
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../interface.uts'
+
+function resolveWeixinSystemName(rawValue : string, fallbackValue : string) : string {
+  const host = 'Weixin'
+  if (rawValue.length == 0) {
+    return host + '-' + fallbackValue
+  }
+  const lowerValue = rawValue.toLowerCase()
+  if (lowerValue.indexOf('android') >= 0) {
+    return host + '-Android'
+  }
+  if (lowerValue.indexOf('ios') >= 0) {
+    return host + '-iOS'
+  }
+  if (
+    lowerValue.indexOf('harmonyos') >= 0 ||
+    lowerValue.indexOf('ohos') >= 0
+  ) {
+    return host + '-HarmonyOS'
+  }
+  return host + '-' + rawValue
+}
+
+class MiniProgramSystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    systemInfo : UTSJSONObject | null,
+    osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    const systemName = resolveWeixinSystemName(osName, osLabel)
+    return {
+      appName: '',
+      bundleId: '',
+      channel: '',
+      deviceBrand: deviceBrand,
+      deviceModel: null,
+      deviceType: systemName,
+      language: null,
+      networkState: null,
+      operatingSystem: systemName,
+      platform: 'MinP',
+      platformVersion: version.length > 0 ? 'Weixin ' + version : 'Weixin'
+    } as GioSystemContextFields
+  }
+}
+
+export function createMiniProgramSystemContextResolver() : GioSystemContextResolver {
+  return new MiniProgramSystemContextResolver()
+}

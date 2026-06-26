@@ -94,8 +94,8 @@ export class GioEventBuilder {
     const isApp : boolean = systemContext.isApp
     const operatingSystemText : string | null = isApp ? null : systemContext.operatingSystem
     let appChannelText : string | null = null
-    if (isApp && systemContext.platform == 'Android') {
-      appChannelText = systemContext.channel.length > 0 ? systemContext.channel : null
+    if (isApp && systemContext.channel.length > 0) {
+      appChannelText = systemContext.channel
     } else if (!isApp) {
       appChannelText = appChannel
     }

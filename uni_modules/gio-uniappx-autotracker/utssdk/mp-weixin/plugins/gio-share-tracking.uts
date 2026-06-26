@@ -1,14 +1,13 @@
-// share.uts 负责微信小程序端的分享、朋友圈和收藏采集包装。
-import { GioPageContext, GioShareHost } from '../interface.uts'
-import { GioTracker } from '../common/core/tracker.uts'
+// gio-share-tracking.uts 实现微信小程序分享、朋友圈和收藏采集插件能力。
+import { GioPageContext, GioShareTrackingHost } from '../../interface.uts'
+import { GioTracker } from '../../common/core/tracker.uts'
 
 // 微信小程序独有的「分享 / 分享朋友圈 / 加收藏」采集。
 //
-// 对齐独立小程序 SDK「只代理已定义对应钩子的页面」：uni-app x 没有 Page() 构造拦截，
-// 且全局 mixin 注入 onShareAppMessage 会让**所有**页面都出现转发菜单——这与独立 SDK
-// 行为相悖。因此这里改为 wrap 包装器：业务页把自己的 onShareAppMessage / onShareTimeline /
-// onAddToFavorites 交给对应 wrap 函数，只有定义了钩子的页面才被代理、才采集，且能拿到
-// 业务方 handler 的返回值（title/path/query）。
+// 对齐独立小程序 SDK「只代理已定义对应钩子的页面」：JS 桥接层会自动包装业务页已经
+// 声明的 onShareAppMessage / onShareTimeline / onAddToFavorites；不会通过全局 mixin
+// 给所有页面补分享 hook，避免让未声明分享能力的页面平白出现转发菜单。这里仍导出
+// wrap* 作为手动兜底 API。
 
 // 分享 / 收藏系统事件名 —— 与独立小程序 SDK 一致（带 `$` 前缀，属系统事件，
 // 不走 track() 的事件名校验，经 host.emitShareEvent 内部直发）。
@@ -298,28 +297,154 @@ function buildShareEventProps(
 // 翻转 shareOut（仅 onShareAppMessage）+ 按 followShare 门控后发事件。
 // 翻位发生在 followShare 检查之外 —— 对齐独立 SDK：用户分享给朋友离开小程序的事实与
 // 是否采集事件无关。
-function emitShare(
-  eventName : string,
-  shareResult : any | null,
-  options : any | null,
-  flipShareOut : boolean
-) {
-  const host : GioShareHost = GioTracker.getInstance()
-  if (flipShareOut) {
-    host.setShareOut(true)
-  }
-  if (!host.isFollowShareEnabled()) {
-    return
-  }
-  host.emitShareEvent(
-    eventName,
-    buildShareEventProps(eventName, shareResult, options, host.getCurrentPageContext())
-  )
-}
-
 export type GioShareAppMessageHandler = (options : any | null) => any | null
 export type GioShareTimelineHandler = (options : any | null) => any | null
 export type GioAddToFavoritesHandler = (options : any | null) => any | null
+
+function invokeShareHandler(
+  handler : any | null,
+  instance : any | null,
+  options : any | null
+) : any | null {
+  if (handler == null) {
+    return null
+  }
+  return handler.call(instance, options)
+}
+
+export class GioShareTrackingPlugin {
+  private host : GioShareTrackingHost
+
+  constructor(host : GioShareTrackingHost) {
+    this.host = host
+  }
+
+  private emitShare(
+    eventName : string,
+    shareResult : any | null,
+    options : any | null,
+    flipShareOut : boolean
+  ) {
+    if (flipShareOut) {
+      this.host.setShareOut(true)
+    }
+    if (!this.host.isFollowShareEnabled()) {
+      return
+    }
+    this.host.emitShareEvent(
+      eventName,
+      buildShareEventProps(eventName, shareResult, options, this.host.getCurrentPageContext())
+    )
+  }
+
+  private emitResolvedShare(
+    eventName : string,
+    originResult : any | null,
+    options : any | null,
+    flipShareOut : boolean
+  ) {
+    const pageContext = this.host.getCurrentPageContext()
+    const thenableSource = readThenableSource(originResult)
+    if (thenableSource == null) {
+      const updatedResult = updateShareResult(originResult, pageContext, true)
+      this.emitShare(eventName, updatedResult, options, flipShareOut)
+      return
+    }
+    if (flipShareOut) {
+      this.host.setShareOut(true)
+    }
+    if (!this.host.isFollowShareEnabled()) {
+      return
+    }
+    const returnedResult = updateShareResult(originResult, pageContext, false)
+    let emitted = false
+    const emitFallback = () => {
+      if (emitted) {
+        return
+      }
+      emitted = true
+      const mergedFallback = mergeShareResult(returnedResult, null)
+      const updatedFallback = updateShareResult(mergedFallback, pageContext, true)
+      this.emitShare(
+        eventName,
+        updatedFallback,
+        options,
+        false
+      )
+    }
+    setTimeout(() => {
+      emitFallback()
+    }, SHARE_PROMISE_TIMEOUT_MS)
+    try {
+      invokeThenable(thenableSource, (resolvedResult : any | null) => {
+        if (emitted) {
+          return
+        }
+        emitted = true
+        const mergedResult = mergeShareResult(returnedResult, resolvedResult)
+        const updatedResult = updateShareResult(mergedResult, pageContext, true)
+        this.emitShare(
+          eventName,
+          updatedResult,
+          options,
+          false
+        )
+      }, () => {
+        emitFallback()
+      })
+    } catch (_error) {
+      emitFallback()
+    }
+  }
+
+  wrapShareAppMessage(
+    handler : GioShareAppMessageHandler | null
+  ) : GioShareAppMessageHandler {
+    const plugin = this
+    return function (options : any | null) : any | null {
+      const originResult = invokeShareHandler(handler, this, options)
+      const result = normalizeShareOriginResult(originResult)
+      plugin.emitResolvedShare(MP_EVENT_ON_SHARE, result, options, true)
+      return updateShareResult(
+        result,
+        plugin.host.getCurrentPageContext(),
+        readThenableSource(result) == null
+      )
+    }
+  }
+
+  wrapShareTimeline(
+    handler : GioShareTimelineHandler | null
+  ) : GioShareTimelineHandler {
+    const plugin = this
+    return function (options : any | null) : any | null {
+      const originResult = invokeShareHandler(handler, this, options)
+      const result = normalizeShareOriginResult(originResult)
+      plugin.emitResolvedShare(MP_EVENT_SHARE_TIMELINE, result, options, false)
+      return updateShareResult(
+        result,
+        plugin.host.getCurrentPageContext(),
+        readThenableSource(result) == null
+      )
+    }
+  }
+
+  wrapAddToFavorites(
+    handler : GioAddToFavoritesHandler | null
+  ) : GioAddToFavoritesHandler {
+    const plugin = this
+    return function (options : any | null) : any | null {
+      const originResult = invokeShareHandler(handler, this, options)
+      const result = normalizeShareOriginResult(originResult)
+      plugin.emitResolvedShare(MP_EVENT_ADD_FAVORITES, result, options, false)
+      return updateShareResult(
+        result,
+        plugin.host.getCurrentPageContext(),
+        readThenableSource(result) == null
+      )
+    }
+  }
+}
 
 function normalizeShareOriginResult(result : any | null) : any | null {
   if (result != null) {
@@ -367,65 +492,17 @@ function invokeThenable(
   }
 }
 
-function emitResolvedShare(
-  eventName : string,
-  originResult : any | null,
-  options : any | null,
-  flipShareOut : boolean
-) {
-  const host : GioShareHost = GioTracker.getInstance()
-  const pageContext = host.getCurrentPageContext()
-  const thenableSource = readThenableSource(originResult)
-  if (thenableSource == null) {
-    const updatedResult = updateShareResult(originResult, pageContext, true)
-    emitShare(eventName, updatedResult, options, flipShareOut)
-    return
+let shareTrackingPlugin : GioShareTrackingPlugin | null = null
+
+export function installGioShareTrackingPlugin(host : GioShareTrackingHost) {
+  shareTrackingPlugin = new GioShareTrackingPlugin(host)
+}
+
+function getShareTrackingPlugin() : GioShareTrackingPlugin {
+  if (shareTrackingPlugin == null) {
+    shareTrackingPlugin = new GioShareTrackingPlugin(GioTracker.getInstance())
   }
-  if (flipShareOut) {
-    host.setShareOut(true)
-  }
-  if (!host.isFollowShareEnabled()) {
-    return
-  }
-  const returnedResult = updateShareResult(originResult, pageContext, false)
-  let emitted = false
-  const emitFallback = () => {
-    if (emitted) {
-      return
-    }
-    emitted = true
-    const mergedFallback = mergeShareResult(returnedResult, null)
-    const updatedFallback = updateShareResult(mergedFallback, pageContext, true)
-    emitShare(
-      eventName,
-      updatedFallback,
-      options,
-      false
-    )
-  }
-  setTimeout(() => {
-    emitFallback()
-  }, SHARE_PROMISE_TIMEOUT_MS)
-  try {
-    invokeThenable(thenableSource, (resolvedResult : any | null) => {
-      if (emitted) {
-        return
-      }
-      emitted = true
-      const mergedResult = mergeShareResult(returnedResult, resolvedResult)
-      const updatedResult = updateShareResult(mergedResult, pageContext, true)
-      emitShare(
-        eventName,
-        updatedResult,
-        options,
-        false
-      )
-    }, () => {
-      emitFallback()
-    })
-  } catch (_error) {
-    emitFallback()
-  }
+  return shareTrackingPlugin as GioShareTrackingPlugin
 }
 
 // 包装页面的 onShareAppMessage：调用业务 handler 取返回值后采集 $mp_on_share，
@@ -433,46 +510,19 @@ function emitResolvedShare(
 export function wrapShareAppMessage(
   handler : GioShareAppMessageHandler | null
 ) : GioShareAppMessageHandler {
-  return (options : any | null) : any | null => {
-    const originResult = handler != null ? handler(options) : null
-    const result = normalizeShareOriginResult(originResult)
-    emitResolvedShare(MP_EVENT_ON_SHARE, result, options, true)
-    return updateShareResult(
-      result,
-      GioTracker.getInstance().getCurrentPageContext(),
-      readThenableSource(result) == null
-    )
-  }
+  return getShareTrackingPlugin().wrapShareAppMessage(handler)
 }
 
 // 包装页面的 onShareTimeline：朋友圈不离开小程序进程，不翻 shareOut。
 export function wrapShareTimeline(
   handler : GioShareTimelineHandler | null
 ) : GioShareTimelineHandler {
-  return (options : any | null) : any | null => {
-    const originResult = handler != null ? handler(options) : null
-    const result = normalizeShareOriginResult(originResult)
-    emitResolvedShare(MP_EVENT_SHARE_TIMELINE, result, options, false)
-    return updateShareResult(
-      result,
-      GioTracker.getInstance().getCurrentPageContext(),
-      readThenableSource(result) == null
-    )
-  }
+  return getShareTrackingPlugin().wrapShareTimeline(handler)
 }
 
 // 包装页面的 onAddToFavorites：收藏不离开小程序进程，不翻 shareOut。
 export function wrapAddToFavorites(
   handler : GioAddToFavoritesHandler | null
 ) : GioAddToFavoritesHandler {
-  return (options : any | null) : any | null => {
-    const originResult = handler != null ? handler(options) : null
-    const result = normalizeShareOriginResult(originResult)
-    emitResolvedShare(MP_EVENT_ADD_FAVORITES, result, options, false)
-    return updateShareResult(
-      result,
-      GioTracker.getInstance().getCurrentPageContext(),
-      readThenableSource(result) == null
-    )
-  }
+  return getShareTrackingPlugin().wrapAddToFavorites(handler)
 }

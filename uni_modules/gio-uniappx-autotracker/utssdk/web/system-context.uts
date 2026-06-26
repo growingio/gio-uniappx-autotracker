@@ -1,0 +1,34 @@
+// Web 端系统字段解析器。
+import {
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../interface.uts'
+
+class WebSystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    systemInfo : UTSJSONObject | null,
+    osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    return {
+      appName: '',
+      bundleId: '',
+      channel: '',
+      deviceBrand: null,
+      deviceModel: '',
+      deviceType: '',
+      language: null,
+      networkState: '',
+      operatingSystem: '',
+      platform: 'web',
+      platformVersion: ''
+    } as GioSystemContextFields
+  }
+}
+
+export function createWebSystemContextResolver() : GioSystemContextResolver {
+  return new WebSystemContextResolver()
+}

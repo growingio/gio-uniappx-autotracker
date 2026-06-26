@@ -12,7 +12,7 @@ import {
   GioMiniProgramResolver,
   GioPageContext,
   GioPageSnapshot,
-  GioShareHost,
+  GioShareTrackingHost,
   GioStorageProvider,
   GioSystemContextResolver,
   GioTrackEvent
@@ -53,7 +53,7 @@ import {
 import { GioStorageContainer } from '../storage/index.uts'
 import { resolvePageRoute } from '../route.uts'
 
-export class GioTracker implements GioABTestHost, GioShareHost {
+export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   static sharedInstance : GioTracker | null = null
 
   static getInstance() : GioTracker {
@@ -79,7 +79,7 @@ export class GioTracker implements GioABTestHost, GioShareHost {
   private miniProgramScene : string = ''
   private currentPageShown : boolean = false
   // 分享往返标记：平台侧分享包装器在「分享给朋友」时经 setShareOut(true) 置位
-  // （见 mp-weixin/share.uts）。对齐独立 SDK appEffects.ts:59 —— 置位期间 onAppShow
+  // （见 mp-weixin/plugins/gio-share-tracking.uts）。对齐独立 SDK appEffects.ts:59 —— 置位期间 onAppShow
   // 不重写 originalSource，避免分享回流入口被当作首次来源；每次 page onShow 复位。
   // 非小程序端不会置位，恒为 false，守门为空操作。
   private shareOut : boolean = false
@@ -576,9 +576,9 @@ export class GioTracker implements GioABTestHost, GioShareHost {
     return true
   }
 
-  // ── GioShareHost：分享 / 收藏的平台无关能力 ──
-  // 具体的事件名、字段集、shareOut 翻转策略由平台侧分享包装器决定
-  // （见 utssdk/mp-weixin/share.uts），公共层只暴露这些通用能力并保存 shareOut 状态。
+  // ── GioShareTrackingHost：分享采集插件的平台无关 host 能力 ──
+  // 具体的事件名、字段集、shareOut 翻转策略由微信分享采集插件决定
+  // （见 utssdk/mp-weixin/plugins/gio-share-tracking.uts），公共层只暴露通用 host 能力。
 
   isFollowShareEnabled() : boolean {
     return this.options != null && this.options.followShare == true

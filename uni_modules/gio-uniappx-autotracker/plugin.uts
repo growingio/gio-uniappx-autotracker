@@ -15,15 +15,26 @@ export { gdp }
 export default gdp
 
 // #ifdef MP-WEIXIN
-export {
-  wrapAddToFavorites,
-  wrapShareAppMessage,
-  wrapShareTimeline
+import {
+  wrapAddToFavorites as gioWrapAddToFavorites,
+  wrapShareAppMessage as gioWrapShareAppMessage,
+  wrapShareTimeline as gioWrapShareTimeline
 } from '@/uni_modules/gio-uniappx-autotracker'
+export {
+  gioWrapAddToFavorites as wrapAddToFavorites,
+  gioWrapShareAppMessage as wrapShareAppMessage,
+  gioWrapShareTimeline as wrapShareTimeline
+}
 // #endif
 let lifecycleInstalled = false
 // #ifdef MP-WEIXIN
 let mpAppLifecycleInstalled = false
+let mpShareAutoHookInstalled = false
+// #endif
+
+// #ifdef MP-WEIXIN
+type MpOptionsFactory = (options : any | null) => any | null
+type MpShareHandler = (options : any | null) => any | null
 // #endif
 
 function copyJSONObject(source : any | null) : UTSJSONObject | null {
@@ -186,6 +197,70 @@ function installMpAppLifecycle() {
     })
   }
 }
+
+function wrapMpShareHandler(
+  target : UTSJSONObject,
+  key : string
+) {
+  const markerKey = `__gio_${key}_hooked`
+  if (target[markerKey] != null) {
+    return
+  }
+  const handler = target[key]
+  if (handler == null || typeof handler != 'function') {
+    return
+  }
+  const shareHandler = handler as MpShareHandler
+  if (key == 'onShareAppMessage') {
+    target[key] = gioWrapShareAppMessage(shareHandler)
+  } else if (key == 'onShareTimeline') {
+    target[key] = gioWrapShareTimeline(shareHandler)
+  } else if (key == 'onAddToFavorites') {
+    target[key] = gioWrapAddToFavorites(shareHandler)
+  }
+  target[markerKey] = true
+}
+
+function wrapMpShareHandlers(target : any | null) {
+  if (target == null || typeof target != 'object' || Array.isArray(target)) {
+    return
+  }
+  const raw = target as UTSJSONObject
+  wrapMpShareHandler(raw, 'onShareAppMessage')
+  wrapMpShareHandler(raw, 'onShareTimeline')
+  wrapMpShareHandler(raw, 'onAddToFavorites')
+  const methods = raw['methods']
+  if (methods != null && typeof methods == 'object' && !Array.isArray(methods)) {
+    const rawMethods = methods as UTSJSONObject
+    wrapMpShareHandler(rawMethods, 'onShareAppMessage')
+    wrapMpShareHandler(rawMethods, 'onShareTimeline')
+    wrapMpShareHandler(rawMethods, 'onAddToFavorites')
+  }
+}
+
+function installMpShareAutoHook() {
+  if (mpShareAutoHookInstalled) {
+    return
+  }
+  mpShareAutoHookInstalled = true
+  const runtime = globalThis as UTSJSONObject
+  const pageFactoryValue = runtime['Page']
+  if (pageFactoryValue != null && typeof pageFactoryValue == 'function') {
+    const originalPage = pageFactoryValue as MpOptionsFactory
+    runtime['Page'] = function(options : any | null) : any | null {
+      wrapMpShareHandlers(options)
+      return originalPage(options)
+    }
+  }
+  const componentFactoryValue = runtime['Component']
+  if (componentFactoryValue != null && typeof componentFactoryValue == 'function') {
+    const originalComponent = componentFactoryValue as MpOptionsFactory
+    runtime['Component'] = function(options : any | null) : any | null {
+      wrapMpShareHandlers(options)
+      return originalComponent(options)
+    }
+  }
+}
 // #endif
 
 // #ifdef APP-IOS || APP-HARMONY
@@ -209,6 +284,9 @@ const lifecycle = defineMixin({
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onLoad(options : OnLoadOptions) {
+    // #ifdef MP-WEIXIN
+    wrapMpShareHandlers(this)
+    // #endif
     handleOnPageLoad(
       buildPageSnapshot(),
       buildPageOptionsSnapshot(options)
@@ -271,6 +349,7 @@ export function installGioLifecycle(app : VueApp) : boolean {
   }
   // #ifdef MP-WEIXIN
   installMpAppLifecycle()
+  installMpShareAutoHook()
   // #endif
   app.mixin(lifecycle)
   lifecycleInstalled = true

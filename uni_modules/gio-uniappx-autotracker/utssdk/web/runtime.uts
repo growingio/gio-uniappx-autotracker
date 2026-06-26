@@ -654,18 +654,10 @@ registerConfigSyncer({
 registerEventShaper({
   shapeTrackEvent(event : GioTrackEvent) : GioTrackEvent {
     event.appChannel = null
-    event.appState = null
-    event.deviceModel = null
-    event.deviceType = null
     const runtimeDomain = readRuntimeDomain()
     if (runtimeDomain != null) {
       event.domain = runtimeDomain
     }
-    event.networkState = null
-    event.operatingSystem = null
-    event.platform = 'web'
-    // Web 端继续保持“不上报 platformVersion 内容”的行为，同时不去改共享事件契约。
-    event.platformVersion = ''
     event.protocolType = event.eventType == 'PAGE'
       ? readProtocolType()
       : null
