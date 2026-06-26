@@ -17,12 +17,6 @@ import {
 import type { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker'
 import { installGioLifecycle } from './plugin.uts'
 
-// #ifdef WEB
-type GioGdpWebStorageOptions = {
-  storageType : string | null
-}
-// #endif
-
 function consoleText(message : any, type : string | null = null) {
   const styles = {
     info: 'color: #3B82F6;',
@@ -114,8 +108,10 @@ function handleInit(options : any | null) : boolean {
   rawOptions['originalSource'] = initOptions.originalSource
   rawOptions['idMapping'] = initOptions.idMapping
   // #ifdef WEB
-  const webStorageOptions = options as GioGdpWebStorageOptions
-  rawOptions['storageType'] = webStorageOptions.storageType
+  const webOptions = asJSONObject(options)
+  if (webOptions != null) {
+    rawOptions['storageType'] = webOptions.getString('storageType')
+  }
   // #endif
   rawOptions['cookieDomain'] = initOptions.cookieDomain
   rawOptions['urlScheme'] = initOptions.urlScheme
