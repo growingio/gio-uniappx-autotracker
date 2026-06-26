@@ -10,7 +10,6 @@ export type GioInitOptions = {
   debug : boolean
   forceLogin : boolean
   originalSource : boolean
-  followShare : boolean
   idMapping : boolean
   storageType : string | null
   cookieDomain : string | null
@@ -30,7 +29,6 @@ export type GioGdpInitOptions = {
   debug : boolean
   forceLogin : boolean
   originalSource : boolean
-  followShare : boolean
   idMapping : boolean
   storageType : string | null
   cookieDomain : string | null
@@ -200,11 +198,11 @@ export interface GioMiniProgramResolver extends GioSystemContextResolver {
   resolveMiniProgramEntryInfo : (fallbackOptions : any | null) => GioMiniProgramEntryInfo | null
 }
 
-// 分享采集插件所依赖的 host 能力，由 GioTracker 实现。公共层只暴露发事件、
-// 取当前页上下文、翻 shareOut、读 followShare 这些平台无关能力；微信独有的
+// 分享采集插件所依赖的 host 能力，由 GioTracker 实现。公共层只暴露插件启用状态、
+// 发事件、取当前页上下文、翻 shareOut 这些平台无关能力；微信独有的
 // 事件名 / 字段集 / 翻转策略收敛在 mp-weixin/plugins/gio-share-tracking.uts。
 export interface GioShareTrackingHost {
-  isFollowShareEnabled() : boolean
+  isShareTrackingEnabled() : boolean
   getCurrentPageContext() : GioPageContext | null
   setShareOut(value : boolean) : void
   emitShareEvent(eventName : string, properties : UTSJSONObject | null) : void

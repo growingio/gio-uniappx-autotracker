@@ -149,7 +149,6 @@ web 端额外支持两个初始化项：
 跨端配置项补充：
 
 - `originalSource`：默认 `true`
-- `followShare`：仅 `mp-weixin` 生效，默认 `true`；其他端固定关闭
 - `dataCollect`：默认 `true`，也可通过 `setOptions({ dataCollect })` 动态切换
 
 UTS 约束说明：
@@ -162,9 +161,9 @@ UTS 约束说明：
 - `setLocation` 只接受合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`；web 端调用会返回 `false`
 - `clearLocation` 清空运行时经纬度状态；web 端调用会返回 `false`
 - `flush`、`autoTrackLifecycle`、`requestTimeoutMs`、`maxQueueSize`、`storagePrefix`、`header` 都不再对外透出，也不允许传入初始化配置
-- 当前插件层只支持 `gioABTest`
-- 插件注册方式先按小程序独立 SDK 思路对齐：先 `gdp('registerPlugins', [...])`，再调用 `gdp('getABTest', ...)`
-- 微信小程序分享采集通过显式包装器完成，不用全局 mixin 注入分享钩子
+- 当前插件层支持 `gioShareTracking` 和 `gioABTest`
+- 插件注册方式先按小程序独立 SDK 思路对齐：先 `gdp('registerPlugins', [...])`，再使用对应插件能力
+- 微信小程序分享采集需要注册 `gioShareTracking` 后启用，并通过显式包装器完成，不用全局 mixin 注入分享钩子
 
 ## 6. 运行时架构
 
@@ -309,8 +308,8 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 设计原则：
 
 - 只代理业务页已经定义的分享 / 收藏钩子，不通过全局 mixin 让所有页面都出现转发菜单
-- 包装器先执行业务 handler，保留业务返回值，再补充 SDK 需要的分享字段
-- `followShare` 仅在 `mp-weixin` 生效，默认开启；其他端固定关闭
+- 只有注册 `gioShareTracking` 后才启用分享 / 收藏采集；未注册时包装器只透传业务 handler 返回值
+- 启用后，包装器先执行业务 handler，保留业务返回值，再补充 SDK 需要的分享字段
 - `onShareAppMessage` 会维护分享往返状态，用于保护回流场景下的 `originalSource`
 
 当前事件名对齐小程序独立 SDK：

@@ -18,13 +18,13 @@
 - `gdp('identify', ...)`
 - `gdp('registerPlugins', ...)`
 - `gdp('getABTest', ...)`
-- 微信小程序端分享自动采集：自动代理页面已定义的 `onShareAppMessage`、`onShareTimeline`、`onAddToFavorites`
+- 微信小程序端分享采集插件：注册 `gioShareTracking` 后，自动代理页面已定义的 `onShareAppMessage`、`onShareTimeline`、`onAddToFavorites`
 
 `setLocation` / `clearLocation` 只在非 web 端生效。`setLocation` 参数必须是合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`。设置后，后续事件会携带 `latitude` / `longitude`；调用 `clearLocation` 后，后续事件不再携带经纬度。该值当前保存在运行时内存中，不做持久化。
 
 `setOptions` 当前只允许动态修改 `dataCollect`，不能作为通用运行时配置入口使用。传入其他字段不会扩展核心状态。
 
-微信小程序分享能力会自动代理业务页已定义的 `onShareAppMessage` / `onShareTimeline` / `onAddToFavorites`。SDK 不会给没有定义分享钩子的页面补方法，因此不会让其它页面平白多出转发菜单；`wrapShareAppMessage` / `wrapShareTimeline` / `wrapAddToFavorites` 仍保留为手动兜底 API。
+微信小程序分享能力需要先通过 `gdp('registerPlugins', [{ name: 'gioShareTracking' }])` 注册启用。启用后，SDK 会代理业务页已定义的 `onShareAppMessage` / `onShareTimeline` / `onAddToFavorites`；未注册时只透传业务 handler 返回值，不补分享字段、不发送分享 / 收藏事件。SDK 不会给没有定义分享钩子的页面补方法，因此不会让其它页面平白多出转发菜单；`wrapShareAppMessage` / `wrapShareTimeline` / `wrapAddToFavorites` 仍保留为手动兜底 API。
 
 ## Demo 初始化
 
@@ -45,11 +45,10 @@
 SDK 入口还会归一化这些配置：
 
 - `originalSource`：默认 `true`
-- `followShare`：仅 `mp-weixin` 生效，默认 `true`；其他端固定关闭
 - `storageType`：仅 web 端生效，默认 `cookie`
 - `cookieDomain`：仅 web cookie 存储生效
 
-当前 demo 会默认通过 `gdp('registerPlugins', [{ name: 'gioABTest', options }])` 注册 `gioABTest` 插件，并额外提供一个 ABTest 页面做最小联调入口。该页面按单实例方式演示 `gdp('getABTest', layerId, callback)`，不包含 `trackingId` 多实例调用。
+当前 demo 会默认通过 `gdp('registerPlugins', [...])` 注册 `gioShareTracking` 和 `gioABTest` 插件，并额外提供分享页和 ABTest 页面做最小联调入口。ABTest 页面按单实例方式演示 `gdp('getABTest', layerId, callback)`，不包含 `trackingId` 多实例调用。
 
 ## 生命周期桥接约束
 

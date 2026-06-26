@@ -682,7 +682,6 @@ registerConfigSyncer({
         debug: options.debug,
         forceLogin: options.forceLogin,
         originalSource: options.originalSource,
-        followShare: options.followShare,
         storageType: rawStorageType != null ? rawStorageType : 'cookie'
       } as UTSJSONObject
     } catch (_error) {}

@@ -106,7 +106,6 @@ function handleInit(options : any | null) : boolean {
   rawOptions['debug'] = initOptions.debug
   rawOptions['forceLogin'] = initOptions.forceLogin
   rawOptions['originalSource'] = initOptions.originalSource
-  rawOptions['followShare'] = initOptions.followShare
   rawOptions['idMapping'] = initOptions.idMapping
   rawOptions['storageType'] = initOptions.storageType
   rawOptions['cookieDomain'] = initOptions.cookieDomain

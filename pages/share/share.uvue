@@ -2,8 +2,8 @@
 	<scroll-view class="page">
 		<text class="h2">分享 / 分享朋友圈 / 加收藏</text>
 		<text class="desc">
-			仅微信小程序端有效。本页按微信原生方式定义 onShareAppMessage /
-			onShareTimeline / onAddToFavorites，SDK 会自动代理这些已存在的钩子。
+			仅微信小程序端有效。demo 已注册 gioShareTracking。本页按微信原生方式定义
+			onShareAppMessage / onShareTimeline / onAddToFavorites，SDK 会代理这些已存在的钩子。
 		</text>
 
 		<view class="section">
@@ -41,7 +41,7 @@ export default {
 		const safeOptions = options != null ? options : ({} as UTSJSONObject)
 		console.log('[share] onLoad options=' + JSON.stringify(safeOptions))
 	},
-	// 仅微信小程序编译这三个钩子；SDK 会自动代理已定义的分享 / 收藏 hook。
+	// 仅微信小程序编译这三个钩子；注册 gioShareTracking 后，SDK 会代理已定义的分享 / 收藏 hook。
 	// #ifdef MP-WEIXIN
 	onShareAppMessage(options: any | null): any | null {
 		return {

@@ -1,6 +1,5 @@
 // config.uts 负责初始化配置的读取、归一化和默认值收口。
 import { GioInitOptions } from '../interface.uts'
-import { platformName } from './utils/system.uts'
 
 export const SDK_VERSION = '0.1.0'
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
@@ -11,10 +10,6 @@ export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
   const rawServerUrl = raw.getString('serverUrl', '')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
-  // followShare 仅小程序生效：mp-weixin 默认开启（用户未显式关闭时），其余端一律关闭，
-  // 分享 / 收藏事件本就只在小程序端产生。
-  const isMpWeixin = platformName() == 'mp-weixin'
-  const followShare = isMpWeixin ? raw.getBoolean('followShare', true) : false
   return {
     projectId: raw.getString('projectId', ''),
     dataSourceId: raw.getString('dataSourceId', ''),
@@ -25,7 +20,6 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     debug: raw.getBoolean('debug', false),
     forceLogin: raw.getBoolean('forceLogin', false),
     originalSource: raw.getBoolean('originalSource', true),
-    followShare: followShare,
     idMapping: raw.getBoolean('idMapping', false),
     storageType: raw.getString('storageType'),
     cookieDomain: raw.getString('cookieDomain'),

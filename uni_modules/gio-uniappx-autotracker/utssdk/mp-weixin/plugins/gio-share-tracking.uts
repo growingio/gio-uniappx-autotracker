@@ -294,9 +294,9 @@ function buildShareEventProps(
   return props
 }
 
-// 翻转 shareOut（仅 onShareAppMessage）+ 按 followShare 门控后发事件。
-// 翻位发生在 followShare 检查之外 —— 对齐独立 SDK：用户分享给朋友离开小程序的事实与
-// 是否采集事件无关。
+// 翻转 shareOut（仅 onShareAppMessage）+ 按插件注册状态发事件。
+// 未通过 registerPlugins([{ name: 'gioShareTracking' }]) 启用时，wrapper 只透传
+// 业务 handler 结果，不补分享字段、不翻 shareOut、不发送分享 / 收藏事件。
 export type GioShareAppMessageHandler = (options : any | null) => any | null
 export type GioShareTimelineHandler = (options : any | null) => any | null
 export type GioAddToFavoritesHandler = (options : any | null) => any | null
@@ -325,11 +325,11 @@ export class GioShareTrackingPlugin {
     options : any | null,
     flipShareOut : boolean
   ) {
+    if (!this.host.isShareTrackingEnabled()) {
+      return
+    }
     if (flipShareOut) {
       this.host.setShareOut(true)
-    }
-    if (!this.host.isFollowShareEnabled()) {
-      return
     }
     this.host.emitShareEvent(
       eventName,
@@ -343,6 +343,9 @@ export class GioShareTrackingPlugin {
     options : any | null,
     flipShareOut : boolean
   ) {
+    if (!this.host.isShareTrackingEnabled()) {
+      return
+    }
     const pageContext = this.host.getCurrentPageContext()
     const thenableSource = readThenableSource(originResult)
     if (thenableSource == null) {
@@ -353,7 +356,7 @@ export class GioShareTrackingPlugin {
     if (flipShareOut) {
       this.host.setShareOut(true)
     }
-    if (!this.host.isFollowShareEnabled()) {
+    if (!this.host.isShareTrackingEnabled()) {
       return
     }
     const returnedResult = updateShareResult(originResult, pageContext, false)
@@ -403,6 +406,9 @@ export class GioShareTrackingPlugin {
     const plugin = this
     return function (options : any | null) : any | null {
       const originResult = invokeShareHandler(handler, this, options)
+      if (!plugin.host.isShareTrackingEnabled()) {
+        return originResult
+      }
       const result = normalizeShareOriginResult(originResult)
       plugin.emitResolvedShare(MP_EVENT_ON_SHARE, result, options, true)
       return updateShareResult(
@@ -419,6 +425,9 @@ export class GioShareTrackingPlugin {
     const plugin = this
     return function (options : any | null) : any | null {
       const originResult = invokeShareHandler(handler, this, options)
+      if (!plugin.host.isShareTrackingEnabled()) {
+        return originResult
+      }
       const result = normalizeShareOriginResult(originResult)
       plugin.emitResolvedShare(MP_EVENT_SHARE_TIMELINE, result, options, false)
       return updateShareResult(
@@ -435,6 +444,9 @@ export class GioShareTrackingPlugin {
     const plugin = this
     return function (options : any | null) : any | null {
       const originResult = invokeShareHandler(handler, this, options)
+      if (!plugin.host.isShareTrackingEnabled()) {
+        return originResult
+      }
       const result = normalizeShareOriginResult(originResult)
       plugin.emitResolvedShare(MP_EVENT_ADD_FAVORITES, result, options, false)
       return updateShareResult(

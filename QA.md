@@ -24,7 +24,7 @@
 
 1. `setOptions` 当前只允许修改 `dataCollect`。参数必须显式包含布尔字段 `dataCollect`，不能静默接受其他运行时配置。
 2. `setLocation(latitude, longitude)` 仅非 web 端支持，参数必须是合法经纬度数字。设置后只影响后续构建的事件字段，当前不持久化。
-3. 微信小程序分享采集必须走显式包装器，不能用全局 mixin 注入分享钩子，否则会改变业务页面的转发菜单表现。
+3. 微信小程序分享采集必须先注册 `gioShareTracking`，再走显式包装器；不能用全局 mixin 注入分享钩子，否则会改变业务页面的转发菜单表现。
 
 ## Kotlin / Swift 差异
 

@@ -75,6 +75,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private abTestPlugin : GioABTestPlugin | null = null
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
   private firstPageDispatchWaiting : boolean = false
+  private shareTrackingEnabled : boolean = false
   private mpWeixinEnabled : boolean = false
   private miniProgramResolver : GioMiniProgramResolver | null = null
   private miniProgramScene : string = ''
@@ -119,6 +120,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     }
     this.options = resolvedOptions
     this.sessionUpdateReady = false
+    this.shareTrackingEnabled = false
     syncConfigToGlobal(this.options)
     this.mpWeixinEnabled = this.isMpWeixinPlatform()
     this.storage.initialize(this.options)
@@ -586,10 +588,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
 
   // ── GioShareTrackingHost：分享采集插件的平台无关 host 能力 ──
   // 具体的事件名、字段集、shareOut 翻转策略由微信分享采集插件决定
-  // （见 utssdk/mp-weixin/plugins/gio-share-tracking.uts），公共层只暴露通用 host 能力。
+  // （见 utssdk/mp-weixin/plugins/gio-share-tracking.uts），公共层只暴露插件启用状态和通用 host 能力。
 
-  isFollowShareEnabled() : boolean {
-    return this.options != null && this.options.followShare == true
+  isShareTrackingEnabled() : boolean {
+    return this.shareTrackingEnabled
   }
 
   getCurrentPageContext() : GioPageContext | null {
@@ -651,6 +653,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
           this,
           this.resolveABTestOptions(plugin.options)
         )
+        installed = true
+      } else if (plugin.name == 'gioShareTracking') {
+        this.shareTrackingEnabled = true
         installed = true
       }
     }

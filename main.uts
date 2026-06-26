@@ -21,6 +21,9 @@ export function createApp() {
 		} as GioGdpInitOptions)
 		gdp('registerPlugins', [
 			{
+				name: 'gioShareTracking',
+			},
+			{
 				name: 'gioABTest',
 				options: {
 					abServerUrl: 'https://ab.growingio.com',
