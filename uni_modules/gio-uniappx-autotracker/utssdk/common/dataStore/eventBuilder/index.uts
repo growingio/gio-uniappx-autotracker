@@ -11,7 +11,7 @@ import {
   resolvePageContext as resolveRuntimePageContext,
   shapeTrackEvent
 } from '../../runtime/index.uts'
-import { GioSystemContext } from '../../utils/system.uts'
+import { GioSystemContext, readDeviceOrientation } from '../../utils/system.uts'
 import { GioUserStore } from '../../userStore/index.uts'
 
 export class GioEventBuilder {
@@ -102,6 +102,9 @@ export class GioEventBuilder {
     const referralPageText : string | null = (isApp && eventType != 'PAGE')
       ? null
       : referralPage
+    const orientationText : string | null = (isApp && eventType == 'PAGE')
+      ? readDeviceOrientation()
+      : null
     return shapeTrackEvent({
       appChannel: appChannelText,
       appName: systemContext.appName,
@@ -126,6 +129,7 @@ export class GioEventBuilder {
       platform: systemContext.platform,
       platformVersion: systemContext.platformVersion,
       protocolType: null,
+      orientation: orientationText,
       query: query,
       referralPage: referralPageText,
       screenHeight: systemContext.screenHeight,
