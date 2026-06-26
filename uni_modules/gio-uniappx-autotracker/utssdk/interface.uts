@@ -11,7 +11,6 @@ export type GioInitOptions = {
   forceLogin : boolean
   originalSource : boolean
   idMapping : boolean
-  storageType : string | null
   cookieDomain : string | null
   urlScheme : string | null
   screenWidth : number
@@ -30,7 +29,6 @@ export type GioGdpInitOptions = {
   forceLogin : boolean
   originalSource : boolean
   idMapping : boolean
-  storageType : string | null
   cookieDomain : string | null
   urlScheme : string | null
 }

@@ -25,6 +25,8 @@ import {
 import { jsonStringify, utf8ByteLength } from '../common/utils/base.uts'
 
 const VISIT_SENT_SUFFIX = '_gdp_session_id_sent'
+const DEFAULT_STORAGE_TYPE = 'cookie'
+const LOCAL_STORAGE_TYPE = 'localStorage'
 
 const SPECIAL_TOP_DOMAIN_PREFIXES = [
   '.ac.',
@@ -559,17 +561,27 @@ function normalizeOptionalText(value : string | null) : string | null {
   return value
 }
 
+function normalizeWebStorageType(value : string | null) : string {
+  if (value == null || value.length == 0) {
+    return DEFAULT_STORAGE_TYPE
+  }
+  const normalized = value.toLowerCase()
+  if (normalized == 'localstorage') {
+    return LOCAL_STORAGE_TYPE
+  }
+  if (normalized == DEFAULT_STORAGE_TYPE) {
+    return DEFAULT_STORAGE_TYPE
+  }
+  return DEFAULT_STORAGE_TYPE
+}
+
 function createWebMainStorage(
   options : GioInitOptions,
   fallback : any | null
 ) : any | null {
-  const optionStorageType = normalizeOptionalText(options.storageType)
-  const storageType = optionStorageType != null
-    ? optionStorageType
-    : readRawConfigField('storageType')
-  const requestedStorageType = storageType != null
-    ? storageType.toLowerCase()
-    : 'cookie'
+  const requestedStorageType = normalizeWebStorageType(
+    readRawConfigField('storageType')
+  )
   if (requestedStorageType == 'cookie') {
     const optionCookieDomain = normalizeOptionalText(options.cookieDomain)
     const rawDomain = optionCookieDomain != null
@@ -667,9 +679,6 @@ registerConfigSyncer({
       const rawDomain = options.cookieDomain != null
         ? options.cookieDomain
         : readRawConfigField('cookieDomain')
-      const rawStorageType = options.storageType != null
-        ? options.storageType
-        : readRawConfigField('storageType')
       runtimeGlobal['vds'] = {
         projectId: options.projectId,
         dataSourceId: options.dataSourceId,
@@ -682,7 +691,7 @@ registerConfigSyncer({
         debug: options.debug,
         forceLogin: options.forceLogin,
         originalSource: options.originalSource,
-        storageType: rawStorageType != null ? rawStorageType : 'cookie'
+        storageType: normalizeWebStorageType(readRawConfigField('storageType'))
       } as UTSJSONObject
     } catch (_error) {}
   }

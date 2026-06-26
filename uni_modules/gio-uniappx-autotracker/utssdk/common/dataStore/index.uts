@@ -118,7 +118,6 @@ export class GioDataStore {
       forceLogin: false,
       originalSource: true,
       idMapping: false,
-      storageType: null,
       cookieDomain: null,
       urlScheme: null,
       screenWidth: 0,

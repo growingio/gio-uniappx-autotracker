@@ -45,7 +45,7 @@
 SDK 入口还会归一化这些配置：
 
 - `originalSource`：默认 `true`
-- `storageType`：仅 web 端生效，默认 `cookie`
+- `storageType`：仅 web 端生效，合法值为 `cookie` / `localStorage`，大小写不敏感；默认和非法值均使用 `cookie`
 - `cookieDomain`：仅 web cookie 存储生效
 
 当前 demo 会默认通过 `gdp('registerPlugins', [...])` 注册 `gioShareTracking` 和 `gioABTest` 插件，并额外提供分享页和 ABTest 页面做最小联调入口。ABTest 页面按单实例方式演示 `gdp('getABTest', layerId, callback)`，不包含 `trackingId` 多实例调用。

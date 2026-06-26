@@ -143,7 +143,7 @@ gio-uniappx-autotracker/
 
 web 端额外支持两个初始化项：
 
-- `storageType`：浏览器存储策略，默认 `cookie`
+- `storageType`：浏览器存储策略，合法值为 `cookie` / `localStorage`，大小写不敏感；默认和非法值均使用 `cookie`
 - `cookieDomain`：cookie 域名，仅在 `storageType = cookie` 时生效
 
 跨端配置项补充：
@@ -192,7 +192,7 @@ UTS 约束说明：
 - 页面实例字段提取、`this`/`options` 浅拷贝、`referrerInfo` 兼容处理，统一放在 `plugin.uts` 或独立解析模块里
 - 小程序入口来源、scene、referrer 的兜底解析应沉到独立模块，不要继续堆进 `tracker.uts`
 
-web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选择浏览器存储实现和 cookie 域名。
+web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选择浏览器存储实现和 cookie 域名。`storageType` 只接受 `cookie` / `localStorage`，大小写不敏感；其他值归一化为 `cookie`。
 
 ### 6.2 `GioUserStore`
 

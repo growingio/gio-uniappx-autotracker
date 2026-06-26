@@ -21,7 +21,6 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     forceLogin: raw.getBoolean('forceLogin', false),
     originalSource: raw.getBoolean('originalSource', true),
     idMapping: raw.getBoolean('idMapping', false),
-    storageType: raw.getString('storageType'),
     cookieDomain: raw.getString('cookieDomain'),
     urlScheme: raw.getString('urlScheme'),
     screenWidth: raw.getNumber('screenWidth', 0),
