@@ -24,6 +24,8 @@ import {
 } from '../common/storage/index.uts'
 import { jsonStringify, utf8ByteLength } from '../common/utils/base.uts'
 
+const VISIT_SENT_SUFFIX = '_gdp_session_id_sent'
+
 const SPECIAL_TOP_DOMAIN_PREFIXES = [
   '.ac.',
   '.br.',
@@ -550,25 +552,55 @@ function readRawConfigField(key : string) : string | null {
   }
 }
 
+function normalizeOptionalText(value : string | null) : string | null {
+  if (value == null || value.length == 0) {
+    return null
+  }
+  return value
+}
+
+function createWebMainStorage(
+  options : GioInitOptions,
+  fallback : any | null
+) : any | null {
+  const optionStorageType = normalizeOptionalText(options.storageType)
+  const storageType = optionStorageType != null
+    ? optionStorageType
+    : readRawConfigField('storageType')
+  const requestedStorageType = storageType != null
+    ? storageType.toLowerCase()
+    : 'cookie'
+  if (requestedStorageType == 'cookie') {
+    const optionCookieDomain = normalizeOptionalText(options.cookieDomain)
+    const rawDomain = optionCookieDomain != null
+      ? optionCookieDomain
+      : readRawConfigField('cookieDomain')
+    const cookieDomain = resolveCookieDomain(
+      rawDomain != null ? rawDomain : ''
+    )
+    if (cookieDomain.length > 0) {
+      return createCookieStorage(cookieDomain)
+    }
+  }
+  if (canUseLocalStorage()) {
+    return createLocalStorageAdapter()
+  }
+  return fallback
+}
+
+function readVisitSentSessionId(options : GioInitOptions) : string {
+  const storage = createWebMainStorage(options, null)
+  if (storage == null) {
+    return ''
+  }
+  const value = storage.getItem(`${options.projectId}${VISIT_SENT_SUFFIX}`)
+  return value != null && typeof value == 'string' ? value as string : ''
+}
+
 registerPlatformStorageFactory({
-  createMainStorage(_options : GioInitOptions, fallback : any) : any {
-    const storageType = readRawConfigField('storageType')
-    const requestedStorageType = storageType != null
-      ? storageType.toLowerCase()
-      : 'cookie'
-    if (requestedStorageType == 'cookie') {
-      const rawDomain = readRawConfigField('cookieDomain')
-      const cookieDomain = resolveCookieDomain(
-        rawDomain != null ? rawDomain : ''
-      )
-      if (cookieDomain.length > 0) {
-        return createCookieStorage(cookieDomain)
-      }
-    }
-    if (canUseLocalStorage()) {
-      return createLocalStorageAdapter()
-    }
-    return fallback
+  createMainStorage(options : GioInitOptions, fallback : any) : any {
+    const storage = createWebMainStorage(options, fallback)
+    return storage != null ? storage : fallback
   },
   createOriginalSourceStorage(_options : GioInitOptions, fallback : any) : any {
     if (canUseLocalStorage()) {
@@ -619,6 +651,12 @@ registerRuntimeBehavior({
   },
   shouldEmitPageOnShow() : boolean {
     return shouldEmitPageForCurrentHref()
+  },
+  shouldEmitVisitForSession(options : GioInitOptions, sessionId : string) : boolean {
+    if (sessionId.length == 0) {
+      return false
+    }
+    return readVisitSentSessionId(options) != sessionId
   }
 })
 

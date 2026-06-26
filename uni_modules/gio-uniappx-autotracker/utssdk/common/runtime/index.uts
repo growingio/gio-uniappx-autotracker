@@ -21,6 +21,10 @@ type GioRuntimeBehavior = {
   scheduleVisitAndPage : (dispatch : (() => void)) => void
   shouldTrackAppClosed : () => boolean
   shouldEmitPageOnShow : () => boolean
+  shouldEmitVisitForSession : (
+    options : GioInitOptions,
+    sessionId : string
+  ) => boolean
 }
 
 type GioEventShaper = {
@@ -269,6 +273,17 @@ export function shouldEmitPageOnShow() : boolean {
     return true
   }
   return behavior.shouldEmitPageOnShow()
+}
+
+export function shouldEmitVisitForSession(
+  options : GioInitOptions,
+  sessionId : string
+) : boolean {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    return false
+  }
+  return behavior.shouldEmitVisitForSession(options, sessionId)
 }
 
 export function shapeTrackEvent (
