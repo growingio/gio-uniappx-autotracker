@@ -14,7 +14,6 @@ import {
   setUserId,
   track
 } from '@/uni_modules/gio-uniappx-autotracker'
-import type { GioGdpInitOptions } from '@/uni_modules/gio-uniappx-autotracker'
 import { installGioLifecycle } from './plugin.uts'
 
 function consoleText(message : any, type : string | null = null) {
@@ -84,44 +83,28 @@ function seedScreenSize(rawOptions : UTSJSONObject) {
 }
 
 function handleInit(options : any | null) : boolean {
-  if (!isObjectArgument(options)) {
+  const initOptions = asJSONObject(options)
+  if (initOptions == null) {
     consoleText(
       'gdp("init") 参数不合法，请传入包含 app 的初始化对象',
       'error'
     )
     return false
   }
-  const initOptions = options as GioGdpInitOptions
-  if (initOptions.app == null) {
+  
+  const app = initOptions['app']
+  // iOS中需要移除app传入native层
+  initOptions['app'] = null
+  if (app == null) {
     consoleText('gdp("init") 缺少 app 参数', 'error')
     return false
   }
-  const rawOptions = {} as UTSJSONObject
-  rawOptions['projectId'] = initOptions.projectId
-  rawOptions['dataSourceId'] = initOptions.dataSourceId
-  rawOptions['appId'] = initOptions.appId
-  rawOptions['serverUrl'] = initOptions.serverUrl
-  rawOptions['appVersion'] = initOptions.appVersion
-  rawOptions['dataCollect'] = initOptions.dataCollect
-  rawOptions['debug'] = initOptions.debug
-  rawOptions['forceLogin'] = initOptions.forceLogin
-  rawOptions['originalSource'] = initOptions.originalSource
-  rawOptions['idMapping'] = initOptions.idMapping
-  // #ifdef WEB
-  const webOptions = asJSONObject(options)
-  if (webOptions != null) {
-    rawOptions['storageType'] = webOptions.getString('storageType')
-  }
-  // #endif
-  rawOptions['cookieDomain'] = initOptions.cookieDomain
-  rawOptions['urlScheme'] = initOptions.urlScheme
-  rawOptions['dataValidityPeriod'] = initOptions.dataValidityPeriod
-  seedScreenSize(rawOptions)
-  const initialized = initialize(rawOptions)
+  seedScreenSize(initOptions)
+  const initialized = initialize(initOptions)
   if (!initialized) {
     return false
   }
-  return installGioLifecycle(initOptions.app as VueApp)
+  return installGioLifecycle(app as VueApp)
 }
 
 // 重新导出微信小程序分享包装器，让外部始终通过模块根路径取能力，

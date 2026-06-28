@@ -6,7 +6,7 @@ export function now () : number {
 
 export function readTimezoneOffsetMinutes () : number {
   // #ifdef APP-IOS
-  return TimeZoneHelper.getTimeZoneOffset() as number
+  return NativeHelper.getTimeZoneOffset() as number
   // #endif
   // #ifndef APP-IOS
   return new Date().getTimezoneOffset()
@@ -36,6 +36,19 @@ export function jsonStringify (value : any) : string {
   return text != null ? (text as string) : ''
 }
 
+// #ifdef APP-IOS
+export function utf8ByteLength(value : string) : number {
+  return NativeHelper.utf8ByteLength(value) as number
+}
+// #endif
+// #ifdef APP-ANDROID
+import { NativeHelper } from 'uts.sdk.modules.gioUniappxAutotracker'
+
+export function utf8ByteLength(value : string) : number {
+  return NativeHelper.utf8ByteLength(value) as number
+}
+// #endif
+// #ifndef APP-IOS || APP-ANDROID
 export function utf8ByteLength(value : string) : number {
   let bytes = 0
   for (let i = 0; i < value.length; i++) {
@@ -67,6 +80,7 @@ export function utf8ByteLength(value : string) : number {
   }
   return bytes
 }
+// #endif
 
 export function hashCode(value : string, abs : boolean = false) : number {
   let hash = 0
