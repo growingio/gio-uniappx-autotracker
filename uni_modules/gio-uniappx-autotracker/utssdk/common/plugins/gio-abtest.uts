@@ -322,9 +322,9 @@ export class GioABTestPlugin {
     // 这类写法会在运行时触发和 registerPlugins 一样的强转崩溃。
     const variables = responseData.getJSON('variables')
     const comparisonData = {
-      layerId: stringifyScalar(responseData['layerId'] != null ? responseData['layerId'] : layerId),
-      strategyId: stringifyScalar(responseData['strategyId']),
-      experimentId: stringifyScalar(responseData['experimentId']),
+      layerId: responseData.getString('layerId', stringifyScalar(layerId)),
+      strategyId: responseData.getString('strategyId', ''),
+      experimentId: responseData.getString('experimentId', ''),
       variables: variables != null ? variables : {} as UTSJSONObject
     } as UTSJSONObject
     const controlData = this.cloneComparisonData(originData)

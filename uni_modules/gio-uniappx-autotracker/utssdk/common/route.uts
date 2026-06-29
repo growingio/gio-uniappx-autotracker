@@ -29,15 +29,17 @@ function stringifyRouteQuery(value : any | null) : string {
     if (key.length == 0) {
       continue
     }
-    const item = raw[key]
-    let itemValue = ''
-    if (item != null) {
-      if (typeof item == 'string') {
-        itemValue = item as string
-      } else if (typeof item == 'number') {
-        itemValue = `${item as number}`
-      } else if (typeof item == 'boolean') {
-        itemValue = `${item as boolean}`
+    let itemValue = raw.getString(key, '')
+    if (itemValue.length == 0) {
+      const numberValue = raw.getNumber(key)
+      if (numberValue != null) {
+        itemValue = `${numberValue as number}`
+      }
+    }
+    if (itemValue.length == 0) {
+      const booleanValue = raw.getBoolean(key)
+      if (booleanValue != null) {
+        itemValue = `${booleanValue as boolean}`
       }
     }
     parts.push(`${key}=${itemValue}`)

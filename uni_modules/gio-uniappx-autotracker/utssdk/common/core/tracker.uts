@@ -493,8 +493,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (!this.ensureReady()) {
       return false
     }
-    const dataCollectValue = raw['dataCollect']
-    if (dataCollectValue == null || typeof dataCollectValue != 'boolean') {
+    const dataCollectValue = raw.getBoolean('dataCollect')
+    if (dataCollectValue == null) {
       consoleText(
         'setOptions 参数不合法，请传入 { dataCollect: boolean }',
         'error'
@@ -625,17 +625,13 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
         requestTimeout: null
       } as GioABTestPluginOptions
     }
-    const abServerUrlValue = rawOptions['abServerUrl']
-    const requestIntervalValue = rawOptions['requestInterval']
-    const requestTimeoutValue = rawOptions['requestTimeout']
+    const abServerUrlValue = rawOptions.getString('abServerUrl')
+    const requestIntervalValue = rawOptions.getNumber('requestInterval')
+    const requestTimeoutValue = rawOptions.getNumber('requestTimeout')
     return {
-      abServerUrl: abServerUrlValue != null ? `${abServerUrlValue}` : null,
-      requestInterval: typeof requestIntervalValue == 'number'
-        ? requestIntervalValue
-        : null,
-      requestTimeout: typeof requestTimeoutValue == 'number'
-        ? requestTimeoutValue
-        : null
+      abServerUrl: abServerUrlValue,
+      requestInterval: requestIntervalValue,
+      requestTimeout: requestTimeoutValue
     } as GioABTestPluginOptions
   }
 

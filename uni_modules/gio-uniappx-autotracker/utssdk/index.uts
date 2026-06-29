@@ -73,8 +73,8 @@ export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
   const items = [] as Array<GioPluginItem>
   for (let i = 0; i < plugins.length; i++) {
     const raw = plugins[i]
-    const nameValue = raw['name']
-    if (nameValue == null) {
+    const nameValue = raw.getString('name')
+    if (nameValue == null || nameValue.length == 0) {
       continue
     }
     // 嵌套对象必须通过 getJSON 读取，不能写 `raw['options'] as UTSJSONObject`。
@@ -82,7 +82,7 @@ export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
     // `UTSJSONObject | null`。
     const optionsValue = raw.getJSON('options')
     items.push({
-      name: `${nameValue}`,
+      name: nameValue,
       options: optionsValue
     } as GioPluginItem)
   }

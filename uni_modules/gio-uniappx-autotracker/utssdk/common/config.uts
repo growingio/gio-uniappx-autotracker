@@ -11,20 +11,7 @@ function readRequiredConfigString(
   key : string,
   fallback : string
 ) : string {
-  const value = raw[key]
-  if (value == null) {
-    return fallback
-  }
-  if (typeof value == 'string') {
-    return value as string
-  }
-  if (typeof value == 'number') {
-    return `${value as number}`
-  }
-  if (typeof value == 'boolean') {
-    return `${value as boolean}`
-  }
-  return fallback
+  return raw.getString(key, fallback)
 }
 
 function readNullableConfigString(
@@ -32,20 +19,8 @@ function readNullableConfigString(
   key : string,
   fallback : string | null
 ) : string | null {
-  const value = raw[key]
-  if (value == null) {
-    return fallback
-  }
-  if (typeof value == 'string') {
-    return value as string
-  }
-  if (typeof value == 'number') {
-    return `${value as number}`
-  }
-  if (typeof value == 'boolean') {
-    return `${value as boolean}`
-  }
-  return fallback
+  const value = raw.getString(key)
+  return value != null ? value : fallback
 }
 
 function readConfigNumber(
@@ -53,8 +28,7 @@ function readConfigNumber(
   key : string,
   fallback : number
 ) : number {
-  const value = raw[key]
-  return typeof value == 'number' ? value as number : fallback
+  return raw.getNumber(key, fallback)
 }
 
 function readConfigBoolean(
@@ -62,8 +36,7 @@ function readConfigBoolean(
   key : string,
   fallback : boolean
 ) : boolean {
-  const value = raw[key]
-  return typeof value == 'boolean' ? value as boolean : fallback
+  return raw.getBoolean(key, fallback)
 }
 
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {

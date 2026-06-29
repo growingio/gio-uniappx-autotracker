@@ -546,11 +546,7 @@ function readRawConfigField(key : string) : string | null {
     if (raw == null) {
       return null
     }
-    const value = raw[key]
-    if (value == null) {
-      return null
-    }
-    const text = `${value}`
+    const text = raw.getString(key, '')
     return text.length > 0 ? text : null
   } catch (_error) {
     return null
