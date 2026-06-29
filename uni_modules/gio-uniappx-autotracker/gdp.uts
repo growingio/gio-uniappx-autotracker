@@ -1,6 +1,22 @@
 // gdp.uts 是 SDK 的对外命令分发入口。
 // 该文件位于 utssdk 之外，属于 JS 编译层，只负责参数校验、命令分发和生命周期安装，
 // 不直接承接原生编译层的核心采集逻辑。
+// #ifdef MP-WEIXIN
+import {
+  clearLocation,
+  clearUserId,
+  getABTest,
+  identify,
+  initialize,
+  registerPlugins,
+  setOptions,
+  setLocation,
+  setUserAttributes,
+  setUserId,
+  track
+} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
+// #endif
+// #ifndef MP-WEIXIN
 import {
   clearLocation,
   clearUserId,
@@ -14,6 +30,7 @@ import {
   setUserId,
   track
 } from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
 import { installGioLifecycle } from './plugin.uts'
 
 function consoleText(message : any, type : string | null = null) {
@@ -114,7 +131,7 @@ export {
   wrapAddToFavorites,
   wrapShareAppMessage,
   wrapShareTimeline
-} from '@/uni_modules/gio-uniappx-autotracker'
+} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
 // #endif
 
 export function gdp(

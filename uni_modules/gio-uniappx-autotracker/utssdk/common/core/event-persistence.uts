@@ -1,11 +1,12 @@
 // event-persistence.uts 负责 app 端事件的本地落盘 / 删除 / 启动恢复。设计见 docs/event-persistence-design.md。
 import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
 import { now } from '../utils/base.uts'
-import { platformName } from '../utils/system.uts'
+import { shouldPersistEvents } from '../runtime/index.uts'
 import {
   buildWrappedStorageValue,
   readStructuredStorageValue
 } from '../storage/index.uts'
+import { eventFromJSONObject, eventToJSONObject } from './event-codec.uts'
 
 export type GioPersistedEvent = {
   storageKey : string
@@ -35,8 +36,7 @@ export class GioEventPersistence {
   }
 
   private resolveEnabled() : boolean {
-    const platform = platformName()
-    return !(platform == 'web' || platform.startsWith('mp-'))
+    return shouldPersistEvents()
   }
 
   isEnabled() : boolean {
@@ -76,7 +76,7 @@ export class GioEventPersistence {
     try {
       const wrapped = buildWrappedStorageValue(
         storageKey,
-        this.serializeEvent(event),
+        eventToJSONObject(event),
         now() + this.expireMs
       )
       uni.setStorage({
@@ -112,7 +112,7 @@ export class GioEventPersistence {
         }
         result.push({
           storageKey: key,
-          event: this.deserializeEvent(parsed as UTSJSONObject)
+          event: eventFromJSONObject(parsed as UTSJSONObject)
         } as GioPersistedEvent)
       }
       result.sort((a : GioPersistedEvent, b : GioPersistedEvent) : number => {
@@ -148,85 +148,4 @@ export class GioEventPersistence {
     return matched
   }
 
-  private serializeEvent(event : GioTrackEvent) : UTSJSONObject {
-    return {
-      appChannel: event.appChannel,
-      appName: event.appName,
-      appState: event.appState,
-      appVersion: event.appVersion,
-      dataSourceId: event.dataSourceId,
-      urlScheme: event.urlScheme,
-      deviceBrand: event.deviceBrand,
-      deviceId: event.deviceId,
-      deviceModel: event.deviceModel,
-      deviceType: event.deviceType,
-      domain: event.domain,
-      eventName: event.eventName,
-      eventSequenceId: event.eventSequenceId,
-      eventType: event.eventType,
-      language: event.language,
-      latitude: event.latitude,
-      longitude: event.longitude,
-      networkState: event.networkState,
-      operatingSystem: event.operatingSystem,
-      path: event.path,
-      platform: event.platform,
-      platformVersion: event.platformVersion,
-      protocolType: event.protocolType,
-      orientation: event.orientation,
-      query: event.query,
-      referralPage: event.referralPage,
-      screenHeight: event.screenHeight,
-      screenWidth: event.screenWidth,
-      sdkVersion: event.sdkVersion,
-      sessionId: event.sessionId,
-      timestamp: event.timestamp,
-      timezoneOffset: event.timezoneOffset,
-      title: event.title,
-      userId: event.userId,
-      userKey: event.userKey,
-      attributes: event.attributes
-    } as UTSJSONObject
-  }
-
-  private deserializeEvent(raw : UTSJSONObject) : GioTrackEvent {
-    return {
-      appChannel: raw.getString('appChannel'),
-      appName: raw.getString('appName'),
-      appState: raw.getString('appState'),
-      appVersion: raw.getString('appVersion', ''),
-      dataSourceId: raw.getString('dataSourceId', ''),
-      urlScheme: raw.getString('urlScheme'),
-      deviceBrand: raw.getString('deviceBrand', ''),
-      deviceId: raw.getString('deviceId', ''),
-      deviceModel: raw.getString('deviceModel'),
-      deviceType: raw.getString('deviceType'),
-      domain: raw.getString('domain', ''),
-      eventName: raw.getString('eventName'),
-      eventSequenceId: raw.getNumber('eventSequenceId'),
-      eventType: raw.getString('eventType', ''),
-      language: raw.getString('language', ''),
-      latitude: raw.getNumber('latitude'),
-      longitude: raw.getNumber('longitude'),
-      networkState: raw.getString('networkState'),
-      operatingSystem: raw.getString('operatingSystem'),
-      path: raw.getString('path'),
-      platform: raw.getString('platform', ''),
-      platformVersion: raw.getString('platformVersion', ''),
-      protocolType: raw.getString('protocolType'),
-      orientation: raw.getString('orientation'),
-      query: raw.getString('query'),
-      referralPage: raw.getString('referralPage'),
-      screenHeight: raw.getNumber('screenHeight', 0),
-      screenWidth: raw.getNumber('screenWidth', 0),
-      sdkVersion: raw.getString('sdkVersion', ''),
-      sessionId: raw.getString('sessionId', ''),
-      timestamp: raw.getNumber('timestamp', 0),
-      timezoneOffset: raw.getString('timezoneOffset', ''),
-      title: raw.getString('title', ''),
-      userId: raw.getString('userId'),
-      userKey: raw.getString('userKey'),
-      attributes: raw.getJSON('attributes')
-    } as GioTrackEvent
-  }
 }

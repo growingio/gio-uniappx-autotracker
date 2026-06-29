@@ -2,7 +2,7 @@
 // 这里只处理 mp-weixin 独有的 scene、query、referrer 和入口来源拼装，
 // 供公共层 tracker 通过 resolver 回调消费，避免把平台细节放进 common。
 import {
-  GioMiniProgramEntryInfo
+  GioEntryInfo
 } from '../interface.uts'
 
 function readSceneFromQuery(source : any | null) : string {
@@ -287,7 +287,7 @@ export function resolveMiniProgramScene() : string {
 
 export function resolveMiniProgramEntryInfo(
   fallbackOptions : any | null = null
-) : GioMiniProgramEntryInfo | null {
+) : GioEntryInfo | null {
   const enterOptions = getMiniProgramEnterOptions()
   const primary = fallbackOptions != null ? fallbackOptions : enterOptions
   const secondary = fallbackOptions != null ? enterOptions : null
@@ -320,5 +320,5 @@ export function resolveMiniProgramEntryInfo(
     query: query,
     referralPage: buildReferralPage(scene, primary, secondary),
     scene: scene
-  } as GioMiniProgramEntryInfo
+  } as GioEntryInfo
 }

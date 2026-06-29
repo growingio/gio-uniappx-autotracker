@@ -1,1 +1,9 @@
+// iOS 平台入口：注册 iOS 系统字段解析器，再复用公共 utssdk API。
+import { GioTracker } from '../common/core/tracker.uts'
+import { createAppIosSystemContextResolver } from './system-context.uts'
+
+GioTracker.getInstance().setSystemContextResolver(
+  createAppIosSystemContextResolver()
+)
+
 export * from '../index.uts'

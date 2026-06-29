@@ -1,8 +1,8 @@
 // 微信小程序平台 resolver 组装。
-// 入口上下文解析和系统字段解析各自独立，公共层只依赖 GioMiniProgramResolver 契约。
+// 入口上下文解析和系统字段解析各自独立，公共层只依赖 GioEntryResolver 契约。
 import {
-  GioMiniProgramEntryInfo,
-  GioMiniProgramResolver,
+  GioEntryInfo,
+  GioEntryResolver,
   GioSystemContextFields,
   GioSystemContextResolver
 } from '../interface.uts'
@@ -12,24 +12,20 @@ import {
 } from './entry-context.uts'
 import { createMiniProgramSystemContextResolver } from './system-context.uts'
 
-class MiniProgramResolver implements GioMiniProgramResolver {
+class MiniProgramResolver implements GioEntryResolver {
   private systemContextResolver : GioSystemContextResolver
 
   constructor() {
     this.systemContextResolver = createMiniProgramSystemContextResolver()
   }
 
-  isMpWeixinPlatform() : boolean {
-    return true
-  }
-
-  resolveMiniProgramScene() : string {
+  resolveEntryScene() : string {
     return resolveMiniProgramScene()
   }
 
-  resolveMiniProgramEntryInfo(
+  resolveEntryInfo(
     fallbackOptions : any | null
-  ) : GioMiniProgramEntryInfo | null {
+  ) : GioEntryInfo | null {
     return resolveMiniProgramEntryInfo(fallbackOptions)
   }
 
@@ -52,6 +48,6 @@ class MiniProgramResolver implements GioMiniProgramResolver {
   }
 }
 
-export function createMiniProgramResolver() : GioMiniProgramResolver {
+export function createMiniProgramResolver() : GioEntryResolver {
   return new MiniProgramResolver()
 }

@@ -11,6 +11,7 @@ import {
   registerPageContextResolver,
   registerPlatformStorageFactory,
   registerRuntimeBehavior,
+  registerRuntimePolicy,
   registerUploadPolicy,
   registerVisitSessionStore
 } from '../common/runtime/index.uts'
@@ -27,6 +28,8 @@ import { jsonStringify, utf8ByteLength } from '../common/utils/base.uts'
 const VISIT_SENT_SUFFIX = '_gdp_session_id_sent'
 const DEFAULT_STORAGE_TYPE = 'cookie'
 const LOCAL_STORAGE_TYPE = 'localStorage'
+const WEB_SESSION_TIMEOUT_MS = 30 * 60 * 1000
+const WEB_MAX_QUEUE_SIZE = 100
 
 const SPECIAL_TOP_DOMAIN_PREFIXES = [
   '.ac.',
@@ -554,13 +557,6 @@ function readRawConfigField(key : string) : string | null {
   }
 }
 
-function normalizeOptionalText(value : string | null) : string | null {
-  if (value == null || value.length == 0) {
-    return null
-  }
-  return value
-}
-
 function normalizeWebStorageType(value : string | null) : string {
   if (value == null || value.length == 0) {
     return DEFAULT_STORAGE_TYPE
@@ -583,10 +579,7 @@ function createWebMainStorage(
     readRawConfigField('storageType')
   )
   if (requestedStorageType == 'cookie') {
-    const optionCookieDomain = normalizeOptionalText(options.cookieDomain)
-    const rawDomain = optionCookieDomain != null
-      ? optionCookieDomain
-      : readRawConfigField('cookieDomain')
+    const rawDomain = readRawConfigField('cookieDomain')
     const cookieDomain = resolveCookieDomain(
       rawDomain != null ? rawDomain : ''
     )
@@ -624,6 +617,48 @@ registerPlatformStorageFactory({
     if (canUseLocalStorage()) {
       return createLocalStorageAdapter()
     }
+    return fallback
+  }
+})
+
+registerRuntimePolicy({
+  getInitStartMessage(_fallback : string) : string {
+    return 'Gio Web SDK 初始化中...'
+  },
+  getInitCompleteMessage(_fallback : string) : string {
+    return 'Gio Web SDK 初始化完成！Web模式'
+  },
+  getSessionTimeoutMs(_fallback : number) : number {
+    return WEB_SESSION_TIMEOUT_MS
+  },
+  getMaxQueueSize(_fallback : number) : number {
+    return WEB_MAX_QUEUE_SIZE
+  },
+  shouldPersistSessionId() : boolean {
+    return true
+  },
+  shouldPersistEvents() : boolean {
+    return false
+  },
+  shouldWaitForNetworkState() : boolean {
+    return false
+  },
+  shouldEmitPageWithoutShow() : boolean {
+    return true
+  },
+  supportsAppState() : boolean {
+    return false
+  },
+  supportsLocation() : boolean {
+    return false
+  },
+  getPageReferralFallback(_options : GioInitOptions) : string {
+    return ''
+  },
+  getUploadRequestTimeout(fallback : number) : number {
+    return fallback
+  },
+  getUploadMaxConcurrency(fallback : number) : number {
     return fallback
   }
 })
@@ -676,9 +711,7 @@ registerConfigSyncer({
   syncConfig(options : GioInitOptions) {
     try {
       const runtimeGlobal = window as any
-      const rawDomain = options.cookieDomain != null
-        ? options.cookieDomain
-        : readRawConfigField('cookieDomain')
+      const rawDomain = readRawConfigField('cookieDomain')
       runtimeGlobal['vds'] = {
         projectId: options.projectId,
         dataSourceId: options.dataSourceId,

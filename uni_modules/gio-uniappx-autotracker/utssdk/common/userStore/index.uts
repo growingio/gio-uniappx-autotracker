@@ -7,7 +7,7 @@ import {
   guid,
   now
 } from '../utils/base.uts'
-import { platformName } from '../utils/system.uts'
+import { shouldPersistSessionId } from '../runtime/index.uts'
 import { stringifyScalar, numberifyScalar } from '../utils/validate.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
@@ -51,10 +51,6 @@ export class GioUserStore {
 
   private getMainStorage() : GioStorage {
     return (this.storage as GioStorageContainer).getMainStorage()
-  }
-
-  private isWebPlatform() : boolean {
-    return platformName() == 'web'
   }
 
   private buildProjectStorageKey(suffix : string) : string {
@@ -203,7 +199,7 @@ export class GioUserStore {
   }
 
   private resolveSessionId() : string {
-    if (this.isWebPlatform()) {
+    if (shouldPersistSessionId()) {
       return this.readStoredSessionId()
     }
     return this.memorySessionId
@@ -221,7 +217,7 @@ export class GioUserStore {
     if (timedOut) {
       sessionId = guid()
     }
-    if (this.isWebPlatform()) {
+    if (shouldPersistSessionId()) {
       this.writeStoredSessionId(sessionId, ts + timeoutMs)
     } else {
       this.memorySessionId = sessionId
@@ -267,7 +263,7 @@ export class GioUserStore {
     const previousSessionId = this.resolveSessionId()
     const sessionId = guid()
     const ts = now()
-    if (this.isWebPlatform()) {
+    if (shouldPersistSessionId()) {
       this.writeStoredSessionId(sessionId, ts + timeoutMs)
     } else {
       this.memorySessionId = sessionId

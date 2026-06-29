@@ -1,20 +1,36 @@
 // 微信小程序平台入口。
 // 这里只注册小程序专属 resolver 和分享包装器，再复用公共 utssdk 入口。
 import { GioTracker } from '../common/core/tracker.uts'
-import { createOriginalSourceStore } from '../platform-shared/original-source.uts'
-import { createMiniProgramResolver } from './resolver.uts'
-import { installGioShareTrackingPlugin } from './plugins/gio-share-tracking.uts'
-import { installMiniProgramPageContextResolver } from './page-context.uts'
+import {
+  installMiniProgramRuntime,
+  syncMiniProgramConfig
+} from './bootstrap.uts'
+import { initialize as coreInitialize } from '../index.uts'
 
-GioTracker.getInstance().setOriginalSourceStore(
-  createOriginalSourceStore()
-)
-GioTracker.getInstance().setMiniProgramResolver(
-  createMiniProgramResolver()
-)
-installMiniProgramPageContextResolver()
-installGioShareTrackingPlugin(GioTracker.getInstance())
+installMiniProgramRuntime(GioTracker.getInstance())
 
 export * from './plugins/gio-share-tracking.uts'
 
-export * from '../index.uts'
+export {
+  clearLocation,
+  clearUserId,
+  getABTest,
+  identify,
+  onHide,
+  onLaunch,
+  onPageLoad,
+  onPageUnload,
+  onShow,
+  registerPlugins,
+  setLocation,
+  setOptions,
+  setUserAttributes,
+  setUserId,
+  track
+} from '../index.uts'
+export { GioGdpInitOptions } from '../index.uts'
+
+export function initialize(options : UTSJSONObject) : boolean {
+  syncMiniProgramConfig(options)
+  return coreInitialize(options)
+}

@@ -3,38 +3,10 @@
 import { normalizeInitOptions } from './common/config.uts'
 import { GioPluginItem } from './interface.uts'
 import { GioTracker } from './common/core/tracker.uts'
-// #ifdef MP-WEIXIN
-import { createMiniProgramResolver } from './mp-weixin/resolver.uts'
-import { installGioShareTrackingPlugin } from './mp-weixin/plugins/gio-share-tracking.uts'
-// #endif
-// #ifdef APP-IOS
-import { createAppIosSystemContextResolver } from './app-ios/system-context.uts'
-// #endif
 
 const tracker = GioTracker.getInstance()
-// #ifdef MP-WEIXIN
-tracker.setMiniProgramResolver(createMiniProgramResolver())
-installGioShareTrackingPlugin(tracker)
-// #endif
-
-// #ifdef MP-WEIXIN
-export {
-  wrapAddToFavorites,
-  wrapShareAppMessage,
-  wrapShareTimeline
-} from './mp-weixin/plugins/gio-share-tracking.uts'
-// #endif
 
 export function initialize (options : UTSJSONObject) : boolean {
-  // #ifdef WEB
-  try { window['vdsConfig'] = options } catch (_error) {}
-  // #endif
-  // #ifdef MP-WEIXIN
-  try { globalThis['vdsConfig'] = options } catch (_error) {}
-  // #endif
-  // #ifdef APP-IOS
-  tracker.setSystemContextResolver(createAppIosSystemContextResolver())
-  // #endif
   return tracker.initialize(normalizeInitOptions(options))
 }
 

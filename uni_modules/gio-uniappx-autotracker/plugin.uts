@@ -2,6 +2,16 @@
 // 这里只负责挂载 mixin、提取页面快照和启动参数快照，再把稳定对象转发给 utssdk；
 // 初始化、session、事件构建和上报都由 utssdk 内部处理。
 
+// #ifdef MP-WEIXIN
+import {
+  onHide as handleOnHide,
+  onLaunch as handleOnLaunch,
+  onPageLoad as handleOnPageLoad,
+  onPageUnload as handleOnPageUnload,
+  onShow as handleOnShow
+} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
+// #endif
+// #ifndef MP-WEIXIN
 import {
   onHide as handleOnHide,
   onLaunch as handleOnLaunch,
@@ -9,6 +19,7 @@ import {
   onPageUnload as handleOnPageUnload,
   onShow as handleOnShow
 } from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
 import { gdp } from './gdp.uts'
 
 export { gdp }
@@ -19,7 +30,7 @@ import {
   wrapAddToFavorites as gioWrapAddToFavorites,
   wrapShareAppMessage as gioWrapShareAppMessage,
   wrapShareTimeline as gioWrapShareTimeline
-} from '@/uni_modules/gio-uniappx-autotracker'
+} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
 export {
   gioWrapAddToFavorites as wrapAddToFavorites,
   gioWrapShareAppMessage as wrapShareAppMessage,
@@ -125,13 +136,6 @@ function buildPageSnapshot() : UTSJSONObject | null {
   if (options != null) {
     snapshot['options'] = options
   }
-  // 微信端 route.uts 优先读取 mpRoute/mpOptions；这里仍然只放稳定快照字段。
-  // #ifdef MP-WEIXIN
-  snapshot['mpRoute'] = page.route
-  if (options != null) {
-    snapshot['mpOptions'] = options
-  }
-  // #endif
   return snapshot
 }
 

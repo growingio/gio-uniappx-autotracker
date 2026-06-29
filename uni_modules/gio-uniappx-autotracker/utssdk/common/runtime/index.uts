@@ -47,6 +47,22 @@ type GioUploadPolicy = {
   getMaxBatchPayloadBytes : () => number
 }
 
+type GioRuntimePolicy = {
+  getInitStartMessage : (fallback : string) => string
+  getInitCompleteMessage : (fallback : string) => string
+  getSessionTimeoutMs : (fallback : number) => number
+  getMaxQueueSize : (fallback : number) => number
+  shouldPersistSessionId : () => boolean
+  shouldPersistEvents : () => boolean
+  shouldWaitForNetworkState : () => boolean
+  shouldEmitPageWithoutShow : () => boolean
+  supportsAppState : () => boolean
+  supportsLocation : () => boolean
+  getPageReferralFallback : (options : GioInitOptions) => string
+  getUploadRequestTimeout : (fallback : number) => number
+  getUploadMaxConcurrency : (fallback : number) => number
+}
+
 // ABTest「首访 session 快照」的存储抽象。对齐独立 SDK 的 visitSids：
 // - mp / app（无页面刷新）放内存即可 —— 默认走下面的 builtinVisitSessionId；
 // - web 因为刷新会丢内存、且 session 自身持久化，必须把快照也持久化（见 web/runtime.uts
@@ -67,6 +83,7 @@ let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
 let registeredEventShaper : GioEventShaper | null = null
 let registeredEventSender : GioEventSender | null = null
 let registeredUploadPolicy : GioUploadPolicy | null = null
+let registeredRuntimePolicy : GioRuntimePolicy | null = null
 let registeredVisitSessionStore : GioVisitSessionStore | null = null
 // 未注册平台存储时的内存兜底（mp / app 用），承载首访 session 快照。
 let builtinVisitSessionId : string = ''
@@ -112,6 +129,79 @@ export function registerConfigSyncer (
   syncer : GioConfigSyncer | null
 ) {
   registeredConfigSyncer = syncer
+}
+
+export function registerRuntimePolicy (
+  policy : GioRuntimePolicy | null
+) {
+  registeredRuntimePolicy = policy
+}
+
+export function resolveInitStartMessage(fallback : string) : string {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getInitStartMessage(fallback) : fallback
+}
+
+export function resolveInitCompleteMessage(fallback : string) : string {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getInitCompleteMessage(fallback) : fallback
+}
+
+export function resolveSessionTimeoutMs(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getSessionTimeoutMs(fallback) : fallback
+}
+
+export function resolveMaxQueueSize(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getMaxQueueSize(fallback) : fallback
+}
+
+export function shouldPersistSessionId() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldPersistSessionId() : false
+}
+
+export function shouldPersistEvents() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldPersistEvents() : true
+}
+
+export function shouldWaitForNetworkState() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldWaitForNetworkState() : true
+}
+
+export function shouldEmitPageWithoutShow() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldEmitPageWithoutShow() : false
+}
+
+export function supportsAppState() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.supportsAppState() : true
+}
+
+export function supportsLocation() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.supportsLocation() : true
+}
+
+export function resolvePageReferralFallback(options : GioInitOptions) : string {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getPageReferralFallback(options) : ''
+}
+
+export function resolveUploadRequestTimeout(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  const value = policy != null ? policy.getUploadRequestTimeout(fallback) : fallback
+  return value > 0 ? value : fallback
+}
+
+export function resolveUploadMaxConcurrency(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  const value = policy != null ? policy.getUploadMaxConcurrency(fallback) : fallback
+  return value > 0 ? value : fallback
 }
 
 export function syncConfigToGlobal (options : GioInitOptions) {

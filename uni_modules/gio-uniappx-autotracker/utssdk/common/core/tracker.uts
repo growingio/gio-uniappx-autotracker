@@ -6,10 +6,10 @@ import {
   GioABTestHost,
   GioABTestPluginOptions,
   GioContext,
+  GioEntryInfo,
+  GioEntryResolver,
   GioInitOptions,
   GioPluginItem,
-  GioMiniProgramEntryInfo,
-  GioMiniProgramResolver,
   GioOriginalSourceStore,
   GioPageContext,
   GioPageSnapshot,
@@ -18,10 +18,7 @@ import {
   GioSystemContextResolver,
   GioTrackEvent
 } from '../../interface.uts'
-import {
-  DEFAULT_MAX_QUEUE_SIZE,
-  GioConfig
-} from '../config.uts'
+import { GioConfig } from '../config.uts'
 import {
   isBlank,
   isValidIdentifyId,
@@ -35,9 +32,6 @@ import {
   consoleText,
   formatBeijingTimestamp
 } from '../utils/debug.uts'
-import {
-  platformName
-} from '../utils/system.uts'
 import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
@@ -47,10 +41,17 @@ import {
   clearVisitSessionSnapshot,
   readVisitSessionSnapshot,
   recordVisitSessionSnapshot,
+  resolveInitCompleteMessage,
+  resolveInitStartMessage,
+  resolveMaxQueueSize,
+  resolveSessionTimeoutMs,
   scheduleVisitAndPage,
+  shouldEmitPageWithoutShow,
   shouldEmitPageOnShow,
   shouldEmitVisitForSession,
   shouldTrackAppClosed,
+  supportsAppState,
+  supportsLocation,
   syncConfigToGlobal
 } from '../runtime/index.uts'
 import { GioStorageContainer } from '../storage/index.uts'
@@ -78,30 +79,26 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
   private firstPageDispatchWaiting : boolean = false
   private shareTrackingEnabled : boolean = false
-  private mpWeixinEnabled : boolean = false
-  private miniProgramResolver : GioMiniProgramResolver | null = null
-  private miniProgramScene : string = ''
+  private entryEnabled : boolean = false
+  private entryResolver : GioEntryResolver | null = null
+  private entryScene : string = ''
   private currentPageShown : boolean = false
   // 分享往返标记：平台侧分享包装器在「分享给朋友」时经 setShareOut(true) 置位
-  // （见 mp-weixin/plugins/gio-share-tracking.uts）。对齐独立 SDK appEffects.ts:59 —— 置位期间 onAppShow
+  // 由平台分享插件置位。对齐独立 SDK appEffects.ts:59 —— 置位期间 onAppShow
   // 不重写 originalSource，避免分享回流入口被当作首次来源；每次 page onShow 复位。
-  // 非小程序端不会置位，恒为 false，守门为空操作。
+  // 非分享入口平台不会置位，恒为 false，守门为空操作。
   private shareOut : boolean = false
   private lastAppHideAt : number = 0
-  private lastAppScene : string = ''
+  private lastEntryScene : string = ''
 
   private constructor() {}
 
   private getInitStartMessage() : string {
-    return platformName() == 'web'
-      ? 'Gio Web SDK 初始化中...'
-      : 'Gio uni-app-x SDK 初始化中...'
+    return resolveInitStartMessage('Gio uni-app-x SDK 初始化中...')
   }
 
   private getInitCompleteMessage() : string {
-    return platformName() == 'web'
-      ? 'Gio Web SDK 初始化完成！Web模式'
-      : 'Gio uni-app-x SDK 初始化完成！'
+    return resolveInitCompleteMessage('Gio uni-app-x SDK 初始化完成！')
   }
 
   initialize(options : GioInitOptions) : boolean {
@@ -124,7 +121,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.sessionUpdateReady = false
     this.shareTrackingEnabled = false
     syncConfigToGlobal(this.options)
-    this.mpWeixinEnabled = this.isMpWeixinPlatform()
+    this.entryEnabled = this.isEntryResolverReady()
     this.storage.initialize(this.options)
     this.userStore.hydrate(this.options, this.storage)
     this.uploader.configure(
@@ -151,11 +148,11 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
           if (pageContext == null) {
             return false
           }
-          return platformName() == 'web' || this.currentPageShown
+          return shouldEmitPageWithoutShow() || this.currentPageShown
         }
       }
     )
-    this.refreshMiniProgramScene()
+    this.refreshEntryScene()
     this.initialized = true
     this.initializeSessionState()
     this.recordVisitSessionIfNewDevice()
@@ -186,8 +183,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     return this.storage
   }
 
-  setMiniProgramResolver(resolver : GioMiniProgramResolver | null) {
-    this.miniProgramResolver = resolver
+  setEntryResolver(resolver : GioEntryResolver | null) {
+    this.entryResolver = resolver
+    this.entryEnabled = resolver != null
     this.setSystemContextResolver(resolver)
   }
 
@@ -200,42 +198,31 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   private getSessionTimeoutMs() : number {
-    const platform = platformName()
-    if (platform == 'web') {
-      return 30 * 60 * 1000
-    }
-    if (platform.startsWith('mp-')) {
-      return 5 * 60 * 1000
-    }
-    return 30 * 1000
+    return resolveSessionTimeoutMs(30 * 1000)
   }
 
   private getMaxQueueSize() : number {
-    const platform = platformName()
-    if (!(platform == 'web' || platform.startsWith('mp-'))) {
-      return MAX_PERSISTED_EVENTS
-    }
-    return DEFAULT_MAX_QUEUE_SIZE
+    return resolveMaxQueueSize(MAX_PERSISTED_EVENTS)
   }
 
-  private isMpWeixinPlatform() : boolean {
-    return platformName() == 'mp-weixin'
+  private isEntryResolverReady() : boolean {
+    return this.entryResolver != null
   }
 
-  private resolveMiniProgramScene() : string {
-    if (this.miniProgramResolver == null) {
+  private resolveEntryScene() : string {
+    if (this.entryResolver == null) {
       return ''
     }
-    return this.miniProgramResolver.resolveMiniProgramScene()
+    return this.entryResolver.resolveEntryScene()
   }
 
-  private resolveMiniProgramEntryInfo(
+  private resolveEntryInfo(
     fallbackOptions : any | null = null
-  ) : GioMiniProgramEntryInfo | null {
-    if (this.miniProgramResolver == null) {
+  ) : GioEntryInfo | null {
+    if (this.entryResolver == null) {
       return null
     }
-    return this.miniProgramResolver.resolveMiniProgramEntryInfo(fallbackOptions)
+    return this.entryResolver.resolveEntryInfo(fallbackOptions)
   }
 
   private initializeSessionState() {
@@ -280,10 +267,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     const raw = target as UTSJSONObject
     return {
       route: raw.getString('route'),
-      mpRoute: raw.getString('mpRoute'),
       title: raw.getString('title'),
-      options: raw.getJSON('options'),
-      mpOptions: raw.getJSON('mpOptions')
+      options: raw.getJSON('options')
     } as GioPageSnapshot
   }
 
@@ -351,7 +336,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     )
   }
 
-  private buildStartupPageContext(entryInfo : GioMiniProgramEntryInfo | null) : GioPageContext | null {
+  private buildStartupPageContext(entryInfo : GioEntryInfo | null) : GioPageContext | null {
     if (entryInfo == null || entryInfo.path.length == 0) {
       return null
     }
@@ -364,12 +349,12 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     } as GioPageContext
   }
 
-  private syncMiniProgramEntry(entryInfo : GioMiniProgramEntryInfo | null) {
+  private syncEntryInfo(entryInfo : GioEntryInfo | null) {
     if (entryInfo == null) {
       return
     }
     if (entryInfo.scene.length > 0) {
-      this.miniProgramScene = entryInfo.scene
+      this.entryScene = entryInfo.scene
     }
     this.dataStore.setStartupPageContext(this.buildStartupPageContext(entryInfo))
   }
@@ -418,12 +403,12 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   private buildAppChannel() : string {
-    if (!this.mpWeixinEnabled) {
+    if (!this.entryEnabled) {
       return 'scn:NA'
     }
-    let scene = this.miniProgramScene
+    let scene = this.entryScene
     if (scene.length == 0) {
-      scene = this.resolveMiniProgramScene()
+      scene = this.resolveEntryScene()
     }
     if (scene.length == 0) {
       return 'scn:NA'
@@ -431,17 +416,17 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     return `scn:${scene}`
   }
 
-  private refreshMiniProgramScene() {
-    if (!this.mpWeixinEnabled) {
+  private refreshEntryScene() {
+    if (!this.entryEnabled) {
       return
     }
-    this.syncMiniProgramEntry(this.resolveMiniProgramEntryInfo(null))
+    this.syncEntryInfo(this.resolveEntryInfo(null))
   }
 
-  private shouldRenewMiniProgramSessionOnAppShow(
-    entryInfo : GioMiniProgramEntryInfo | null
+  private shouldRenewSessionOnAppShow(
+    entryInfo : GioEntryInfo | null
   ) : boolean {
-    if (!this.mpWeixinEnabled || this.lastAppHideAt <= 0) {
+    if (!this.entryEnabled || this.lastAppHideAt <= 0) {
       return false
     }
     if (now() - this.lastAppHideAt > this.getSessionTimeoutMs()) {
@@ -449,8 +434,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     }
     return entryInfo != null &&
       entryInfo.scene.length > 0 &&
-      this.lastAppScene.length > 0 &&
-      entryInfo.scene != this.lastAppScene
+      this.lastEntryScene.length > 0 &&
+      entryInfo.scene != this.lastEntryScene
   }
 
   private pushInternalEvent(
@@ -600,8 +585,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   // ── GioShareTrackingHost：分享采集插件的平台无关 host 能力 ──
-  // 具体的事件名、字段集、shareOut 翻转策略由微信分享采集插件决定
-  // （见 utssdk/mp-weixin/plugins/gio-share-tracking.uts），公共层只暴露插件启用状态和通用 host 能力。
+  // 具体的事件名、字段集、shareOut 翻转策略由平台分享采集插件决定，
+  // 公共层只暴露插件启用状态和通用 host 能力。
 
   isShareTrackingEnabled() : boolean {
     return this.shareTrackingEnabled
@@ -807,10 +792,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   onLaunch(options : UTSJSONObject | null = null) {
-    if (!this.ensureReady() || !this.mpWeixinEnabled) {
+    if (!this.ensureReady() || !this.entryEnabled) {
       return
     }
-    this.syncMiniProgramEntry(this.resolveMiniProgramEntryInfo(options))
+    this.syncEntryInfo(this.resolveEntryInfo(options))
   }
 
   onShow(target : UTSJSONObject | null, options : UTSJSONObject | null = null) {
@@ -890,12 +875,12 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.dataStore.updateAppState(
       resolvedAppState
     )
-    const entryInfo = this.mpWeixinEnabled
-      ? this.resolveMiniProgramEntryInfo(options)
+    const entryInfo = this.entryEnabled
+      ? this.resolveEntryInfo(options)
       : null
-    this.syncMiniProgramEntry(entryInfo)
+    this.syncEntryInfo(entryInfo)
     this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))
-    if (this.shouldRenewMiniProgramSessionOnAppShow(entryInfo)) {
+    if (this.shouldRenewSessionOnAppShow(entryInfo)) {
       this.userStore.renewSession(this.getSessionTimeoutMs())
     }
     if (!this.dataStore.hasCurrentPage()) {
@@ -930,7 +915,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     )
     if (shouldTrackAppClosed()) {
       this.lastAppHideAt = now()
-      this.lastAppScene = this.miniProgramScene
+      this.lastEntryScene = this.entryScene
       this.userStore.touchSession(this.getSessionTimeoutMs())
       this.pushInternalEvent(
         'close',
@@ -954,8 +939,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     appState : string | null,
     isForeground : boolean
   ) : string | null {
-    const platform = platformName()
-    if (platform == 'web' || platform.startsWith('mp-')) {
+    if (!supportsAppState()) {
       return null
     }
     if (appState != null && appState.length > 0) {
@@ -968,8 +952,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (!this.ensureReady()) {
       return false
     }
-    if (platformName() == 'web') {
-      consoleText('setLocation 仅支持非 web 端', 'warn')
+    if (!supportsLocation()) {
+      consoleText('setLocation 当前平台不支持', 'warn')
       return false
     }
     if (!(latitude >= -90 && latitude <= 90)) {
@@ -987,8 +971,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (!this.ensureReady()) {
       return false
     }
-    if (platformName() == 'web') {
-      consoleText('clearLocation 仅支持非 web 端', 'warn')
+    if (!supportsLocation()) {
+      consoleText('clearLocation 当前平台不支持', 'warn')
       return false
     }
     return this.dataStore.clearLocation()

@@ -1,0 +1,70 @@
+// 微信小程序运行时策略注册。
+// common 只消费这些策略，不直接判断 mp-weixin 平台名。
+import { GioInitOptions } from '../interface.uts'
+import {
+  registerRuntimePolicy,
+  registerUploadPolicy
+} from '../common/runtime/index.uts'
+
+const MP_SESSION_TIMEOUT_MS = 5 * 60 * 1000
+const MP_MAX_QUEUE_SIZE = 100
+const MP_UPLOAD_DELAY_MS = 1000
+const MP_REQUEST_TIMEOUT_MS = 5000
+const MP_UPLOAD_MAX_CONCURRENCY = 3
+
+registerRuntimePolicy({
+  getInitStartMessage(fallback : string) : string {
+    return fallback
+  },
+  getInitCompleteMessage(fallback : string) : string {
+    return fallback
+  },
+  getSessionTimeoutMs(_fallback : number) : number {
+    return MP_SESSION_TIMEOUT_MS
+  },
+  getMaxQueueSize(_fallback : number) : number {
+    return MP_MAX_QUEUE_SIZE
+  },
+  shouldPersistSessionId() : boolean {
+    return false
+  },
+  shouldPersistEvents() : boolean {
+    return false
+  },
+  shouldWaitForNetworkState() : boolean {
+    return true
+  },
+  shouldEmitPageWithoutShow() : boolean {
+    return false
+  },
+  supportsAppState() : boolean {
+    return false
+  },
+  supportsLocation() : boolean {
+    return true
+  },
+  getPageReferralFallback(options : GioInitOptions) : string {
+    return options.appId
+  },
+  getUploadRequestTimeout(_fallback : number) : number {
+    return MP_REQUEST_TIMEOUT_MS
+  },
+  getUploadMaxConcurrency(_fallback : number) : number {
+    return MP_UPLOAD_MAX_CONCURRENCY
+  }
+})
+
+registerUploadPolicy({
+  shouldScheduleFlush() : boolean {
+    return true
+  },
+  getFlushDelay() : number {
+    return MP_UPLOAD_DELAY_MS
+  },
+  getMaxBatchSize() : number {
+    return 0
+  },
+  getMaxBatchPayloadBytes() : number {
+    return 0
+  }
+})

@@ -112,13 +112,7 @@ export function getPagePath(page : GioPageSnapshot | null) : string {
   if (page == null) {
     return ''
   }
-  let route = ''
-  // #ifdef MP-WEIXIN
-  route = page.mpRoute != null ? (page.mpRoute as string) : ''
-  // #endif
-  // #ifndef MP-WEIXIN
-  route = page.route != null ? (page.route as string) : ''
-  // #endif
+  const route = page.route != null ? (page.route as string) : ''
 
   if (route.length == 0) {
     return ''
@@ -136,13 +130,7 @@ function getPageQuery(
   if (page == null) {
     return ''
   }
-  let selectOptions : UTSJSONObject | null = null
-  // #ifdef MP-WEIXIN
-  selectOptions = page.mpOptions
-  // #endif
-  // #ifndef MP-WEIXIN
-  selectOptions = page.options
-  // #endif
+  const selectOptions : UTSJSONObject | null = page.options
 
   if (options != null) {
     const query = stringifyRouteQuery(options)

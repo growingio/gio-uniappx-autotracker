@@ -14,8 +14,11 @@ import {
   GioSessionIdUpdatePayload
 } from '../events.uts'
 import { consoleText } from '../utils/debug.uts'
-import { resolvePageContext } from '../runtime/index.uts'
-import { platformName } from '../utils/system.uts'
+import {
+  resolvePageContext,
+  resolvePageReferralFallback,
+  shouldWaitForNetworkState
+} from '../runtime/index.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import { GioSystemContextManager } from './context/system-context.uts'
 import { GioEventBuilder } from './eventBuilder/index.uts'
@@ -58,14 +61,13 @@ export class GioDataStore {
     this.storage = storage
     this.sessionUpdateHandlers = sessionUpdateHandlers
     this.eventBuilder.configure(userStore)
-    const platform = platformName()
     this.systemContext.initialize(
       options.debug == true,
       options.screenWidth,
       options.screenHeight,
-      platform != 'web'
+      shouldWaitForNetworkState()
     )
-    this.pageStore.configure(platform.startsWith('mp-') ? options.appId : '')
+    this.pageStore.configure(resolvePageReferralFallback(options))
     this.resetOriginalSourceStateIfDisabled()
     this.bindSessionUpdateListener()
   }
@@ -122,7 +124,6 @@ export class GioDataStore {
       forceLogin: false,
       originalSource: true,
       idMapping: false,
-      cookieDomain: null,
       urlScheme: null,
       screenWidth: 0,
       screenHeight: 0,

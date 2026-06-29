@@ -11,7 +11,6 @@ export type GioInitOptions = {
   forceLogin : boolean
   originalSource : boolean
   idMapping : boolean
-  cookieDomain : string | null
   urlScheme : string | null
   screenWidth : number
   screenHeight : number
@@ -30,7 +29,6 @@ export type GioGdpInitOptions = {
   forceLogin : boolean
   originalSource : boolean
   idMapping : boolean
-  cookieDomain : string | null
   urlScheme : string | null
   dataValidityPeriod : number | null
 }
@@ -85,10 +83,8 @@ export type GioPageContext = {
 
 export type GioPageSnapshot = {
   route : string | null
-  mpRoute : string | null
   title : string | null
   options : UTSJSONObject | null
-  mpOptions : UTSJSONObject | null
 }
 
 export type GioOriginalSource = {
@@ -177,7 +173,7 @@ export interface GioABTestHost {
   clearVisitSession() : void
 }
 
-export type GioMiniProgramEntryInfo = {
+export type GioEntryInfo = {
   path : string
   query : string
   referralPage : string | null
@@ -209,10 +205,9 @@ export interface GioSystemContextResolver {
   ) : GioSystemContextFields | null
 }
 
-export interface GioMiniProgramResolver extends GioSystemContextResolver {
-  isMpWeixinPlatform : () => boolean
-  resolveMiniProgramScene : () => string
-  resolveMiniProgramEntryInfo : (fallbackOptions : any | null) => GioMiniProgramEntryInfo | null
+export interface GioEntryResolver extends GioSystemContextResolver {
+  resolveEntryScene : () => string
+  resolveEntryInfo : (fallbackOptions : any | null) => GioEntryInfo | null
 }
 
 // 分享采集插件所依赖的 host 能力，由 GioTracker 实现。公共层只暴露插件启用状态、

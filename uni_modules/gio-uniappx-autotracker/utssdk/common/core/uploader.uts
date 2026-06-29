@@ -5,15 +5,17 @@ import { BoxArray, guid, jsonStringify, utf8ByteLength } from '../utils/base.uts
 import { stringifyScalar } from '../utils/validate.uts'
 import { debugLog, debugLogRequest } from '../utils/debug.uts'
 import { buildCollectUrl } from '../utils/request.uts'
-import { platformName } from '../utils/system.uts'
 import {
   dispatchViaEventSender,
+  resolveUploadMaxConcurrency,
   resolveUploadFlushDelay,
   resolveUploadMaxBatchPayloadBytes,
   resolveUploadMaxBatchSize,
+  resolveUploadRequestTimeout,
   shouldScheduleUploadFlush
 } from '../runtime/index.uts'
 import { GioEventPersistence } from './event-persistence.uts'
+import { eventToJSONObject } from './event-codec.uts'
 
 type GioQueuedEvent = {
   requestId : string
@@ -30,8 +32,6 @@ type GioUploadBatch = {
 const MAX_BATCH_EVENTS = 50
 const MAX_RETRY_COUNT = 2
 const DEFAULT_MAX_BATCH_PAYLOAD_BYTES = 512 * 1024
-const DEFAULT_MP_REQUEST_TIMEOUT_MS = 5000
-const MAX_MP_CONCURRENCY = 3
 
 export class GioUploader {
   private options : GioInitOptions | null = null
@@ -42,7 +42,6 @@ export class GioUploader {
   private forceLogin : boolean = false
   private onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
   private flushTimer : number = 0
-  private uploadInterval : number = 1000
   private persistence : GioEventPersistence = new GioEventPersistence()
 
   configure(
@@ -76,16 +75,12 @@ export class GioUploader {
     this.requestFlush()
   }
 
-  private isMpRuntime() : boolean {
-    return platformName().startsWith('mp-')
-  }
-
   private shouldDelayFlush() : boolean {
-    return this.isMpRuntime() || shouldScheduleUploadFlush()
+    return shouldScheduleUploadFlush()
   }
 
   private maxConcurrency() : number {
-    return this.isMpRuntime() ? MAX_MP_CONCURRENCY : 1
+    return resolveUploadMaxConcurrency(1)
   }
 
   private closeIfIdle() {
@@ -150,7 +145,7 @@ export class GioUploader {
     this.flushTimer = setTimeout(() => {
       this.flushTimer = 0
       this.flush(null, null)
-    }, this.isMpRuntime() ? this.uploadInterval : resolveUploadFlushDelay(0)) as number
+    }, resolveUploadFlushDelay(0)) as number
   }
 
   requestFlush() {
@@ -206,10 +201,14 @@ export class GioUploader {
 
   private sanitizeEvent(event : GioTrackEvent) : UTSJSONObject {
     const sanitized = {} as UTSJSONObject
-    const raw = this.toEventJSONObject(event)
+    const raw = eventToJSONObject(event)
     const keys = UTSJSONObject.keys(raw)
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
+      if (key == 'title') {
+        sanitized[key] = raw[key]
+        continue
+      }
       const sanitizedValue = this.sanitizeValue(raw[key])
       if (sanitizedValue == null) {
         continue
@@ -217,56 +216,6 @@ export class GioUploader {
       sanitized[key] = sanitizedValue
     }
     return sanitized
-  }
-
-  private toEventJSONObject(event : GioTrackEvent) : UTSJSONObject {
-    const payload = {
-      appChannel: event.appChannel,
-      appName: event.appName,
-      appState: event.appState,
-      appVersion: event.appVersion,
-      dataSourceId: event.dataSourceId,
-      urlScheme: event.urlScheme,
-      deviceBrand: event.deviceBrand,
-      deviceId: event.deviceId,
-      deviceModel: event.deviceModel,
-      deviceType: event.deviceType,
-      domain: event.domain,
-      eventName: event.eventName,
-      eventSequenceId: event.eventSequenceId,
-      eventType: event.eventType,
-      language: event.language,
-      networkState: event.networkState,
-      operatingSystem: event.operatingSystem,
-      path: event.path,
-      platform: event.platform,
-      platformVersion: event.platformVersion,
-      query: event.query,
-      referralPage: event.referralPage,
-      screenHeight: event.screenHeight,
-      screenWidth: event.screenWidth,
-      sdkVersion: event.sdkVersion,
-      sessionId: event.sessionId,
-      timestamp: event.timestamp,
-      timezoneOffset: event.timezoneOffset,
-      title: event.title,
-      userId: event.userId,
-      userKey: event.userKey,
-      attributes: event.attributes
-    } as UTSJSONObject
-    if (event.protocolType != null && event.protocolType.length > 0) {
-      payload['protocolType'] = event.protocolType
-    }
-    if (event.orientation != null && event.orientation.length > 0) {
-      payload['orientation'] = event.orientation
-    }
-    if (event.latitude != null) {
-      payload['latitude'] = event.latitude as number
-    }
-    if (event.longitude != null) {
-      payload['longitude'] = event.longitude as number
-    }
-    return payload
   }
 
   private buildRequestHeader() : UTSJSONObject {
@@ -401,9 +350,7 @@ export class GioUploader {
       url: collectUrl,
       method: 'POST',
       dataType: 'text',
-      timeout: this.isMpRuntime()
-        ? DEFAULT_MP_REQUEST_TIMEOUT_MS
-        : DEFAULT_REQUEST_TIMEOUT_MS,
+      timeout: resolveUploadRequestTimeout(DEFAULT_REQUEST_TIMEOUT_MS),
       header: this.buildRequestHeader(),
       data: payload,
       success: (res : RequestSuccess<string>) => {
@@ -462,7 +409,7 @@ export class GioUploader {
       this.closeIfIdle()
       return false
     }
-    // flush 窗口打开后，拆出的 batch 不再重新等待小程序 1 秒节流。
+    // flush 窗口打开后，拆出的 batch 不再重复等待平台延迟策略。
     this.flushing = true
     return this.drain(success, fail)
   }
