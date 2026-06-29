@@ -260,6 +260,7 @@ export class GioABTestPlugin {
     requestData['layerId'] = stringifyScalar(layerId)
     requestData['newDevice'] = newDevice
     debugLogRequest(opts.debug as boolean, 'abtest request', this.url, requestData)
+    const currentPlugin = this
     uni.request<UTSJSONObject>({
       url: this.url,
       header: requestHeader,
@@ -302,7 +303,7 @@ export class GioABTestPlugin {
         }
         // 网络错误：按单次请求链路重试，不写 sign（对齐独立 xhr.onerror）。
         if (retryCount < 2) {
-          this.initiateRequest(layerId, originData, callback, retryCount + 1)
+          currentPlugin.initiateRequest(layerId, originData, callback, retryCount + 1)
           return
         }
         // 有意偏离 standalone（独立重试耗尽回 {}）：本仓库回 stale（ADR-015 §F）。
