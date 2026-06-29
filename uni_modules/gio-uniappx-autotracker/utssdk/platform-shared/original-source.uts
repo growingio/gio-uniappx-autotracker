@@ -7,7 +7,7 @@ import {
   GioPageContext,
   GioStorage,
   GioTrackEvent
-} from '../../interface.uts'
+} from '../interface.uts'
 
 const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
 

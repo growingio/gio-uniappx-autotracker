@@ -9,7 +9,7 @@ import {
   onPageLoad as handleOnPageLoad,
   onPageUnload as handleOnPageUnload,
   onShow as handleOnShow
-} from './mp-weixin.uts'
+} from './utssdk/mp-weixin/index.uts'
 // #endif
 // #ifndef MP-WEIXIN
 import {
@@ -21,6 +21,10 @@ import {
 } from '@/uni_modules/gio-uniappx-autotracker'
 // #endif
 import { gdp } from './gdp.uts'
+import {
+  readObjectField,
+  readStringField
+} from './utssdk/common/utils/base.uts'
 
 export { gdp }
 export default gdp
@@ -30,7 +34,7 @@ import {
   wrapAddToFavorites as gioWrapAddToFavorites,
   wrapShareAppMessage as gioWrapShareAppMessage,
   wrapShareTimeline as gioWrapShareTimeline
-} from './mp-weixin.uts'
+} from './utssdk/mp-weixin/index.uts'
 export {
   gioWrapAddToFavorites as wrapAddToFavorites,
   gioWrapShareAppMessage as wrapShareAppMessage,
@@ -63,42 +67,6 @@ function copyJSONObject(source : any | null) : UTSJSONObject | null {
   return copied
 }
 
-function stringifyScalar(value : any | null) : string | null {
-  if (value == null) {
-    return null
-  }
-  if (typeof value == 'string') {
-    const text = value as string
-    return text.length > 0 ? text : null
-  }
-  if (typeof value == 'number') {
-    return `${value as number}`
-  }
-  if (typeof value == 'boolean') {
-    return `${value as boolean}`
-  }
-  return null
-}
-
-function readStringField(source : UTSJSONObject | null, key : string) : string | null {
-  if (source == null) {
-    return null
-  }
-  const text = source.getString(key)
-  if (text != null && text.length > 0) {
-    return text
-  }
-  const numberValue = source.getNumber(key)
-  if (numberValue != null) {
-    return `${numberValue as number}`
-  }
-  const booleanValue = source.getBoolean(key)
-  if (booleanValue != null) {
-    return `${booleanValue as boolean}`
-  }
-  return null
-}
-
 function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null {
   if (source == null) {
     return null
@@ -108,7 +76,7 @@ function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null 
   if (appId != null) {
     copied['appId'] = appId
   }
-  const extraData = source.getJSON('extraData')
+  const extraData = readObjectField(source, 'extraData')
   if (extraData != null) {
     copied['extraData'] = extraData
   }

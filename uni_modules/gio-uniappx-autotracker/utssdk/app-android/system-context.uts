@@ -3,14 +3,7 @@ import {
   GioSystemContextFields,
   GioSystemContextResolver
 } from '../interface.uts'
-
-function readTextField(source : UTSJSONObject | null, key : string) : string | null {
-  if (source == null) {
-    return null
-  }
-  const value = source.getString(key)
-  return value != null && value.length > 0 ? value : null
-}
+import { readStringField } from '../common/utils/base.uts'
 
 function readAndroidChannel() : string | null {
   try {
@@ -32,8 +25,8 @@ class AppAndroidSystemContextResolver implements GioSystemContextResolver {
     deviceType : string
   ) : GioSystemContextFields | null {
     return {
-      appName: readTextField(systemInfo, 'appName'),
-      bundleId: readTextField(systemInfo, 'bundleId'),
+      appName: readStringField(systemInfo, 'appName'),
+      bundleId: readStringField(systemInfo, 'bundleId'),
       channel: readAndroidChannel(),
       deviceBrand: deviceBrand,
       deviceModel: null,

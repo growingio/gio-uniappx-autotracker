@@ -14,7 +14,7 @@ import {
   setUserAttributes,
   setUserId,
   track
-} from './mp-weixin.uts'
+} from './utssdk/mp-weixin/index.uts'
 // #endif
 // #ifndef MP-WEIXIN
 import {
@@ -32,26 +32,7 @@ import {
 } from '@/uni_modules/gio-uniappx-autotracker'
 // #endif
 import { installGioLifecycle } from './plugin.uts'
-
-function consoleText(message : any, type : string | null = null) {
-  const styles = {
-    info: 'color: #3B82F6;',
-    error: 'color: #EF4444;',
-    warn: 'color: #F59E0B;',
-    success: 'color: #10B981;'
-  } as UTSJSONObject
-  let style = ''
-  if (type != null && styles[type] != null) {
-    style = `${styles[type]}`
-  }
-  // #ifdef WEB
-  if (message != null && typeof message == 'object') {
-    console.log('%c [GrowingIO]：', style, message)
-    return
-  }
-  // #endif
-  console.log(`%c [GrowingIO]：${message}`, style)
-}
+import { consoleText } from './utssdk/common/utils/debug.uts'
 
 function isObjectArgument(value : any | null) : boolean {
   return value != null && typeof value == 'object' && !Array.isArray(value)
@@ -131,7 +112,7 @@ export {
   wrapAddToFavorites,
   wrapShareAppMessage,
   wrapShareTimeline
-} from './mp-weixin.uts'
+} from './utssdk/mp-weixin/index.uts'
 // #endif
 
 export function gdp(

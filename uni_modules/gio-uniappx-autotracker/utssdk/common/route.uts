@@ -69,7 +69,7 @@ function normalizeRoutePath(raw : string | null) : string {
   return value
 }
 
-function normalizeQueryString(queryText : string) : string {
+export function normalizeQueryString(queryText : string) : string {
   if (queryText.length == 0) {
     return ''
   }
