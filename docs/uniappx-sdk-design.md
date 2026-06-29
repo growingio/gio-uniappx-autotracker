@@ -190,7 +190,7 @@ UTS 约束说明：
 
 - `tracker` 只做编排，不直接承担平台页面实例适配
 - 页面实例字段提取、`this`/`options` 浅拷贝、`referrerInfo` 兼容处理，统一放在 `plugin.uts` 或独立解析模块里
-- 小程序入口来源、scene、referrer 的兜底解析应沉到独立模块，不要继续堆进 `tracker.uts`
+- 入口来源、scene、referrer 的兜底解析应由平台 `EntryResolver` 注入，不要继续堆进 `tracker.uts`
 
 web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选择浏览器存储实现和 cookie 域名。`storageType` 只接受 `cookie` / `localStorage`，大小写不敏感；其他值归一化为 `cookie`。
 

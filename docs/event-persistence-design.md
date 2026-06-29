@@ -24,13 +24,13 @@ track / page / visit / app_closed
 | 维度 | web | mp（小程序） | app（现状） |
 |---|---|---|---|
 | 发送通道 | `EventSender`:`sendBeacon` 优先,失败回退 `XMLHttpRequest` | 默认 `uni.request`(POST) | 默认 `uni.request`(POST) |
-| 是否节流 | `UploadPolicy.shouldScheduleFlush=true`,但 `getFlushDelay=0`（近似立即） | `isMpRuntime()` → 1 秒节流 | 不节流,立即 flush |
+| 是否节流 | `UploadPolicy.shouldScheduleFlush=true`,但 `getFlushDelay=0`（近似立即） | 平台 `UploadPolicy` → 1 秒延迟 | 不节流,立即 flush |
 | 并发数 | 1 | `MAX_MP_CONCURRENCY = 3` | 1 |
 | 批量条数 | `MAX_WEB_UPLOAD_BATCH_SIZE` | 默认 `MAX_BATCH_EVENTS = 50` | 默认 `MAX_BATCH_EVENTS = 50` |
 | 批量字节上限 | `MAX_BEACON_PAYLOAD_BYTES` | `512KB` | `512KB` |
 | 请求超时 | 由浏览器 / beacon 决定 | `5000ms` | `15000ms` |
 | 失败重试 | 回队首,最多 `MAX_RETRY_COUNT = 2` 次 | 同左 | 同左 |
-| 队列上限 | `DEFAULT_MAX_QUEUE_SIZE = 100`,超出 `shift()` 丢最旧 | 同左 | 现状 100;**本方案 app 提至 300 并与落盘镜像**(见 §4.5) |
+| 队列上限 | 平台 `RuntimePolicy.getMaxQueueSize = 100`,超出 `shift()` 丢最旧 | 同左 | **app 为 300 并与落盘镜像**(见 §4.5) |
 | **事件队列持久化** | ❌ 仅内存 | ❌ 仅内存 | ❌ 仅内存 → ✅ **本方案新增** |
 | 其他持久化 | `VisitSessionStore` / `PlatformStorageFactory`(session / originalSource,**非事件队列**) | 默认 `uni.*StorageSync`(session 等上下文) | 同 mp |
 
@@ -51,7 +51,7 @@ flowchart TD
   E -- 是 --> F[hoarding 队列<br/>内存暂存,等 identify]
   E -- 否 --> G[pending 队列<br/>内存]
   G --> H[continueFlush]
-  H --> I{shouldDelayFlush?<br/>mp 或 web policy}
+  H --> I{shouldDelayFlush?<br/>平台 policy}
   I -- 是 --> J[scheduleFlush<br/>定时器延迟]
   I -- 否 --> K[flush 立即]
   J --> L[drain → takeBatch<br/>按条数/字节切批]
@@ -141,7 +141,7 @@ flowchart LR
 
 | 项 | 选择 | 理由 |
 |---|---|---|
-| 生效范围 | 仅 `platformName() == 'app'` | web / mp 维持现状 |
+| 生效范围 | 由平台 `RuntimePolicy.shouldPersistEvents()` 决定；默认 app 启用 | web / mp 维持现状 |
 | 协议 | 不变,原样重发 | 服务端用现有字段去重 |
 | 读写时机 | **全异步** `setStorage` / `removeStorage` | 优先流畅,不卡顿 |
 | 存储结构 | **一事件一 key** | 抗损坏(坏一条只丢一条)、删除是单 key 操作 |
@@ -207,7 +207,7 @@ type GioQueuedEvent = {
 
 > 落盘容量治理(唯一的非成功删盘途径):
 > - **TTL 过期**:封筒 `expiredAt` 到期自动剔除。
-> - **最大条数 `MAX_PERSISTED_EVENTS = 300`**:app 端**内存队列上限与落盘上限统一为 300**(内存 ↔ 盘镜像),超过时内存 `shift` + 落盘环形**同步删最旧**(保新弃旧)。web/mp 维持内存 `DEFAULT_MAX_QUEUE_SIZE = 100`、不落盘。
+> - **最大条数 `MAX_PERSISTED_EVENTS = 300`**:app 端**内存队列上限与落盘上限统一为 300**(内存 ↔ 盘镜像),超过时内存 `shift` + 落盘环形**同步删最旧**(保新弃旧)。web/mp 由各自 `RuntimePolicy` 维持内存上限 100、不落盘。
 >
 > **内存 ↔ 盘镜像(app)**:内存 `pending` 与落盘是同一批事件的两个副本,上限同为 300。启动恢复**一次性把盘上全部(≤300)读进内存**(内存只是工作集、无存储硬限,峰值 ~300 个事件对象 ≈ 几百 KB),所有积压都进发送队列,正常分批(每批 `MAX_BATCH_EVENTS = 50`)flush 发完、逐条 ACK 删盘。**无补读循环、无容量饿死**。唯一「移出内存但留盘等下次启动」的是**重试耗尽**的事件 —— 这是合理退避(持续失败时本会话再发也大概率失败)。`MAX_BATCH_EVENTS = 50` 只是单次请求批量,与队列容量无关。
 
