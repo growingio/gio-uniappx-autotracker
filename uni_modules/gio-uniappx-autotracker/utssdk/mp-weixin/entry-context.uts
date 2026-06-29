@@ -10,11 +10,71 @@ function readSceneFromQuery(source : any | null) : string {
     return ''
   }
   const raw = source as UTSJSONObject
-  const shoppingListScene = raw['wxShoppingListScene']
+  const shoppingListScene = readStringField(raw, 'wxShoppingListScene')
   if (shoppingListScene != null) {
-    return '' + shoppingListScene
+    return shoppingListScene
   }
   return ''
+}
+
+function readRawField(source : UTSJSONObject, key : string) : any | null {
+  try {
+    return source[key]
+  } catch (_error) {
+    return null
+  }
+}
+
+function readStringField(source : UTSJSONObject | null, key : string) : string | null {
+  if (source == null) {
+    return null
+  }
+  try {
+    const text = source.getString(key)
+    if (text != null && text.length > 0) {
+      return text
+    }
+    const numberValue = source.getNumber(key)
+    if (numberValue != null) {
+      return `${numberValue as number}`
+    }
+    const booleanValue = source.getBoolean(key)
+    if (booleanValue != null) {
+      return `${booleanValue as boolean}`
+    }
+  } catch (_error) {}
+  const value = readRawField(source, key)
+  if (value == null) {
+    return null
+  }
+  if (typeof value == 'string') {
+    const text = value as string
+    return text.length > 0 ? text : null
+  }
+  if (typeof value == 'number') {
+    return `${value as number}`
+  }
+  if (typeof value == 'boolean') {
+    return `${value as boolean}`
+  }
+  return null
+}
+
+function readObjectField(source : UTSJSONObject | null, key : string) : UTSJSONObject | null {
+  if (source == null) {
+    return null
+  }
+  try {
+    const typed = source.getJSON(key)
+    if (typed != null) {
+      return typed
+    }
+  } catch (_error) {}
+  const value = readRawField(source, key)
+  if (value == null || typeof value != 'object' || Array.isArray(value)) {
+    return null
+  }
+  return value as UTSJSONObject
 }
 
 function readSceneFromOptions(source : any | null) : string {
@@ -22,15 +82,15 @@ function readSceneFromOptions(source : any | null) : string {
     return ''
   }
   const raw = source as UTSJSONObject
-  const queryScene = readSceneFromQuery(raw['query'])
+  const queryScene = readSceneFromQuery(readObjectField(raw, 'query'))
   if (queryScene.length > 0) {
     return queryScene
   }
-  const scene = raw['scene']
+  const scene = readStringField(raw, 'scene')
   if (scene == null) {
     return ''
   }
-  return `${scene}`
+  return scene
 }
 
 function normalizeEntryPath(raw : string | null) : string {
@@ -96,15 +156,6 @@ function isDirtyEntryValue(value : string) : boolean {
     value.indexOf('$taroTimestamp') >= 0
 }
 
-function isSupportedExtraDataValue(value : any | null) : boolean {
-  if (value == null) {
-    return false
-  }
-  return typeof value == 'string' ||
-    typeof value == 'number' ||
-    typeof value == 'boolean'
-}
-
 function stringifyEntryQueryObject(source : UTSJSONObject) : string {
   const keys = UTSJSONObject.keys(source)
   const parts = [] as Array<string>
@@ -113,24 +164,26 @@ function stringifyEntryQueryObject(source : UTSJSONObject) : string {
     if (key.length == 0 || isDirtyEntryKey(key)) {
       continue
     }
-    const value = source[key]
-    const text = value != null ? `${value}` : ''
-    if (isDirtyEntryValue(text)) {
+    const text = readStringField(source, key)
+    const valueText = text != null ? text : ''
+    if (isDirtyEntryValue(valueText)) {
       continue
     }
-    parts.push(`${key}=${text}`)
+    parts.push(`${key}=${valueText}`)
   }
   return parts.join('&')
 }
 
-function stringifyEntryQuery(source : any | null) : string {
-  if (source == null) {
-    return ''
+function stringifyEntryQueryField(source : UTSJSONObject, key : string) : string {
+  const rawObject = readObjectField(source, key)
+  if (rawObject != null) {
+    return stringifyEntryQueryObject(rawObject)
   }
-  if (typeof source == 'string') {
-    return normalizeEntryQuery(source as string)
+  const rawText = readStringField(source, key)
+  if (rawText != null) {
+    return normalizeEntryQuery(rawText)
   }
-  return stringifyEntryQueryObject(source as UTSJSONObject)
+  return ''
 }
 
 function recordExistingEntryQueryKeys(
@@ -169,12 +222,12 @@ function mergeEntryQuery(baseQuery : string, extraData : any | null) : string {
     if (key.length == 0 || isDirtyEntryKey(key) || existingKeys[key] != null) {
       continue
     }
-    const value = rawExtraData[key]
-    if (!isSupportedExtraDataValue(value)) {
+    const value = readStringField(rawExtraData, key)
+    if (value == null) {
       continue
     }
-    const text = `${value}`
-    if (typeof value == 'string' && isDirtyEntryValue(text)) {
+    const text = value
+    if (isDirtyEntryValue(text)) {
       continue
     }
     parts.push(`${key}=${text}`)
@@ -191,11 +244,11 @@ function readReferrerObject(source : any | null) : UTSJSONObject | null {
     return null
   }
   const raw = source as UTSJSONObject
-  const referrerInfo = raw['referrerInfo']
+  const referrerInfo = readObjectField(raw, 'referrerInfo')
   if (referrerInfo != null) {
     return referrerInfo as UTSJSONObject
   }
-  const refererInfo = raw['refererInfo']
+  const refererInfo = readObjectField(raw, 'refererInfo')
   if (refererInfo != null) {
     return refererInfo as UTSJSONObject
   }
@@ -207,11 +260,11 @@ function readReferrerAppId(source : any | null) : string | null {
   if (referrer == null) {
     return null
   }
-  const appId = referrer['appId']
+  const appId = readStringField(referrer, 'appId')
   if (appId == null) {
     return null
   }
-  const text = `${appId}`
+  const text = appId
   return text.length > 0 ? text : null
 }
 
@@ -253,7 +306,7 @@ function resolveReferrerExtraData(
   if (referrer == null) {
     return null
   }
-  return referrer['extraData']
+  return readObjectField(referrer, 'extraData')
 }
 
 function buildReferralPage(
@@ -298,17 +351,17 @@ export function resolveMiniProgramEntryInfo(
   const secondaryRaw = secondary != null ? (secondary as UTSJSONObject) : null
 
   let path = normalizeEntryPath(
-    primaryRaw['path'] != null ? `${primaryRaw['path']}` : null
+    readStringField(primaryRaw, 'path')
   )
   if (path.length == 0 && secondaryRaw != null) {
     path = normalizeEntryPath(
-      secondaryRaw['path'] != null ? '' + secondaryRaw['path'] : null
+      readStringField(secondaryRaw, 'path')
     )
   }
 
-  let query = stringifyEntryQuery(primaryRaw['query'])
+  let query = stringifyEntryQueryField(primaryRaw, 'query')
   if (query.length == 0 && secondaryRaw != null) {
-    query = stringifyEntryQuery(secondaryRaw['query'])
+    query = stringifyEntryQueryField(secondaryRaw, 'query')
   }
 
   const referrerExtraData = resolveReferrerExtraData(primary, secondary)

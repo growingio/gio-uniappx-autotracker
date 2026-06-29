@@ -9,9 +9,33 @@ let mpPageContextResolverInstalled = false
 
 type MpOptionsFunction = (options : UTSJSONObject | null) => UTSJSONObject | null
 
-function stringifyScalar(
-  value : string | number | boolean | UTSJSONObject | null
-) : string | null {
+function readRawProperty(source : UTSJSONObject, key : string) : any | null {
+  try {
+    return source[key]
+  } catch (_error) {
+    return null
+  }
+}
+
+function readStringProperty(source : UTSJSONObject | null, key : string) : string | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  try {
+    const text = source.getString(key)
+    if (text != null && text.length > 0) {
+      return text
+    }
+    const numberValue = source.getNumber(key)
+    if (numberValue != null) {
+      return `${numberValue as number}`
+    }
+    const booleanValue = source.getBoolean(key)
+    if (booleanValue != null) {
+      return `${booleanValue as boolean}`
+    }
+  } catch (_error) {}
+  const value = readRawProperty(source, key)
   if (value == null) {
     return null
   }
@@ -28,22 +52,32 @@ function stringifyScalar(
   return null
 }
 
-function readStringProperty(source : UTSJSONObject | null, key : string) : string | null {
-  if (source == null || typeof source != 'object' || Array.isArray(source)) {
-    return null
-  }
-  return stringifyScalar(source[key])
-}
-
 function readObjectProperty(source : UTSJSONObject | null, key : string) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
-  const value = source[key]
+  const value = readRawProperty(source, key)
   if (value == null || typeof value != 'object' || Array.isArray(value)) {
     return null
   }
   return value as UTSJSONObject
+}
+
+function readArrayProperty(source : UTSJSONObject | null, key : string) : Array<UTSJSONObject> | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  try {
+    const typed = source.getArray<UTSJSONObject>(key)
+    if (typed != null) {
+      return typed
+    }
+  } catch (_error) {}
+  const value = readRawProperty(source, key)
+  if (value == null || !Array.isArray(value)) {
+    return null
+  }
+  return value as Array<UTSJSONObject>
 }
 
 function normalizeMpRoutePath(route : string | null) : string {
@@ -190,7 +224,7 @@ function readMpTitleFromPagesArray(pagesValue : Array<UTSJSONObject> | null, rou
       continue
     }
     const pageConfig = item
-    const path = stringifyScalar(pageConfig['path'])
+    const path = readStringProperty(pageConfig, 'path')
     if (path == null || normalizeMpRoutePath(path) != route) {
       continue
     }
@@ -215,15 +249,16 @@ function readMpTitleFromPagesConfig(config : UTSJSONObject | null, route : strin
   if (config == null || route.length == 0) {
     return null
   }
-  const pagesValue = config['pages']
+  const pagesValue = readArrayProperty(config, 'pages')
   if (pagesValue != null && Array.isArray(pagesValue)) {
-    const arrayTitle = readMpTitleFromPagesArray(pagesValue as Array<UTSJSONObject>, route)
+    const arrayTitle = readMpTitleFromPagesArray(pagesValue, route)
     if (arrayTitle != null) {
       return arrayTitle
     }
   }
-  if (pagesValue != null && typeof pagesValue == 'object' && !Array.isArray(pagesValue)) {
-    return readMpTitleFromPagesMap(pagesValue as UTSJSONObject, route)
+  const pagesObject = readObjectProperty(config, 'pages')
+  if (pagesObject != null) {
+    return readMpTitleFromPagesMap(pagesObject, route)
   }
   return null
 }
@@ -293,7 +328,7 @@ function readMpGlobalTitle(config : UTSJSONObject | null) : string | null {
 
 function readMpTabBarTitle(config : UTSJSONObject | null, route : string) : string | null {
   const tabBar = readObjectProperty(config, 'tabBar')
-  const listValue = tabBar != null ? tabBar['list'] : null
+  const listValue = readArrayProperty(tabBar, 'list')
   if (listValue == null || !Array.isArray(listValue)) {
     return null
   }
@@ -304,8 +339,8 @@ function readMpTabBarTitle(config : UTSJSONObject | null, route : string) : stri
       continue
     }
     const tabItem = item
-    const pagePath = stringifyScalar(tabItem['pagePath'])
-    const path = pagePath != null ? pagePath : stringifyScalar(tabItem['path'])
+    const pagePath = readStringProperty(tabItem, 'pagePath')
+    const path = pagePath != null ? pagePath : readStringProperty(tabItem, 'path')
     if (path == null || normalizeMpRoutePath(path) != route) {
       continue
     }
