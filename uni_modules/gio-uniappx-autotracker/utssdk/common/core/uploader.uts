@@ -291,30 +291,27 @@ export class GioUploader {
     return batch
   }
 
-  private estimateDataBytes(data : Array<UTSJSONObject>) : number {
-    return utf8ByteLength(jsonStringify(data))
-  }
-
   private takePayloadBatch(
     maxBatchEvents : number,
     maxPayloadBytes : number
   ) : GioUploadBatch {
     const items = [] as Array<GioQueuedEvent>
     const data = [] as Array<UTSJSONObject>
+    let sumEventBytes = 0
     while (this.pending.length > 0 && items.length < maxBatchEvents) {
       const queued = this.pending.get(items.length as number)
       if (queued == null) {
         break
       }
       const eventData = this.sanitizeEvent(queued.event)
-      const candidateData = data.slice(0, data.length)
-      candidateData.push(eventData)
-      const candidateBytes = this.estimateDataBytes(candidateData)
+      const eventBytes = utf8ByteLength(jsonStringify(eventData))
+      const candidateBytes = 2 + sumEventBytes + eventBytes + (items.length as number)
       if (candidateBytes > maxPayloadBytes && items.length > 0) {
         break
       }
       items.push(queued)
       data.push(eventData)
+      sumEventBytes += eventBytes
       // 单条事件已超阈值时仍独立发送，避免队列卡住。
       if (candidateBytes > maxPayloadBytes) {
         break
