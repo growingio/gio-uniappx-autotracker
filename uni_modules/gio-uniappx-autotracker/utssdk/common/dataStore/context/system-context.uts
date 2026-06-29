@@ -349,8 +349,28 @@ export class GioSystemContextManager {
     )
     if (!handled) {
       debugLog(this.debugEnabled, 'network state provider is unavailable', null)
+      this.fallbackLoadNetworkState()
+    }
+  }
+
+  private fallbackLoadNetworkState() {
+    try {
+      uni.getNetworkType({
+        success: (res : GetNetworkTypeSuccess) => {
+          this.setNetworkState(res.networkType)
+        },
+        fail: (_error : GetNetworkTypeFail) => {
+          this.markNetworkReady()
+        }
+      } as GetNetworkTypeOptions)
+    } catch (_error) {
       this.markNetworkReady()
     }
+    try {
+      uni.onNetworkStatusChange((res : OnNetworkStatusChangeCallbackResult) => {
+        this.setNetworkState(res.networkType)
+      })
+    } catch (_error) {}
   }
 
 }
