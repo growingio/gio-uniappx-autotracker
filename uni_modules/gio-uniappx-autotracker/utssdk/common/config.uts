@@ -7,31 +7,91 @@ export const DEFAULT_MAX_QUEUE_SIZE = 100
 export const DEFAULT_APP_VERSION = '1.0.0'
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
 
+function readRequiredConfigString(
+  raw : UTSJSONObject,
+  key : string,
+  fallback : string
+) : string {
+  const value = raw[key]
+  if (value == null) {
+    return fallback
+  }
+  if (typeof value == 'string') {
+    return value as string
+  }
+  if (typeof value == 'number') {
+    return `${value as number}`
+  }
+  if (typeof value == 'boolean') {
+    return `${value as boolean}`
+  }
+  return fallback
+}
+
+function readNullableConfigString(
+  raw : UTSJSONObject,
+  key : string,
+  fallback : string | null
+) : string | null {
+  const value = raw[key]
+  if (value == null) {
+    return fallback
+  }
+  if (typeof value == 'string') {
+    return value as string
+  }
+  if (typeof value == 'number') {
+    return `${value as number}`
+  }
+  if (typeof value == 'boolean') {
+    return `${value as boolean}`
+  }
+  return fallback
+}
+
+function readConfigNumber(
+  raw : UTSJSONObject,
+  key : string,
+  fallback : number
+) : number {
+  const value = raw[key]
+  return typeof value == 'number' ? value as number : fallback
+}
+
+function readConfigBoolean(
+  raw : UTSJSONObject,
+  key : string,
+  fallback : boolean
+) : boolean {
+  const value = raw[key]
+  return typeof value == 'boolean' ? value as boolean : fallback
+}
+
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
-  const rawServerUrl = raw.getString('serverUrl', '')
+  const rawServerUrl = readRequiredConfigString(raw, 'serverUrl', '')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
   // period range is [3, 30]
-  let dataValidityPeriod = raw.getNumber('dataValidityPeriod', 7)
+  let dataValidityPeriod = readConfigNumber(raw, 'dataValidityPeriod', 7)
   if (dataValidityPeriod < 3) {
     dataValidityPeriod = 3
   } else if (dataValidityPeriod > 30) {
     dataValidityPeriod = 30
   }
   return {
-    projectId: raw.getString('projectId', ''),
-    dataSourceId: raw.getString('dataSourceId', ''),
-    appId: raw.getString('appId', ''),
+    projectId: readRequiredConfigString(raw, 'projectId', ''),
+    dataSourceId: readRequiredConfigString(raw, 'dataSourceId', ''),
+    appId: readRequiredConfigString(raw, 'appId', ''),
     serverUrl: serverUrl,
-    appVersion: raw.getString('appVersion'),
-    dataCollect: raw.getBoolean('dataCollect', true),
-    debug: raw.getBoolean('debug', false),
-    forceLogin: raw.getBoolean('forceLogin', false),
-    originalSource: raw.getBoolean('originalSource', true),
-    idMapping: raw.getBoolean('idMapping', false),
-    cookieDomain: raw.getString('cookieDomain'),
-    urlScheme: raw.getString('urlScheme'),
-    screenWidth: raw.getNumber('screenWidth', 0),
-    screenHeight: raw.getNumber('screenHeight', 0),
+    appVersion: readNullableConfigString(raw, 'appVersion', null),
+    dataCollect: readConfigBoolean(raw, 'dataCollect', true),
+    debug: readConfigBoolean(raw, 'debug', false),
+    forceLogin: readConfigBoolean(raw, 'forceLogin', false),
+    originalSource: readConfigBoolean(raw, 'originalSource', true),
+    idMapping: readConfigBoolean(raw, 'idMapping', false),
+    cookieDomain: readNullableConfigString(raw, 'cookieDomain', null),
+    urlScheme: readNullableConfigString(raw, 'urlScheme', null),
+    screenWidth: readConfigNumber(raw, 'screenWidth', 0),
+    screenHeight: readConfigNumber(raw, 'screenHeight', 0),
     dataValidityPeriod: dataValidityPeriod
   } as GioInitOptions
 }
