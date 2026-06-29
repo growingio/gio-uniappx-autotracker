@@ -14,7 +14,7 @@ import {
   setUserAttributes,
   setUserId,
   track
-} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
+} from './mp-weixin.uts'
 // #endif
 // #ifndef MP-WEIXIN
 import {
@@ -131,7 +131,7 @@ export {
   wrapAddToFavorites,
   wrapShareAppMessage,
   wrapShareTimeline
-} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
+} from './mp-weixin.uts'
 // #endif
 
 export function gdp(

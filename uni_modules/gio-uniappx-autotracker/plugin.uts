@@ -9,7 +9,7 @@ import {
   onPageLoad as handleOnPageLoad,
   onPageUnload as handleOnPageUnload,
   onShow as handleOnShow
-} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
+} from './mp-weixin.uts'
 // #endif
 // #ifndef MP-WEIXIN
 import {
@@ -30,7 +30,7 @@ import {
   wrapAddToFavorites as gioWrapAddToFavorites,
   wrapShareAppMessage as gioWrapShareAppMessage,
   wrapShareTimeline as gioWrapShareTimeline
-} from '@/uni_modules/gio-uniappx-autotracker/utssdk/mp-weixin/index.uts'
+} from './mp-weixin.uts'
 export {
   gioWrapAddToFavorites as wrapAddToFavorites,
   gioWrapShareAppMessage as wrapShareAppMessage,
@@ -80,12 +80,31 @@ function stringifyScalar(value : any | null) : string | null {
   return null
 }
 
+function readStringField(source : UTSJSONObject | null, key : string) : string | null {
+  if (source == null) {
+    return null
+  }
+  const text = source.getString(key)
+  if (text != null && text.length > 0) {
+    return text
+  }
+  const numberValue = source.getNumber(key)
+  if (numberValue != null) {
+    return `${numberValue as number}`
+  }
+  const booleanValue = source.getBoolean(key)
+  if (booleanValue != null) {
+    return `${booleanValue as boolean}`
+  }
+  return null
+}
+
 function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null {
   if (source == null) {
     return null
   }
   const copied = {} as UTSJSONObject
-  const appId = stringifyScalar(source['appId'])
+  const appId = readStringField(source, 'appId')
   if (appId != null) {
     copied['appId'] = appId
   }
@@ -146,11 +165,11 @@ function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null
     return null
   }
   const copied = {} as UTSJSONObject
-  const path = stringifyScalar(raw['path'])
+  const path = readStringField(raw, 'path')
   if (path != null) {
     copied['path'] = path
   }
-  const scene = stringifyScalar(raw['scene'])
+  const scene = readStringField(raw, 'scene')
   if (scene != null) {
     copied['scene'] = scene
   }
@@ -183,7 +202,8 @@ function isLaunchOptionsSnapshot(source : UTSJSONObject | null) : boolean {
   if (source == null) {
     return false
   }
-  return source['path'] != null && source['scene'] != null
+  return readStringField(source, 'path') != null &&
+    readStringField(source, 'scene') != null
 }
 
 function installMpAppLifecycle() {
