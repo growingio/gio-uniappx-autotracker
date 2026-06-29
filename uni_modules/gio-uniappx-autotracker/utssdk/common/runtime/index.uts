@@ -51,6 +51,7 @@ type GioRuntimePolicy = {
   getInitStartMessage : (fallback : string) => string
   getInitCompleteMessage : (fallback : string) => string
   getSessionTimeoutMs : (fallback : number) => number
+  shouldRenewSessionOnTimeout : () => boolean
   getMaxQueueSize : (fallback : number) => number
   shouldPersistSessionId : () => boolean
   shouldPersistEvents : () => boolean
@@ -164,6 +165,11 @@ export function resolveInitCompleteMessage(fallback : string) : string {
 export function resolveSessionTimeoutMs(fallback : number) : number {
   const policy = registeredRuntimePolicy
   return policy != null ? policy.getSessionTimeoutMs(fallback) : fallback
+}
+
+export function shouldRenewSessionOnTimeout() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldRenewSessionOnTimeout() : false
 }
 
 export function resolveMaxQueueSize(fallback : number) : number {

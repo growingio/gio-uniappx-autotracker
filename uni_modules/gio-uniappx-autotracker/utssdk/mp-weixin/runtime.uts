@@ -7,8 +7,8 @@ import {
   registerUploadPolicy
 } from '../common/runtime/index.uts'
 
-const MP_SESSION_TIMEOUT_MS = 5 * 60 * 1000
 const MP_MAX_QUEUE_SIZE = 100
+const MP_SESSION_TIMEOUT_MS = 5 * 60 * 1000
 const MP_UPLOAD_DELAY_MS = 1000
 const MP_REQUEST_TIMEOUT_MS = 5000
 const MP_UPLOAD_MAX_CONCURRENCY = 3
@@ -22,6 +22,9 @@ registerRuntimePolicy({
   },
   getSessionTimeoutMs(_fallback : number) : number {
     return MP_SESSION_TIMEOUT_MS
+  },
+  shouldRenewSessionOnTimeout() : boolean {
+    return true
   },
   getMaxQueueSize(_fallback : number) : number {
     return MP_MAX_QUEUE_SIZE

@@ -588,6 +588,9 @@ registerRuntimePolicy({
   getSessionTimeoutMs(_fallback : number) : number {
     return WEB_SESSION_TIMEOUT_MS
   },
+  shouldRenewSessionOnTimeout() : boolean {
+    return true
+  },
   getMaxQueueSize(_fallback : number) : number {
     return WEB_MAX_QUEUE_SIZE
   },

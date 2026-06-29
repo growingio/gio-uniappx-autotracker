@@ -7,7 +7,10 @@ import {
   guid,
   now
 } from '../utils/base.uts'
-import { shouldPersistSessionId } from '../runtime/index.uts'
+import {
+  shouldPersistSessionId,
+  shouldRenewSessionOnTimeout
+} from '../runtime/index.uts'
 import { stringifyScalar, numberifyScalar } from '../utils/validate.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 
@@ -94,7 +97,7 @@ export class GioUserStore {
     return stringifyScalar(value)
   }
 
-  private writeStoredSessionId(sessionId : string, expiredAt : number) {
+  private writeStoredSessionId(sessionId : string, expiredAt : number | null) {
     this.getMainStorage().setItem(this.getSessionIdKey(), sessionId, expiredAt)
   }
 
@@ -209,21 +212,32 @@ export class GioUserStore {
     const ts = now()
     const previousSessionId = this.resolveSessionId()
     let sessionId = previousSessionId
-    const lastActiveAt = this.readStoredLastActiveAt()
-    const legacyExpiresAt = this.readLegacySessionExpiresAt()
+    const renewOnTimeout = shouldRenewSessionOnTimeout()
+    const lastActiveAt = renewOnTimeout ? this.readStoredLastActiveAt() : 0
+    const legacyExpiresAt = renewOnTimeout ? this.readLegacySessionExpiresAt() : 0
     const timedOut = sessionId.length == 0 ||
-      (lastActiveAt > 0 && ts - lastActiveAt > timeoutMs) ||
-      (legacyExpiresAt > 0 && legacyExpiresAt <= ts)
+      (
+        renewOnTimeout &&
+        (
+          (lastActiveAt > 0 && ts - lastActiveAt > timeoutMs) ||
+          (legacyExpiresAt > 0 && legacyExpiresAt <= ts)
+        )
+      )
     if (timedOut) {
       sessionId = guid()
     }
     if (shouldPersistSessionId()) {
-      this.writeStoredSessionId(sessionId, ts + timeoutMs)
+      this.writeStoredSessionId(
+        sessionId,
+        renewOnTimeout ? ts + timeoutMs : null
+      )
     } else {
       this.memorySessionId = sessionId
     }
-    this.persistLastActiveAt(ts)
-    this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+    if (renewOnTimeout) {
+      this.persistLastActiveAt(ts)
+      this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+    }
     if (timedOut) {
       this.emitSessionIdUpdate(sessionId, previousSessionId)
       return previousSessionId
@@ -232,7 +246,9 @@ export class GioUserStore {
   }
 
   touchSession(_timeoutMs : number) {
-    this.persistLastActiveAt(now())
+    if (shouldRenewSessionOnTimeout()) {
+      this.persistLastActiveAt(now())
+    }
   }
 
   setUserId(userId : string) {
@@ -263,12 +279,18 @@ export class GioUserStore {
     const previousSessionId = this.resolveSessionId()
     const sessionId = guid()
     const ts = now()
+    const renewOnTimeout = shouldRenewSessionOnTimeout()
     if (shouldPersistSessionId()) {
-      this.writeStoredSessionId(sessionId, ts + timeoutMs)
+      this.writeStoredSessionId(
+        sessionId,
+        renewOnTimeout ? ts + timeoutMs : null
+      )
     } else {
       this.memorySessionId = sessionId
     }
-    this.persistLastActiveAt(ts)
+    if (renewOnTimeout) {
+      this.persistLastActiveAt(ts)
+    }
     this.emitSessionIdUpdate(sessionId, previousSessionId)
   }
 

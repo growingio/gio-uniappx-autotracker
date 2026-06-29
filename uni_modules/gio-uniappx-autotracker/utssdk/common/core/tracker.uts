@@ -49,6 +49,7 @@ import {
   shouldEmitPageWithoutShow,
   shouldEmitPageOnShow,
   shouldEmitVisitForSession,
+  shouldRenewSessionOnTimeout,
   shouldTrackAppClosed,
   supportsAppState,
   supportsLocation,
@@ -450,7 +451,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (!this.entryEnabled || this.lastAppHideAt <= 0) {
       return false
     }
-    if (now() - this.lastAppHideAt > this.getSessionTimeoutMs()) {
+    if (
+      shouldRenewSessionOnTimeout() &&
+      now() - this.lastAppHideAt > this.getSessionTimeoutMs()
+    ) {
       return true
     }
     return entryInfo != null &&

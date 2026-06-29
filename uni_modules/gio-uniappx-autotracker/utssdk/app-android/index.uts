@@ -1,6 +1,7 @@
 import Activity from 'android.app.Activity'
 import { GioTracker } from '../common/core/tracker.uts'
 import { createAppAndroidSystemContextResolver } from './system-context.uts'
+import '../platform-shared/app-runtime.uts'
 
 export * from '../index.uts'
 import { onShow, onHide } from '../index.uts'
