@@ -97,16 +97,19 @@ class OriginalSourceStore implements GioOriginalSourceStore {
       storedOriginalSource != null &&
       !forceOverwrite
     ) {
+      const titleContext = preferredPageContext != null
+        ? preferredPageContext
+        : pageContext
       if (
-        storedOriginalSource.path == pageContext.path &&
+        storedOriginalSource.path == titleContext.path &&
         storedOriginalSource.title.length == 0 &&
-        pageContext.title != null &&
-        pageContext.title.length > 0
+        titleContext.title != null &&
+        titleContext.title.length > 0
       ) {
         writeStoredOriginalSource(options, storage, {
           path: storedOriginalSource.path,
           query: storedOriginalSource.query,
-          title: pageContext.title,
+          title: titleContext.title,
           referralPage: storedOriginalSource.referralPage
         } as GioOriginalSource)
       }

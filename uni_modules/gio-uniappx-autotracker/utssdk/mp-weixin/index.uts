@@ -4,6 +4,7 @@ import { GioTracker } from '../common/core/tracker.uts'
 import { createOriginalSourceStore } from '../platform-shared/original-source.uts'
 import { createMiniProgramResolver } from './resolver.uts'
 import { installGioShareTrackingPlugin } from './plugins/gio-share-tracking.uts'
+import { installMiniProgramPageContextResolver } from './page-context.uts'
 
 GioTracker.getInstance().setOriginalSourceStore(
   createOriginalSourceStore()
@@ -11,6 +12,7 @@ GioTracker.getInstance().setOriginalSourceStore(
 GioTracker.getInstance().setMiniProgramResolver(
   createMiniProgramResolver()
 )
+installMiniProgramPageContextResolver()
 installGioShareTrackingPlugin(GioTracker.getInstance())
 
 export * from './plugins/gio-share-tracking.uts'

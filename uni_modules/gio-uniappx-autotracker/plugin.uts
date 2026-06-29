@@ -93,6 +93,7 @@ function getCurrentUniPage() : UniPage | null {
   return pages[pages.length - 1]
 }
 
+// #ifndef MP-WEIXIN
 function readCurrentPageTitle(page : UniPage) : string | null {
   try {
     const pageStyle = page.$getPageStyle()
@@ -102,6 +103,7 @@ function readCurrentPageTitle(page : UniPage) : string | null {
     return null
   }
 }
+// #endif
 
 // 页面实例不能直接进入 utssdk。
 // App 端通过官方页面栈读取稳定 UniPage 字段，再转成明确 UTSJSONObject 快照。
@@ -113,10 +115,12 @@ function buildPageSnapshot() : UTSJSONObject | null {
 
   const snapshot = {} as UTSJSONObject
   snapshot['route'] = page.route
+  // #ifndef MP-WEIXIN
   const title = readCurrentPageTitle(page)
   if (title != null) {
     snapshot['title'] = title
   }
+  // #endif
   const options = copyJSONObject(page.options)
   if (options != null) {
     snapshot['options'] = options
