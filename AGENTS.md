@@ -70,12 +70,14 @@
 
 - `uni.request()` 的 `data` 只接受 `UTSJSONObject | string | ArrayBuffer`；上传数组时先 `JSON.stringify()`，不要把 `Array<UTSJSONObject>` 直接传进去。
 - 传进 native 层的对象（如 `initialize(options)` 的 options）只能放纯数据。iOS 桥在调用边界**急切深拷贝整棵对象树**，带环或带原生句柄的对象（VueApp、page 实例等）会无限递归 → `RangeError: Maximum call stack size exceeded`；Android 按引用惰性读不踩这坑。典型：`gdp('init')` 过桥前必须把 `app` 字段置 `null`，VueApp 只留在 JS 层给 `installGioLifecycle` 用。
-- 非白名单 uni API（`getWindowInfo`、`getNetworkType`、`onNetworkStatusChange` 等）不能在 `utssdk` 原生层调用——iOS 编 Swift 无桥接会编译/运行失败；必须在 JS 层（`gdp.uts`）读取后，经 init options 或专门入口（如 `updateNetworkState`）回灌进原生层。
+- `getWindowInfo` 在 `utssdk` 原生层拿不到，必须在 JS 层（`gdp.uts` 的 `seedScreenSize`）读取后经 init options（`screenWidth`/`screenHeight`）回灌；其余 `getNetworkType`、`onNetworkStatusChange`、`getDeviceInfo`、`getAppBaseInfo` 等可在原生层直调，网络相关由 `system-context.uts` 在 `waitForNetworkState = platform != 'web'`（iOS/Android/小程序为真）时直接订阅，不存在 `updateNetworkState` 回灌入口。
 - `App.uvue` 无法靠 mixin 可靠监听退后台，尤其是 `app-android`；相关能力必须单独标注平台限制。
 - `utssdk` 目录内外分属不同编译层，禁止跨层直接混合 re-export，否则容易出现重复实例或编译异常。
+- **UTS-iOS（Swift）不允许文件顶层出现表达式语句**——`app-ios/index.uts` 里写 `GioTracker.getInstance().setSystemContextResolver(...)` 这种顶层裸调用，iOS 会编译失败 `error: Expressions are not allowed at the top level`（Android 编 Kotlin、Harmony 编 ArkTS、web/mp 编 JS 都容忍，只有 iOS 报错）。顶层只能放 `import`/`export`/`const`/`let`/`function`/`class` 声明。**既定修法（commit `52a752fe`）**：`app-ios/index.uts` 保持只有 `export * from '../index.uts'`，iOS 专属注册收进根 `utssdk/index.uts` 的 `initialize()` 里、用 `// #ifdef APP-IOS` 守住（`tracker.setSystemContextResolver(createAppIosSystemContextResolver())`）。别在 iOS 平台入口另写 `initialize()` 包装器。这个坑 `6aabedca` refactor 又踩回去过一次。
 - 页面路径、query、title 的解析必须走统一模块，不要在不同生命周期里各自拼装。
 - iOS 对 `index.uts` 的二次 re-export 更敏感；公共导出尽量扁平，避免多层转发。
 - Kotlin/Swift 对数组引用语义不同，跨模块共享可变数组时优先使用显式包装类，避免长期直接传裸数组。
+- 小程序端 `globalThis`、`getCurrentPages()` 等宿主对象不是真 `UTSJSONObject`，不能调 `getString`/`getJSON`/`getArray` 等 typed getter；必须用 `source[key]` + `typeof` 分支直取。此类安全读取逻辑收敛在小程序平台文件内部（如 `page-context.uts` 的 `readStringProperty`），不要抽象到 `common`。
 
 ## UTS 知识库
 

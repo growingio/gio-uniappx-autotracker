@@ -2,17 +2,57 @@
 // common 只调用 runtime resolver，这里集中处理 MP-WEIXIN 的 title 来源链路。
 import { GioPageContext } from '../interface.uts'
 import { registerPageContextResolver } from '../common/runtime/index.uts'
-import {
-  readArrayField as readArrayProperty,
-  readObjectField as readObjectProperty,
-  readStringField as readStringProperty
-} from '../common/utils/base.uts'
 
 const GIO_MP_PAGE_TITLE_CACHE_KEY = '__gio_mp_page_titles__'
 const GIO_MP_CURRENT_TITLE_KEY = '__gio_mp_current_title__'
 let mpPageContextResolverInstalled = false
 
 type MpOptionsFunction = (options : UTSJSONObject | null) => UTSJSONObject | null
+
+// 小程序端读取 globalThis / getCurrentPages() 等宿主对象，不能信任 UTSJSONObject 类型。
+// 这里用 source[key] 直接属性访问 + typeof 分支，不做 try/catch 徒增开销。
+function readStringProperty(source : UTSJSONObject | null, key : string) : string | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const value = source[key]
+  if (value == null) {
+    return null
+  }
+  if (typeof value == 'string') {
+    const text = value as string
+    return text.length > 0 ? text : null
+  }
+  if (typeof value == 'number') {
+    return `${value as number}`
+  }
+  if (typeof value == 'boolean') {
+    return `${value as boolean}`
+  }
+  return null
+}
+
+function readObjectProperty(source : UTSJSONObject | null, key : string) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const value = source[key]
+  if (value == null || typeof value != 'object' || Array.isArray(value)) {
+    return null
+  }
+  return value as UTSJSONObject
+}
+
+function readArrayProperty(source : UTSJSONObject | null, key : string) : Array<UTSJSONObject> | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const value = source[key]
+  if (value == null || !Array.isArray(value)) {
+    return null
+  }
+  return value as Array<UTSJSONObject>
+}
 
 function normalizeMpRoutePath(route : string | null) : string {
   if (route == null || route.length == 0) {

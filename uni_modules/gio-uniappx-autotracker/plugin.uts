@@ -21,10 +21,6 @@ import {
 } from '@/uni_modules/gio-uniappx-autotracker'
 // #endif
 import { gdp } from './gdp.uts'
-import {
-  readObjectField,
-  readStringField
-} from './utssdk/common/utils/base.uts'
 
 export { gdp }
 export default gdp
@@ -72,11 +68,11 @@ function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null 
     return null
   }
   const copied = {} as UTSJSONObject
-  const appId = readStringField(source, 'appId')
+  const appId = source.getString('appId')
   if (appId != null) {
     copied['appId'] = appId
   }
-  const extraData = readObjectField(source, 'extraData')
+  const extraData = source.getJSON('extraData')
   if (extraData != null) {
     copied['extraData'] = extraData
   }
@@ -133,11 +129,11 @@ function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null
     return null
   }
   const copied = {} as UTSJSONObject
-  const path = readStringField(raw, 'path')
+  const path = raw.getString('path')
   if (path != null) {
     copied['path'] = path
   }
-  const scene = readStringField(raw, 'scene')
+  const scene = raw.getString('scene')
   if (scene != null) {
     copied['scene'] = scene
   }
@@ -170,8 +166,8 @@ function isLaunchOptionsSnapshot(source : UTSJSONObject | null) : boolean {
   if (source == null) {
     return false
   }
-  return readStringField(source, 'path') != null &&
-    readStringField(source, 'scene') != null
+  return source.getString('path') != null &&
+    source.getString('scene') != null
 }
 
 function installMpAppLifecycle() {

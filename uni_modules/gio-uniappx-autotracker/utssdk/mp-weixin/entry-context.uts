@@ -4,17 +4,13 @@
 import {
   GioEntryInfo
 } from '../interface.uts'
-import {
-  readObjectField,
-  readStringField
-} from '../common/utils/base.uts'
 
 function readSceneFromQuery(source : any | null) : string {
   if (source == null) {
     return ''
   }
   const raw = source as UTSJSONObject
-  const shoppingListScene = readStringField(raw, 'wxShoppingListScene')
+  const shoppingListScene = raw.getString('wxShoppingListScene')
   if (shoppingListScene != null) {
     return shoppingListScene
   }
@@ -26,11 +22,11 @@ function readSceneFromOptions(source : any | null) : string {
     return ''
   }
   const raw = source as UTSJSONObject
-  const queryScene = readSceneFromQuery(readObjectField(raw, 'query'))
+  const queryScene = readSceneFromQuery(raw.getJSON('query'))
   if (queryScene.length > 0) {
     return queryScene
   }
-  const scene = readStringField(raw, 'scene')
+  const scene = raw.getString('scene')
   if (scene == null) {
     return ''
   }
@@ -108,7 +104,7 @@ function stringifyEntryQueryObject(source : UTSJSONObject) : string {
     if (key.length == 0 || isDirtyEntryKey(key)) {
       continue
     }
-    const text = readStringField(source, key)
+    const text = source.getString(key)
     const valueText = text != null ? text : ''
     if (isDirtyEntryValue(valueText)) {
       continue
@@ -119,11 +115,11 @@ function stringifyEntryQueryObject(source : UTSJSONObject) : string {
 }
 
 function stringifyEntryQueryField(source : UTSJSONObject, key : string) : string {
-  const rawObject = readObjectField(source, key)
+  const rawObject = source.getJSON(key)
   if (rawObject != null) {
     return stringifyEntryQueryObject(rawObject)
   }
-  const rawText = readStringField(source, key)
+  const rawText = source.getString(key)
   if (rawText != null) {
     return normalizeEntryQuery(rawText)
   }
@@ -166,7 +162,7 @@ function mergeEntryQuery(baseQuery : string, extraData : any | null) : string {
     if (key.length == 0 || isDirtyEntryKey(key) || existingKeys[key] != null) {
       continue
     }
-    const value = readStringField(rawExtraData, key)
+    const value = rawExtraData.getString(key)
     if (value == null) {
       continue
     }
@@ -188,11 +184,11 @@ function readReferrerObject(source : any | null) : UTSJSONObject | null {
     return null
   }
   const raw = source as UTSJSONObject
-  const referrerInfo = readObjectField(raw, 'referrerInfo')
+  const referrerInfo = raw.getJSON('referrerInfo')
   if (referrerInfo != null) {
     return referrerInfo as UTSJSONObject
   }
-  const refererInfo = readObjectField(raw, 'refererInfo')
+  const refererInfo = raw.getJSON('refererInfo')
   if (refererInfo != null) {
     return refererInfo as UTSJSONObject
   }
@@ -204,7 +200,7 @@ function readReferrerAppId(source : any | null) : string | null {
   if (referrer == null) {
     return null
   }
-  const appId = readStringField(referrer, 'appId')
+  const appId = referrer.getString('appId')
   if (appId == null) {
     return null
   }
@@ -250,7 +246,7 @@ function resolveReferrerExtraData(
   if (referrer == null) {
     return null
   }
-  return readObjectField(referrer, 'extraData')
+  return referrer.getJSON('extraData')
 }
 
 function buildReferralPage(
@@ -295,11 +291,11 @@ export function resolveMiniProgramEntryInfo(
   const secondaryRaw = secondary != null ? (secondary as UTSJSONObject) : null
 
   let path = normalizeEntryPath(
-    readStringField(primaryRaw, 'path')
+    primaryRaw.getString('path')
   )
   if (path.length == 0 && secondaryRaw != null) {
     path = normalizeEntryPath(
-      readStringField(secondaryRaw, 'path')
+      secondaryRaw.getString('path')
     )
   }
 
