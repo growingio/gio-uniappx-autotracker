@@ -170,7 +170,13 @@ function readMpTitleFromPageConfig(config : UTSJSONObject | null) : string | nul
     return styleTitle
   }
   const windowConfig = readObjectProperty(config, 'window')
-  return readStringProperty(windowConfig, 'navigationBarTitleText')
+  const windowTitle = readStringProperty(windowConfig, 'navigationBarTitleText')
+  if (windowTitle != null) {
+    return windowTitle
+  }
+  const mod = readObjectProperty(config, 'mod')
+  const exportsValue = readObjectProperty(mod, 'exports')
+  return readStringProperty(exportsValue, 'navigationBarTitleText')
 }
 
 function readMpTitleFromPagesArray(pagesValue : Array<UTSJSONObject> | null, route : string) : string | null {
@@ -220,6 +226,53 @@ function readMpTitleFromPagesConfig(config : UTSJSONObject | null, route : strin
     return readMpTitleFromPagesMap(pagesValue as UTSJSONObject, route)
   }
   return null
+}
+
+function readMpTitleFromPageObject(config : UTSJSONObject | null, route : string) : string | null {
+  if (config == null || route.length == 0) {
+    return null
+  }
+  const pageValue = readObjectProperty(config, 'page')
+  if (pageValue == null) {
+    return null
+  }
+  let pageInfo = readObjectProperty(pageValue, route)
+  if (pageInfo == null) {
+    pageInfo = readObjectProperty(pageValue, `/${route}`)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectProperty(pageValue, `${route}.html`)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectProperty(pageValue, `/${route}.html`)
+  }
+  if (pageInfo != null) {
+    const title = readMpTitleFromPageConfig(pageInfo)
+    if (title != null) {
+      return title
+    }
+  }
+  return readMpTitleFromPageConfig(pageValue)
+}
+
+function readMpTitleFromAppCode(appCode : UTSJSONObject | null, route : string) : string | null {
+  if (appCode == null || route.length == 0) {
+    return null
+  }
+  let pageInfo = readObjectProperty(appCode, `${route}.json`)
+  if (pageInfo == null) {
+    pageInfo = readObjectProperty(appCode, `/${route}.json`)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectProperty(appCode, route)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectProperty(appCode, `/${route}`)
+  }
+  if (pageInfo == null) {
+    return null
+  }
+  return readMpTitleFromPageConfig(pageInfo)
 }
 
 function readMpGlobalTitle(config : UTSJSONObject | null) : string | null {
@@ -286,11 +339,21 @@ function resolveMiniProgramTitle(route : string) : string | null {
     cacheMpPageTitle(route, pageTitle)
     return pageTitle
   }
+  const pageObjectTitle = readMpTitleFromPageObject(config, route)
+  if (pageObjectTitle != null) {
+    cacheMpPageTitle(route, pageObjectTitle)
+    return pageObjectTitle
+  }
   const appCode = readMpRuntimeObject('__wxAppCode__')
-  const appCodeTitle = readMpTitleFromPagesConfig(appCode, route)
+  const appCodeTitle = readMpTitleFromAppCode(appCode, route)
   if (appCodeTitle != null) {
     cacheMpPageTitle(route, appCodeTitle)
     return appCodeTitle
+  }
+  const appCodePagesTitle = readMpTitleFromPagesConfig(appCode, route)
+  if (appCodePagesTitle != null) {
+    cacheMpPageTitle(route, appCodePagesTitle)
+    return appCodePagesTitle
   }
   const tabTitle = readMpTabBarTitle(config, route)
   if (tabTitle != null) {

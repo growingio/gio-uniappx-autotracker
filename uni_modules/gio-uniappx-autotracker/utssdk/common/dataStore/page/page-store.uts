@@ -5,6 +5,7 @@ import {
   getPagePath,
   resolvePageRoute
 } from '../../route.uts'
+import { resolvePageContext } from '../../runtime/index.uts'
 import { now } from '../../utils/base.uts'
 
 export type GioPageEventRecord = {
@@ -51,17 +52,42 @@ export class GioPageStore {
     return getPagePath(page)
   }
 
+  private resolvePageTitle(context : GioPageContext) : string {
+    if (context.title != null && context.title.length > 0) {
+      return context.title
+    }
+    const resolved = resolvePageContext(context)
+    if (resolved != null && resolved.title != null && resolved.title.length > 0) {
+      return resolved.title
+    }
+    return ''
+  }
+
+  private withResolvedTitle(context : GioPageContext) : GioPageContext {
+    const title = this.resolvePageTitle(context)
+    if (title.length == 0) {
+      return context
+    }
+    return {
+      path: context.path,
+      query: context.query,
+      title: title,
+      referralPage: context.referralPage,
+      duration: context.duration
+    } as GioPageContext
+  }
+
   buildCurrentPageContext(duration : number | null) : GioPageContext | null {
     if (this.currentPagePath.length == 0) {
       return null
     }
-    return {
+    return this.withResolvedTitle({
       path: this.currentPagePath,
       query: this.currentPageQuery.length > 0 ? this.currentPageQuery : null,
       title: this.currentPageTitle.length > 0 ? this.currentPageTitle : null,
       referralPage: this.resolveReferralPage(),
       duration: duration
-    } as GioPageContext
+    } as GioPageContext)
   }
 
   buildPageContextFromTarget(
@@ -76,13 +102,13 @@ export class GioPageStore {
     if (routeInfo.path.length == 0) {
       return null
     }
-    return {
+    return this.withResolvedTitle({
       path: routeInfo.path,
       query: routeInfo.query.length > 0 ? routeInfo.query : null,
       title: routeInfo.title.length > 0 ? routeInfo.title : null,
       referralPage: this.resolveReferralPage(),
       duration: duration
-    } as GioPageContext
+    } as GioPageContext)
   }
 
   updateCurrentPage(page : GioPageSnapshot | null, options : UTSJSONObject | null) : GioPageContext | null {
@@ -94,7 +120,7 @@ export class GioPageStore {
     // 影响后续 `.length` 判断和当前页字段赋值。
     const nextPath : string = routeInfo.path
     let nextQuery : string = routeInfo.query
-    const nextTitle : string = routeInfo.title
+    let nextTitle : string = routeInfo.title
     if (nextPath.length == 0 && this.currentPagePath.length == 0) {
       return null
     }
@@ -123,6 +149,15 @@ export class GioPageStore {
       this.currentPagePath = nextPath
     }
     this.currentPageQuery = nextQuery
+    if (nextTitle.length == 0 && nextPath.length > 0) {
+      nextTitle = this.resolvePageTitle({
+        path: nextPath,
+        query: nextQuery.length > 0 ? nextQuery : null,
+        title: null,
+        referralPage: this.resolveReferralPage(),
+        duration: null
+      } as GioPageContext)
+    }
     if (routeChanged) {
       this.currentPageTitle = nextTitle
     } else if (nextTitle.length > 0) {
