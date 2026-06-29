@@ -4,13 +4,16 @@
 import {
   GioEntryInfo
 } from '../interface.uts'
+import {
+  readObjectField,
+  readStringField
+} from './base.uts'
 
 function readSceneFromQuery(source : any | null) : string {
   if (source == null) {
     return ''
   }
-  const raw = source as UTSJSONObject
-  const shoppingListScene = raw.getString('wxShoppingListScene')
+  const shoppingListScene = readStringField(source, 'wxShoppingListScene')
   if (shoppingListScene != null) {
     return shoppingListScene
   }
@@ -21,12 +24,11 @@ function readSceneFromOptions(source : any | null) : string {
   if (source == null) {
     return ''
   }
-  const raw = source as UTSJSONObject
-  const queryScene = readSceneFromQuery(raw.getJSON('query'))
+  const queryScene = readSceneFromQuery(readObjectField(source, 'query'))
   if (queryScene.length > 0) {
     return queryScene
   }
-  const scene = raw.getString('scene')
+  const scene = readStringField(source, 'scene')
   if (scene == null) {
     return ''
   }
@@ -104,7 +106,7 @@ function stringifyEntryQueryObject(source : UTSJSONObject) : string {
     if (key.length == 0 || isDirtyEntryKey(key)) {
       continue
     }
-    const text = source.getString(key)
+    const text = readStringField(source, key)
     const valueText = text != null ? text : ''
     if (isDirtyEntryValue(valueText)) {
       continue
@@ -115,11 +117,11 @@ function stringifyEntryQueryObject(source : UTSJSONObject) : string {
 }
 
 function stringifyEntryQueryField(source : UTSJSONObject, key : string) : string {
-  const rawObject = source.getJSON(key)
+  const rawObject = readObjectField(source, key)
   if (rawObject != null) {
     return stringifyEntryQueryObject(rawObject)
   }
-  const rawText = source.getString(key)
+  const rawText = readStringField(source, key)
   if (rawText != null) {
     return normalizeEntryQuery(rawText)
   }
@@ -162,7 +164,7 @@ function mergeEntryQuery(baseQuery : string, extraData : any | null) : string {
     if (key.length == 0 || isDirtyEntryKey(key) || existingKeys[key] != null) {
       continue
     }
-    const value = rawExtraData.getString(key)
+    const value = readStringField(rawExtraData, key)
     if (value == null) {
       continue
     }
@@ -183,12 +185,11 @@ function readReferrerObject(source : any | null) : UTSJSONObject | null {
   if (source == null) {
     return null
   }
-  const raw = source as UTSJSONObject
-  const referrerInfo = raw.getJSON('referrerInfo')
+  const referrerInfo = readObjectField(source, 'referrerInfo')
   if (referrerInfo != null) {
     return referrerInfo as UTSJSONObject
   }
-  const refererInfo = raw.getJSON('refererInfo')
+  const refererInfo = readObjectField(source, 'refererInfo')
   if (refererInfo != null) {
     return refererInfo as UTSJSONObject
   }
@@ -200,7 +201,7 @@ function readReferrerAppId(source : any | null) : string | null {
   if (referrer == null) {
     return null
   }
-  const appId = referrer.getString('appId')
+  const appId = readStringField(referrer, 'appId')
   if (appId == null) {
     return null
   }
@@ -246,7 +247,7 @@ function resolveReferrerExtraData(
   if (referrer == null) {
     return null
   }
-  return referrer.getJSON('extraData')
+  return readObjectField(referrer, 'extraData')
 }
 
 function buildReferralPage(
@@ -287,21 +288,19 @@ export function resolveMiniProgramEntryInfo(
   if (primary == null) {
     return null
   }
-  const primaryRaw = primary as UTSJSONObject
-  const secondaryRaw = secondary != null ? (secondary as UTSJSONObject) : null
 
   let path = normalizeEntryPath(
-    primaryRaw.getString('path')
+    readStringField(primary, 'path')
   )
-  if (path.length == 0 && secondaryRaw != null) {
+  if (path.length == 0 && secondary != null) {
     path = normalizeEntryPath(
-      secondaryRaw.getString('path')
+      readStringField(secondary, 'path')
     )
   }
 
-  let query = stringifyEntryQueryField(primaryRaw, 'query')
-  if (query.length == 0 && secondaryRaw != null) {
-    query = stringifyEntryQueryField(secondaryRaw, 'query')
+  let query = stringifyEntryQueryField(primary, 'query')
+  if (query.length == 0 && secondary != null) {
+    query = stringifyEntryQueryField(secondary, 'query')
   }
 
   const referrerExtraData = resolveReferrerExtraData(primary, secondary)
