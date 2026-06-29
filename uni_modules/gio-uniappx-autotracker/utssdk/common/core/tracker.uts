@@ -148,7 +148,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
           return this.sessionUpdateReady
         },
         shouldEmitPage: (pageContext : GioPageContext | null) : boolean => {
-          return platformName() == 'web' && pageContext != null
+          if (pageContext == null) {
+            return false
+          }
+          return platformName() == 'web' || this.currentPageShown
         }
       }
     )
@@ -387,7 +390,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       if (previousSessionId.length == 0 && !this.sessionUpdateReady) {
         this.pendingVisit = true
       } else {
-        // 旧 session 续期时，session 监听器已经立即补发 VISIT / PAGE，
+        // 旧 session 续期时，session 监听器已经按当前页面显示态补发 VISIT / PAGE，
         // 当前调用链不应再补同一页的 PAGE。
         return false
       }

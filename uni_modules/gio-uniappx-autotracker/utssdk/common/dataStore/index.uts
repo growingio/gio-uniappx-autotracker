@@ -80,18 +80,22 @@ export class GioDataStore {
     })
   }
 
-  private handleSessionIdUpdate(_payload : GioSessionIdUpdatePayload) {
+  private handleSessionIdUpdate(payload : GioSessionIdUpdatePayload) {
     const handlers = this.sessionUpdateHandlers
     if (handlers == null || !handlers.shouldHandleSessionUpdate()) {
       return
     }
-    let pageContext = this.buildCurrentPageContext(null)
-    if (pageContext == null) {
-      pageContext = this.buildLastVisitPageContext()
+    if (payload.oldSessionId.length == 0) {
+      return
     }
-    handlers.emitVisit(pageContext)
-    if (handlers.shouldEmitPage(pageContext)) {
-      handlers.emitPage(pageContext)
+    const currentPageContext = this.buildCurrentPageContext(null)
+    let visitPageContext = currentPageContext
+    if (visitPageContext == null) {
+      visitPageContext = this.buildLastVisitPageContext()
+    }
+    handlers.emitVisit(visitPageContext)
+    if (handlers.shouldEmitPage(currentPageContext)) {
+      handlers.emitPage(currentPageContext)
     }
   }
 
