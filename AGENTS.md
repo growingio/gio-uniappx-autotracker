@@ -52,6 +52,7 @@
 - `plugin.uts` 的 mixin 必须显式桥接 `onLaunch`、`onLoad`、`onShow`、`onHide`、`onUnload` 到 `utssdk` 导出的对应入口，不能留空壳 hook。
 - `App.uvue` 在 `app-android` 不支持 mixins，全局 mixins 也不会对 `App.uvue` 生效；任何依赖 App mixin 的能力都必须明确标注平台限制，不能默认五端一致。
 - 页面生命周期可以走 mixin；App 生命周期如果受平台限制，必须让降级行为可见，不能让 `APP_CLOSED`、首屏来源等能力处于“代码看起来接了、实际没接上”的状态。
+- iOS / Harmony 的应用前后台走全局 mixin 的 App 级 `onShow`/`onHide`，靠 `this.$page == null` 区分 App 级与页面级回调（App 级时给下游 target 传 `null`）；`uni.onAppShow` 在 uni-app x iOS 运行时是 `undefined`，不能依赖。Android 不走 mixin，需用原生 Activity 回调。
 
 ## 日志与调试规则
 
@@ -68,6 +69,8 @@
 ## 已验证的高频坑
 
 - `uni.request()` 的 `data` 只接受 `UTSJSONObject | string | ArrayBuffer`；上传数组时先 `JSON.stringify()`，不要把 `Array<UTSJSONObject>` 直接传进去。
+- 传进 native 层的对象（如 `initialize(options)` 的 options）只能放纯数据。iOS 桥在调用边界**急切深拷贝整棵对象树**，带环或带原生句柄的对象（VueApp、page 实例等）会无限递归 → `RangeError: Maximum call stack size exceeded`；Android 按引用惰性读不踩这坑。典型：`gdp('init')` 过桥前必须把 `app` 字段置 `null`，VueApp 只留在 JS 层给 `installGioLifecycle` 用。
+- 非白名单 uni API（`getWindowInfo`、`getNetworkType`、`onNetworkStatusChange` 等）不能在 `utssdk` 原生层调用——iOS 编 Swift 无桥接会编译/运行失败；必须在 JS 层（`gdp.uts`）读取后，经 init options 或专门入口（如 `updateNetworkState`）回灌进原生层。
 - `App.uvue` 无法靠 mixin 可靠监听退后台，尤其是 `app-android`；相关能力必须单独标注平台限制。
 - `utssdk` 目录内外分属不同编译层，禁止跨层直接混合 re-export，否则容易出现重复实例或编译异常。
 - 页面路径、query、title 的解析必须走统一模块，不要在不同生命周期里各自拼装。
@@ -218,6 +221,25 @@ if (typeof value == 'string') {
 }
 return value as UTSJSONObject  // 非字符串类型安全
 ```
+
+### 6.5 从 UTSJSONObject 读标量值：用 typed getter，别 `raw[key]` 直读（⚠️ iOS 高频错误点）
+
+数据经 app-context(JS) → native(Swift) 桥进入 `UTSJSONObject` 后，iOS 上读值有两条实测坑：
+
+1. **`raw[key]` 直读 + `typeof`：布尔过桥变成 `number`**（`true→1`/`false→0`，`typeof` 从 `'boolean'` 变 `'number'`），手写 `if (typeof raw[key]=='boolean')` 会失配。
+2. **`` `${anyValue}` `` 插值渲染出 `"Optional(...)"`**（`any` 在 Swift 是 `Any?`，插值把 Optional 外壳一起渲染）。对象/字面量属性 `${obj.x}` 同样会 Optional，会污染拼进字符串的 URL / 哈希 / 日志 / key。
+
+```uts
+// ❌ 错误：iOS 上 debug 解析成 false，projectId 拼进 URL 变 Optional("...")
+if (typeof raw['debug'] == 'boolean') { ... }
+const url = `.../projects/${raw['projectId']}/collect`
+
+// ✅ 正确：一律用类型化取值器（内部已对过桥类型做归一）
+const debug = raw.getBoolean('debug', false)
+const projectId = raw.getString('projectId')
+```
+
+**规则**：从 `UTSJSONObject` 取标量一律用 `getString` / `getNumber` / `getBoolean`，不要 `raw[key]` 直读再 `${}`/`typeof`。异构标量（如 track 自定义属性 string|number|boolean 混合）按 `typeof` 分支 `as` 解包后再 `${value as number}`。另一条解包通道是**把值作为函数形参传入**（Swift 绑定成非 Optional 具名类型自动解包）。native API 回调里的标量字段（如 `res.statusCode`）也别 `${}` 插值，直接数值比较。
 
 ### 7. uni.request() 显式类型标注（⚠️ 高频错误点）
 
