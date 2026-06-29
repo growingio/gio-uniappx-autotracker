@@ -90,15 +90,39 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private shareOut : boolean = false
   private lastAppHideAt : number = 0
   private lastEntryScene : string = ''
+  private identified : boolean = false
 
   private constructor() {}
 
   private getInitStartMessage() : string {
-    return resolveInitStartMessage('Gio uni-app-x SDK 初始化中...')
+    return resolveInitStartMessage('Gio uni-app x SDK 初始化中...')
   }
 
   private getInitCompleteMessage() : string {
-    return resolveInitCompleteMessage('Gio uni-app-x SDK 初始化完成！')
+    return resolveInitCompleteMessage('Gio uni-app x SDK 初始化完成！')
+  }
+
+  private boolText(value : boolean) : string {
+    return value ? 'true' : 'false'
+  }
+
+  private logInitDataCollect(options : GioInitOptions) {
+    if (options.dataCollect != true) {
+      consoleText('已关闭数据采集', 'info')
+    }
+  }
+
+  private logDataCollectUpdated(dataCollect : boolean) {
+    consoleText(`已修改数据采集: ${this.boolText(dataCollect)}`, 'info')
+  }
+
+  private logInitForceLogin(options : GioInitOptions) {
+    if (options.forceLogin == true) {
+      consoleText(
+        'forceLogin已开启，请调用 identify 方法设置 openId 以继续上报!',
+        'info'
+      )
+    }
   }
 
   initialize(options : GioInitOptions) : boolean {
@@ -122,6 +146,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.shareTrackingEnabled = false
     syncConfigToGlobal(this.options)
     this.entryEnabled = this.isEntryResolverReady()
+    this.identified = false
     this.storage.initialize(this.options)
     this.userStore.hydrate(this.options, this.storage)
     this.uploader.configure(
@@ -157,13 +182,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.initializeSessionState()
     this.recordVisitSessionIfNewDevice()
     this.sessionUpdateReady = true
+    this.logInitDataCollect(resolvedOptions)
     consoleText(this.getInitCompleteMessage(), 'success')
-    if (this.options.forceLogin == true) {
-      consoleText(
-        'forceLogin已开启，请调用 identify 方法设置 openId 以继续上报!',
-        'info'
-      )
-    }
+    this.logInitForceLogin(resolvedOptions)
     return true
   }
 
@@ -510,6 +531,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     }
     this.options.dataCollect = dataCollect
     this.dataStore.setDataCollect(dataCollect)
+    this.logDataCollectUpdated(dataCollect)
     if (dataCollect) {
       this.userStore.renewSession(this.getSessionTimeoutMs())
     }
@@ -710,16 +732,21 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       return false
     }
     if (options.forceLogin != true) {
-      consoleText('identify 仅在 forceLogin 开启时允许调用', 'error')
+      if (this.identified) {
+        consoleText('设置 identify 失败，请勿重复调用!', 'warn')
+      } else {
+        consoleText('设置 identify 失败，forceLogin未开启!', 'warn')
+      }
       return false
     }
     if (!isValidIdentifyId(assignmentId)) {
-      consoleText('identify 参数不合法', 'error')
+      consoleText('调用 identify 失败，参数不合法!', 'warn')
       return false
     }
     const deviceId = stringifyScalar(assignmentId).slice(0, 1000)
     this.userStore.setDeviceId(deviceId)
     options.forceLogin = false
+    this.identified = true
     this.uploader.setForceLogin(false)
     this.uploader.releaseHoarding(deviceId, this.getMaxQueueSize())
     this.uploader.flush(null, null)

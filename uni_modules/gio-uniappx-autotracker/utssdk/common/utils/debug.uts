@@ -6,23 +6,23 @@ export function consoleText(
   message : any,
   type : string | null = null
 ) {
-  // #ifdef WEB
   const styles = {
     info: 'color: #3B82F6;',
-    error: 'color: #EF4444;',
-    warn: 'color: #F59E0B;',
-    success: 'color: #10B981;'
+    error: 'color: #EF4444',
+    warn: 'color: #F59E0B',
+    success: 'color: #10B981'
   } as UTSJSONObject
   const style = type != null ? styles.getString(type, '') : ''
+  // #ifdef WEB
   // Web 控制台优先保留对象原貌，避免被模板字符串压成不可展开的文本。
   if (message != null && typeof message == 'object') {
-    console.log('%c [GrowingIO]：', style, message)
+    console.log('%c[GrowingIO]：', style, message)
     return
   }
-  console.log(`%c [GrowingIO]：${message}`, style)
+  console.log(`%c[GrowingIO]：${message}`, style)
   return
   // #endif
-  console.log(`[GrowingIO]：${message}`)
+  console.log(`%c[GrowingIO]：${message}`, style)
 }
 
 function stringifyDebugData(data : any) : string {

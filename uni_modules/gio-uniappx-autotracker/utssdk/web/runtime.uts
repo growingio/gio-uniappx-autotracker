@@ -23,6 +23,7 @@ import {
   readDirectStorageValue,
   readStructuredStorageValue
 } from '../common/storage/index.uts'
+import { normalizeQueryString } from '../common/route.uts'
 import { jsonStringify, utf8ByteLength } from '../common/utils/base.uts'
 
 const VISIT_SENT_SUFFIX = '_gdp_session_id_sent'
@@ -381,46 +382,6 @@ function createLocalStorageAdapter() : any {
   }
 }
 
-function normalizeQueryString(queryText : string) : string {
-  if (queryText.length == 0) {
-    return ''
-  }
-  let normalizedQuery = queryText
-  if (normalizedQuery.startsWith('?') || normalizedQuery.startsWith('&')) {
-    normalizedQuery = normalizedQuery.slice(1)
-  }
-  const hashIndex = normalizedQuery.indexOf('#')
-  if (hashIndex >= 0) {
-    normalizedQuery = normalizedQuery.slice(0, hashIndex)
-  }
-  if (normalizedQuery.length == 0) {
-    return ''
-  }
-  const segments = normalizedQuery.split('&')
-  const parts = [] as Array<string>
-  for (let i = 0; i < segments.length; i++) {
-    const segment = segments[i]
-    if (segment.length == 0) {
-      continue
-    }
-    let key = segment
-    let value = ''
-    const equalIndex = segment.indexOf('=')
-    if (equalIndex >= 0) {
-      key = segment.slice(0, equalIndex)
-      value = segment.slice(equalIndex + 1)
-    }
-    if (key.length == 0) {
-      continue
-    }
-    parts.push(`${key}=${value}`)
-  }
-  if (parts.length == 0) {
-    return ''
-  }
-  return parts.join('&')
-}
-
 function mergeQueryString(baseQuery : string, appendedQuery : string) : string {
   if (baseQuery.length == 0) {
     return appendedQuery
@@ -619,10 +580,10 @@ registerPlatformStorageFactory({
 
 registerRuntimePolicy({
   getInitStartMessage(_fallback : string) : string {
-    return 'Gio Web SDK 初始化中...'
+    return _fallback
   },
   getInitCompleteMessage(_fallback : string) : string {
-    return 'Gio Web SDK 初始化完成！Web模式'
+    return _fallback
   },
   getSessionTimeoutMs(_fallback : number) : number {
     return WEB_SESSION_TIMEOUT_MS

@@ -14,7 +14,6 @@ import {
   GioSessionIdUpdatePayload
 } from '../events.uts'
 import { DEFAULT_DATA_VALIDITY_DAYS } from '../config.uts'
-import { consoleText } from '../utils/debug.uts'
 import {
   resolvePageContext,
   resolvePageReferralFallback,
@@ -137,11 +136,6 @@ export class GioDataStore {
       return
     }
     this.options.dataCollect = dataCollect
-    if (dataCollect) {
-      consoleText('已开启数据采集', 'info')
-    } else {
-      consoleText('已关闭数据采集', 'info')
-    }
   }
 
   updateAppState(appState : string | null) {
