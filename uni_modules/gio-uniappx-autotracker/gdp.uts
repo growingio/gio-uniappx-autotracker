@@ -85,7 +85,7 @@ function seedScreenSize(rawOptions : UTSJSONObject) {
     const win = uni.getWindowInfo()
     let width = win.screenWidth
     let height = win.screenHeight
-    // #ifdef APP
+    // #ifdef APP || MP-WEIXIN
     const ratio = win.pixelRatio
     if (ratio > 0) {
       width = Math.round(width * ratio)

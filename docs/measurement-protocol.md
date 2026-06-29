@@ -42,8 +42,8 @@
 | `referralPage` | string | ○ | ○ | ○ | 来源页面。Web 所有事件携带；小程序 / App 仅 `PAGE` 携带 |
 | `networkState` | string | — | ● | ● | 网络类型：`2G`/`3G`/`4G`/`5G`/`WIFI`/`UNKNOWN` |
 | `appChannel` | string | — | ● | ○ | 小程序：场景值（`scn:xxx`）；App：应用渠道（Android 特有，如“应用宝”） |
-| `screenWidth` | int | ● | ● | ● | 屏幕宽度（App 为物理像素） |
-| `screenHeight` | int | ● | ● | ● | 屏幕高度（App 为物理像素） |
+| `screenWidth` | int | ● | ● | ● | 屏幕宽度（小程序 / App 为物理像素） |
+| `screenHeight` | int | ● | ● | ● | 屏幕高度（小程序 / App 为物理像素） |
 | `deviceBrand` | string | — | ● | ● | 设备品牌 |
 | `deviceModel` | string | — | ● | ● | 设备型号 |
 | `deviceType` | string | — | ● | ● | 设备类型。小程序：`Weixin-Android`/…；App：如 `iPhone`/`iPad` |
@@ -132,7 +132,7 @@
 |---|---|---|---|
 | `platform` | `web` | `MinP` | `iOS` / `Android` / `HarmonyOS` |
 | `domain` | 网页域名 | 小程序 appId | 包标识（BundleID / 包名） |
-| `screenWidth/Height` | 逻辑像素 | 逻辑像素 | 物理像素 |
+| `screenWidth/Height` | 逻辑像素 | 物理像素 | 物理像素 |
 | `path`/`title`/`referralPage` | 公共字段 | 公共字段 | 仅关联页面的事件 |
 | `referralPage` | 所有事件 | 仅 PAGE | 仅 PAGE |
 | `appChannel` | 无 | 场景值 | 应用渠道（仅 Android） |
