@@ -77,6 +77,13 @@ type GioConfigSyncer = {
   syncConfig : (options : GioInitOptions) => void
 }
 
+type GioNetworkStateProvider = {
+  loadNetworkState : (
+    setNetworkState : ((networkType : string) => void),
+    markReady : (() => void)
+  ) => void
+}
+
 let registeredStorageFactory : GioPlatformStorageFactory | null = null
 let registeredPageContextResolver : GioPageContextResolver | null = null
 let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
@@ -88,6 +95,7 @@ let registeredVisitSessionStore : GioVisitSessionStore | null = null
 // 未注册平台存储时的内存兜底（mp / app 用），承载首访 session 快照。
 let builtinVisitSessionId : string = ''
 let registeredConfigSyncer : GioConfigSyncer | null = null
+let registeredNetworkStateProvider : GioNetworkStateProvider | null = null
 
 export function registerPlatformStorageFactory (
   factory : GioPlatformStorageFactory | null
@@ -129,6 +137,12 @@ export function registerConfigSyncer (
   syncer : GioConfigSyncer | null
 ) {
   registeredConfigSyncer = syncer
+}
+
+export function registerNetworkStateProvider (
+  provider : GioNetworkStateProvider | null
+) {
+  registeredNetworkStateProvider = provider
 }
 
 export function registerRuntimePolicy (
@@ -210,6 +224,18 @@ export function syncConfigToGlobal (options : GioInitOptions) {
     return
   }
   syncer.syncConfig(options)
+}
+
+export function loadRuntimeNetworkState (
+  setNetworkState : ((networkType : string) => void),
+  markReady : (() => void)
+) : boolean {
+  const provider = registeredNetworkStateProvider
+  if (provider == null) {
+    return false
+  }
+  provider.loadNetworkState(setNetworkState, markReady)
+  return true
 }
 
 export function registerVisitSessionStore (

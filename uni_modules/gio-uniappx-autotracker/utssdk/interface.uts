@@ -141,7 +141,8 @@ export interface GioOriginalSourceStore {
     storage : GioStorage,
     pageContext : GioPageContext | null,
     preferredPageContext : GioPageContext | null,
-    forceOverwrite : boolean
+    forceOverwrite : boolean,
+    sessionId : string
   ) : void
   read(options : GioInitOptions, storage : GioStorage) : GioOriginalSource | null
   consume(

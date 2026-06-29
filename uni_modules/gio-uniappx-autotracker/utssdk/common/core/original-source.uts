@@ -1,5 +1,5 @@
-// 部分平台共用的 originalSource 待消费入口来源逻辑。
-// 当前由 web 与 mp-weixin 入口接入，app 端不注册这组能力。
+// original-source.uts 负责入口来源的存储、回填和消费。
+// 它只依赖公共类型和存储抽象，由需要 originalSource 的平台入口显式注册。
 import {
   GioInitOptions,
   GioOriginalSource,
@@ -7,7 +7,7 @@ import {
   GioPageContext,
   GioStorage,
   GioTrackEvent
-} from '../interface.uts'
+} from '../../interface.uts'
 
 const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
 
@@ -28,6 +28,7 @@ function readStoredOriginalSource(
   }
   const raw = storedValue as UTSJSONObject
   return {
+    sessionId: raw.getString('sessionId', ''),
     path: raw.getString('path', ''),
     query: raw.getString('query', ''),
     title: raw.getString('title', ''),
@@ -41,6 +42,7 @@ function writeStoredOriginalSource(
   originalSource : GioOriginalSource
 ) {
   storage.setItem(getOriginalSourceKey(options), {
+    sessionId: originalSource.sessionId,
     path: originalSource.path,
     query: originalSource.query,
     title: originalSource.title,
@@ -84,7 +86,8 @@ class OriginalSourceStore implements GioOriginalSourceStore {
     storage : GioStorage,
     pageContext : GioPageContext | null,
     preferredPageContext : GioPageContext | null,
-    forceOverwrite : boolean
+    forceOverwrite : boolean,
+    sessionId : string
   ) {
     if (
       options.originalSource != true ||
@@ -107,6 +110,7 @@ class OriginalSourceStore implements GioOriginalSourceStore {
         titleContext.title.length > 0
       ) {
         writeStoredOriginalSource(options, storage, {
+          sessionId: storedOriginalSource.sessionId,
           path: storedOriginalSource.path,
           query: storedOriginalSource.query,
           title: titleContext.title,
@@ -119,6 +123,7 @@ class OriginalSourceStore implements GioOriginalSourceStore {
       ? preferredPageContext
       : pageContext
     writeStoredOriginalSource(options, storage, {
+      sessionId: sessionId,
       path: sourceContext.path,
       query: sourceContext.query != null ? sourceContext.query : '',
       title: sourceContext.title != null ? sourceContext.title : '',

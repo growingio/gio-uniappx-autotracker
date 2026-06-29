@@ -1,7 +1,7 @@
 // Web 平台入口：注册浏览器运行时实现，再复用公共 utssdk API。
 import { GioTracker } from '../common/core/tracker.uts'
 import { createWebSystemContextResolver } from './system-context.uts'
-import { createOriginalSourceStore } from '../platform-shared/original-source.uts'
+import { createOriginalSourceStore } from '../common/core/original-source.uts'
 import { initialize as coreInitialize } from '../index.uts'
 import './runtime.uts'
 

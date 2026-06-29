@@ -288,7 +288,8 @@ export class GioDataStore {
       this.getOriginalSourceStorage(),
       pageContext,
       this.resolvePreferredPageContext(pageContext),
-      forceOverwrite
+      forceOverwrite,
+      currentSessionId
     )
   }
 

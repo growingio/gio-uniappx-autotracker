@@ -2,6 +2,7 @@
 // common 只消费这些策略，不直接判断 mp-weixin 平台名。
 import { GioInitOptions } from '../interface.uts'
 import {
+  registerNetworkStateProvider,
   registerRuntimePolicy,
   registerUploadPolicy
 } from '../common/runtime/index.uts'
@@ -66,5 +67,30 @@ registerUploadPolicy({
   },
   getMaxBatchPayloadBytes() : number {
     return 0
+  }
+})
+
+registerNetworkStateProvider({
+  loadNetworkState(
+    setNetworkState : ((networkType : string) => void),
+    markReady : (() => void)
+  ) {
+    try {
+      uni.getNetworkType({
+        success: (res : GetNetworkTypeSuccess) => {
+          setNetworkState(res.networkType)
+        },
+        fail: (_error : GetNetworkTypeFail) => {
+          markReady()
+        }
+      } as GetNetworkTypeOptions)
+    } catch (_error) {
+      markReady()
+    }
+    try {
+      uni.onNetworkStatusChange((res : OnNetworkStatusChangeCallbackResult) => {
+        setNetworkState(res.networkType)
+      })
+    } catch (_error) {}
   }
 })
