@@ -13,6 +13,7 @@ import {
   GioEventCenter,
   GioSessionIdUpdatePayload
 } from '../events.uts'
+import { DEFAULT_DATA_VALIDITY_DAYS } from '../config.uts'
 import { consoleText } from '../utils/debug.uts'
 import { resolvePageContext } from '../runtime/index.uts'
 import { platformName } from '../utils/system.uts'
@@ -126,7 +127,7 @@ export class GioDataStore {
       urlScheme: null,
       screenWidth: 0,
       screenHeight: 0,
-      dataValidityPeriod: 7
+      dataValidityPeriod: DEFAULT_DATA_VALIDITY_DAYS
     } as GioInitOptions
   }
 

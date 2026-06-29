@@ -6,16 +6,18 @@ export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
 export const DEFAULT_MAX_QUEUE_SIZE = 100
 export const DEFAULT_APP_VERSION = '1.0.0'
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
+export const DEFAULT_DATA_VALIDITY_DAYS = 7
+export const MIN_DATA_VALIDITY_DAYS = 3
+export const MAX_DATA_VALIDITY_DAYS = 30
 
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
   const rawServerUrl = raw.getString('serverUrl', '')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
-  // period range is [3, 30]
-  let dataValidityPeriod = raw.getNumber('dataValidityPeriod', 7)
-  if (dataValidityPeriod < 3) {
-    dataValidityPeriod = 3
-  } else if (dataValidityPeriod > 30) {
-    dataValidityPeriod = 30
+  let dataValidityPeriod = raw.getNumber('dataValidityPeriod', DEFAULT_DATA_VALIDITY_DAYS)
+  if (dataValidityPeriod < MIN_DATA_VALIDITY_DAYS) {
+    dataValidityPeriod = MIN_DATA_VALIDITY_DAYS
+  } else if (dataValidityPeriod > MAX_DATA_VALIDITY_DAYS) {
+    dataValidityPeriod = MAX_DATA_VALIDITY_DAYS
   }
   return {
     projectId: raw.getString('projectId', ''),

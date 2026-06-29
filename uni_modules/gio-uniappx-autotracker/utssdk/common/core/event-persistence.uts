@@ -1,5 +1,6 @@
 // event-persistence.uts 负责 app 端事件的本地落盘 / 删除 / 启动恢复。设计见 docs/event-persistence-design.md。
 import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
+import { DEFAULT_DATA_VALIDITY_DAYS } from '../config.uts'
 import { now } from '../utils/base.uts'
 import { platformName } from '../utils/system.uts'
 import {
@@ -19,19 +20,13 @@ const DAY_MS = 24 * 60 * 60 * 1000
 export class GioEventPersistence {
   private enabled : boolean = false
   private prefix : string = ''
-  private expireMs : number = 7 * DAY_MS
+  private expireMs : number = DEFAULT_DATA_VALIDITY_DAYS * DAY_MS
   private keysInOrder : Array<string> = []
 
   configure(options : GioInitOptions) {
     this.enabled = this.resolveEnabled()
     this.prefix = `${options.projectId}_${options.dataSourceId}_event_`
-    let period : number = options.dataValidityPeriod
-    if (period < 3) {
-      period = 3
-    } else if (period > 30) {
-      period = 30
-    }
-    this.expireMs = period * DAY_MS
+    this.expireMs = (options.dataValidityPeriod as number) * DAY_MS
   }
 
   private resolveEnabled() : boolean {
