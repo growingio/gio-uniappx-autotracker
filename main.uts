@@ -17,7 +17,7 @@ export function createApp() {
 			forceLogin: false,
 			idMapping: false,
 			// storageType: 'localStorage',
-			dataCollect: false
+			dataCollect: true
 		})
 		gdp('registerPlugins', [
 			{
