@@ -87,9 +87,9 @@ export class GioDataStore {
     if (handlers == null || !handlers.shouldHandleSessionUpdate()) {
       return
     }
-    if (payload.oldSessionId.length == 0) {
-      return
-    }
+    // 初始化阶段的空旧 session 已由 shouldHandleSessionUpdate() 屏蔽；
+    // 运行中持久化 session 过期/被删除时 oldSessionId 也会为空，此时仍要补发新
+    // session 的 VISIT/PAGE。
     const currentPageContext = this.buildCurrentPageContext(null)
     let visitPageContext = currentPageContext
     if (visitPageContext == null) {
