@@ -1,0 +1,161 @@
+#!/usr/bin/env node
+
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync } from 'node:fs'
+import { dirname, join, relative } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { spawnSync } from 'node:child_process'
+
+const rootDir = dirname(dirname(fileURLToPath(import.meta.url)))
+const sdkName = 'gio-uniappx-autotracker'
+const sdkDir = join(rootDir, 'uni_modules', sdkName)
+const distDir = join(rootDir, 'dist')
+const distUniModulesDir = join(distDir, 'uni_modules')
+const stagedSdkDir = join(distUniModulesDir, sdkName)
+const releaseDir = join(distDir, 'release')
+const checkOnly = process.argv.includes('--check')
+
+const requiredFiles = [
+  'package.json',
+  'README.md',
+  'plugin.uts',
+  'gdp.uts',
+  'utssdk/index.uts',
+  'utssdk/interface.uts',
+  'utssdk/web/index.uts',
+  'utssdk/web/package.json',
+  'utssdk/mp-weixin/index.uts',
+  'utssdk/app-android/index.uts',
+  'utssdk/app-android/config.json',
+  'utssdk/app-ios/index.uts',
+  'utssdk/app-ios/config.json',
+  'utssdk/app-harmony/index.uts',
+  'utssdk/app-harmony/config.json',
+]
+
+const forbiddenInStagedPackage = [
+  'App.uvue',
+  'main.uts',
+  'manifest.json',
+  'pages.json',
+  'pages',
+  'unpackage',
+  'dist',
+  'node_modules',
+]
+
+function fail(message) {
+  console.error(`[sdk-release] ${message}`)
+  process.exitCode = 1
+}
+
+function assertFile(baseDir, path) {
+  const fullPath = join(baseDir, path)
+  if (!existsSync(fullPath) || !statSync(fullPath).isFile()) {
+    fail(`missing required file: ${relative(rootDir, fullPath)}`)
+  }
+}
+
+function assertNoForbidden(baseDir, name) {
+  const fullPath = join(baseDir, name)
+  if (existsSync(fullPath)) {
+    fail(`forbidden demo artifact in SDK package: ${relative(rootDir, fullPath)}`)
+  }
+}
+
+function readSdkPackage() {
+  const packageJsonPath = join(sdkDir, 'package.json')
+  if (!existsSync(packageJsonPath)) {
+    fail(`missing SDK package.json: ${relative(rootDir, packageJsonPath)}`)
+    return null
+  }
+
+  try {
+    return JSON.parse(readFileSync(packageJsonPath, 'utf8'))
+  } catch (error) {
+    fail(`invalid SDK package.json: ${error instanceof Error ? error.message : String(error)}`)
+    return null
+  }
+}
+
+function validatePackageJson(packageJson) {
+  if (packageJson == null) return
+
+  if (packageJson.name != sdkName) {
+    fail(`SDK package name must be ${sdkName}`)
+  }
+  if (typeof packageJson.version != 'string' || packageJson.version.length == 0) {
+    fail('SDK package version must be a non-empty string')
+  }
+  if (packageJson.private === true) {
+    fail('SDK package must not be private for a release artifact')
+  }
+
+  const platforms = packageJson.uni_modules?.platforms?.client?.['uni-app-x']
+  if (platforms == null) {
+    fail('SDK package.json must declare uni_modules.platforms.client.uni-app-x')
+    return
+  }
+  if (platforms.web == null) fail('SDK package.json must declare web support')
+  if (platforms.mp?.weixin == null) fail('SDK package.json must declare mp-weixin support')
+  if (platforms.app?.android == null) fail('SDK package.json must declare app-android support')
+  if (platforms.app?.ios == null) fail('SDK package.json must declare app-ios support')
+  if (platforms.app?.harmony == null) fail('SDK package.json must declare app-harmony support')
+}
+
+function validateSdkShape(baseDir) {
+  for (const file of requiredFiles) {
+    assertFile(baseDir, file)
+  }
+
+  for (const name of forbiddenInStagedPackage) {
+    assertNoForbidden(baseDir, name)
+  }
+}
+
+function stagePackage() {
+  rmSync(stagedSdkDir, { recursive: true, force: true })
+  mkdirSync(distUniModulesDir, { recursive: true })
+  cpSync(sdkDir, stagedSdkDir, {
+    recursive: true,
+    filter(source) {
+      const basename = source.split('/').pop()
+      return basename != '.DS_Store'
+    },
+  })
+}
+
+function createArchive(version) {
+  mkdirSync(releaseDir, { recursive: true })
+  const archivePath = join(releaseDir, `${sdkName}-${version}.tgz`)
+  rmSync(archivePath, { force: true })
+
+  const result = spawnSync('tar', ['-czf', archivePath, '-C', distDir, 'uni_modules'], {
+    cwd: rootDir,
+    stdio: 'inherit',
+  })
+
+  if (result.status != 0) {
+    fail(`failed to create archive: ${relative(rootDir, archivePath)}`)
+    return null
+  }
+
+  return archivePath
+}
+
+const packageJson = readSdkPackage()
+validatePackageJson(packageJson)
+validateSdkShape(sdkDir)
+
+if (!checkOnly && process.exitCode == null) {
+  stagePackage()
+  validateSdkShape(stagedSdkDir)
+  const archivePath = createArchive(packageJson.version)
+  if (archivePath != null) {
+    console.log(`[sdk-release] staged: ${relative(rootDir, stagedSdkDir)}`)
+    console.log(`[sdk-release] archive: ${relative(rootDir, archivePath)}`)
+  }
+}
+
+if (process.exitCode == null) {
+  console.log(checkOnly ? '[sdk-release] check passed' : '[sdk-release] release package ready')
+}

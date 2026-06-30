@@ -12,7 +12,6 @@
     "uts"
   ],
   "repository": "https://github.com/growingio/gio-uniappx-autotracker",
-  "private": true,
   "engines": {
     "HBuilderX": "^4.33",
     "uni-app-x": "^4.62"
