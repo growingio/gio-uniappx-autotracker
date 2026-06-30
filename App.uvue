@@ -1,5 +1,5 @@
 <script lang="uts">
-import { gdp } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
 
 export default {
 	onLaunch() {

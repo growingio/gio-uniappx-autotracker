@@ -40,7 +40,7 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
-import { gdp } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
 
 const dataCollectOn = ref(true)
 const logs = ref<string[]>([])

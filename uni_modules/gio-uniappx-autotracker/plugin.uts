@@ -20,11 +20,6 @@ import {
   onShow as handleOnShow
 } from '@/uni_modules/gio-uniappx-autotracker'
 // #endif
-import { gdp } from './gdp.uts'
-
-export { gdp }
-export default gdp
-
 // #ifdef MP-WEIXIN
 import {
   wrapAddToFavorites as gioWrapAddToFavorites,
