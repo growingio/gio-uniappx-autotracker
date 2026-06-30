@@ -4,8 +4,6 @@ import {
   GioSystemContextResolver
 } from '../interface.uts'
 import { resolveIosDeviceModel } from '../common/utils/device-model.uts'
-import { readStringField } from '../common/utils/base.uts'
-
 function mapIosDeviceType(deviceType : string) : string {
   return deviceType.toLowerCase() == 'pad' ? 'iPad' : 'iPhone'
 }
@@ -19,14 +17,14 @@ class AppIosSystemContextResolver implements GioSystemContextResolver {
     deviceBrand : string,
     deviceType : string
   ) : GioSystemContextFields | null {
-    const rawDeviceModel = readStringField(systemInfo, 'deviceModel')
+    const rawDeviceModel = systemInfo != null ? systemInfo.getString('deviceModel') : null
     let deviceModel = ''
     if (rawDeviceModel != null) {
       deviceModel = rawDeviceModel
     }
     return {
-      appName: readStringField(systemInfo, 'appName'),
-      bundleId: readStringField(systemInfo, 'bundleId'),
+      appName: systemInfo != null ? systemInfo.getString('appName') : null,
+      bundleId: systemInfo != null ? systemInfo.getString('bundleId') : null,
       channel: null,
       deviceBrand: 'Apple',
       deviceModel: resolveIosDeviceModel(deviceModel),

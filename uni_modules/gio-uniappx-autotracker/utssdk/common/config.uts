@@ -9,66 +9,29 @@ export const DEFAULT_DATA_VALIDITY_DAYS = 7
 export const MIN_DATA_VALIDITY_DAYS = 3
 export const MAX_DATA_VALIDITY_DAYS = 30
 
-function readRequiredConfigString(
-  raw : UTSJSONObject,
-  key : string,
-  fallback : string
-) : string {
-  return raw.getString(key, fallback)
-}
-
-function readNullableConfigString(
-  raw : UTSJSONObject,
-  key : string,
-  fallback : string | null
-) : string | null {
-  const value = raw.getString(key)
-  return value != null ? value : fallback
-}
-
-function readConfigNumber(
-  raw : UTSJSONObject,
-  key : string,
-  fallback : number
-) : number {
-  return raw.getNumber(key, fallback)
-}
-
-function readConfigBoolean(
-  raw : UTSJSONObject,
-  key : string,
-  fallback : boolean
-) : boolean {
-  return raw.getBoolean(key, fallback)
-}
-
 export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
-  const rawServerUrl = readRequiredConfigString(raw, 'serverUrl', '')
+  const rawServerUrl = raw.getString('serverUrl', '')
   const serverUrl = rawServerUrl.length > 0 ? rawServerUrl : DEFAULT_SERVER_URL
-  let dataValidityPeriod = readConfigNumber(
-    raw,
-    'dataValidityPeriod',
-    DEFAULT_DATA_VALIDITY_DAYS
-  )
+  let dataValidityPeriod = raw.getNumber('dataValidityPeriod', DEFAULT_DATA_VALIDITY_DAYS)
   if (dataValidityPeriod < MIN_DATA_VALIDITY_DAYS) {
     dataValidityPeriod = MIN_DATA_VALIDITY_DAYS
   } else if (dataValidityPeriod > MAX_DATA_VALIDITY_DAYS) {
     dataValidityPeriod = MAX_DATA_VALIDITY_DAYS
   }
   return {
-    projectId: readRequiredConfigString(raw, 'projectId', ''),
-    dataSourceId: readRequiredConfigString(raw, 'dataSourceId', ''),
-    appId: readRequiredConfigString(raw, 'appId', ''),
+    projectId: raw.getString('projectId', ''),
+    dataSourceId: raw.getString('dataSourceId', ''),
+    appId: raw.getString('appId', ''),
     serverUrl: serverUrl,
-    appVersion: readNullableConfigString(raw, 'appVersion', null),
-    dataCollect: readConfigBoolean(raw, 'dataCollect', true),
-    debug: readConfigBoolean(raw, 'debug', false),
-    forceLogin: readConfigBoolean(raw, 'forceLogin', false),
-    originalSource: readConfigBoolean(raw, 'originalSource', true),
-    idMapping: readConfigBoolean(raw, 'idMapping', false),
-    urlScheme: readNullableConfigString(raw, 'urlScheme', null),
-    screenWidth: readConfigNumber(raw, 'screenWidth', 0),
-    screenHeight: readConfigNumber(raw, 'screenHeight', 0),
+    appVersion: raw.getString('appVersion'),
+    dataCollect: raw.getBoolean('dataCollect', true),
+    debug: raw.getBoolean('debug', false),
+    forceLogin: raw.getBoolean('forceLogin', false),
+    originalSource: raw.getBoolean('originalSource', true),
+    idMapping: raw.getBoolean('idMapping', false),
+    urlScheme: raw.getString('urlScheme'),
+    screenWidth: raw.getNumber('screenWidth', 0),
+    screenHeight: raw.getNumber('screenHeight', 0),
     dataValidityPeriod: dataValidityPeriod
   } as GioInitOptions
 }

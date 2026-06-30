@@ -3,8 +3,6 @@ import {
   GioSystemContextFields,
   GioSystemContextResolver
 } from '../interface.uts'
-import { readStringField } from '../common/utils/base.uts'
-
 function readAndroidChannel() : string | null {
   try {
     const appBase = uni.getAppBaseInfo()
@@ -25,8 +23,8 @@ class AppAndroidSystemContextResolver implements GioSystemContextResolver {
     deviceType : string
   ) : GioSystemContextFields | null {
     return {
-      appName: readStringField(systemInfo, 'appName'),
-      bundleId: readStringField(systemInfo, 'bundleId'),
+      appName: systemInfo != null ? systemInfo.getString('appName') : null,
+      bundleId: systemInfo != null ? systemInfo.getString('bundleId') : null,
       channel: readAndroidChannel(),
       deviceBrand: deviceBrand,
       deviceModel: null,

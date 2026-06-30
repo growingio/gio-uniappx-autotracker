@@ -1,6 +1,5 @@
 // system-context 负责异步拉取系统信息、网络状态，并在 ready 后统一回填给事件构建层。
 import { debugLog } from '../../utils/debug.uts'
-import { readStringField } from '../../utils/base.uts'
 import { GioSystemContext, getSystemInfoSnapshot } from '../../utils/system.uts'
 import {
   loadRuntimeNetworkState,
@@ -19,7 +18,7 @@ function readTextField(source : UTSJSONObject | null, keys : Array<string>) : st
     return ''
   }
   for (let i = 0; i < keys.length; i++) {
-    const value = readStringField(source, keys[i])
+    const value = source.getString(keys[i])
     if (value != null && value.length > 0) {
       return value
     }
@@ -350,8 +349,28 @@ export class GioSystemContextManager {
     )
     if (!handled) {
       debugLog(this.debugEnabled, 'network state provider is unavailable', null)
+      this.fallbackLoadNetworkState()
+    }
+  }
+
+  private fallbackLoadNetworkState() {
+    try {
+      uni.getNetworkType({
+        success: (res : GetNetworkTypeSuccess) => {
+          this.setNetworkState(res.networkType)
+        },
+        fail: (_error : GetNetworkTypeFail) => {
+          this.markNetworkReady()
+        }
+      } as GetNetworkTypeOptions)
+    } catch (_error) {
       this.markNetworkReady()
     }
+    try {
+      uni.onNetworkStatusChange((res : OnNetworkStatusChangeCallbackResult) => {
+        this.setNetworkState(res.networkType)
+      })
+    } catch (_error) {}
   }
 
 }

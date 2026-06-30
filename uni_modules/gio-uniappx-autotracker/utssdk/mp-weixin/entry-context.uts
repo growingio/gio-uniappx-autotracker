@@ -4,11 +4,11 @@
 import {
   GioEntryInfo
 } from '../interface.uts'
+import { jsonStringify } from '../common/utils/base.uts'
 import {
-  jsonStringify,
   readObjectField,
   readStringField
-} from '../common/utils/base.uts'
+} from './base.uts'
 
 function normalizeJSONObject(source : any | null) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
@@ -26,11 +26,10 @@ function normalizeJSONObject(source : any | null) : UTSJSONObject | null {
 }
 
 function readSceneFromQuery(source : any | null) : string {
-  const raw = normalizeJSONObject(source)
-  if (raw == null) {
+  if (source == null) {
     return ''
   }
-  const shoppingListScene = readStringField(raw, 'wxShoppingListScene')
+  const shoppingListScene = readStringField(source, 'wxShoppingListScene')
   if (shoppingListScene != null) {
     return shoppingListScene
   }
@@ -38,15 +37,14 @@ function readSceneFromQuery(source : any | null) : string {
 }
 
 function readSceneFromOptions(source : any | null) : string {
-  const raw = normalizeJSONObject(source)
-  if (raw == null) {
+  if (source == null) {
     return ''
   }
-  const queryScene = readSceneFromQuery(readObjectField(raw, 'query'))
+  const queryScene = readSceneFromQuery(readObjectField(source, 'query'))
   if (queryScene.length > 0) {
     return queryScene
   }
-  const scene = readStringField(raw, 'scene')
+  const scene = readStringField(source, 'scene')
   if (scene == null) {
     return ''
   }
@@ -116,15 +114,19 @@ function isDirtyEntryValue(value : string) : boolean {
     value.indexOf('$taroTimestamp') >= 0
 }
 
-function stringifyEntryQueryObject(source : UTSJSONObject) : string {
-  const keys = UTSJSONObject.keys(source)
+function stringifyEntryQueryObject(source : any | null) : string {
+  const raw = normalizeJSONObject(source)
+  if (raw == null) {
+    return ''
+  }
+  const keys = UTSJSONObject.keys(raw)
   const parts = [] as Array<string>
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i]
     if (key.length == 0 || isDirtyEntryKey(key)) {
       continue
     }
-    const text = readStringField(source, key)
+    const text = readStringField(raw, key)
     const valueText = text != null ? text : ''
     if (isDirtyEntryValue(valueText)) {
       continue
@@ -134,7 +136,7 @@ function stringifyEntryQueryObject(source : UTSJSONObject) : string {
   return parts.join('&')
 }
 
-function stringifyEntryQueryField(source : UTSJSONObject, key : string) : string {
+function stringifyEntryQueryField(source : any | null, key : string) : string {
   const rawObject = readObjectField(source, key)
   if (rawObject != null) {
     return stringifyEntryQueryObject(rawObject)
@@ -200,15 +202,14 @@ function mergeEntryQuery(baseQuery : string, extraData : any | null) : string {
 }
 
 function readReferrerObject(source : any | null) : UTSJSONObject | null {
-  const raw = normalizeJSONObject(source)
-  if (raw == null) {
+  if (source == null) {
     return null
   }
-  const referrerInfo = readObjectField(raw, 'referrerInfo')
+  const referrerInfo = readObjectField(source, 'referrerInfo')
   if (referrerInfo != null) {
     return normalizeJSONObject(referrerInfo)
   }
-  const refererInfo = readObjectField(raw, 'refererInfo')
+  const refererInfo = readObjectField(source, 'refererInfo')
   if (refererInfo != null) {
     return normalizeJSONObject(refererInfo)
   }
@@ -304,24 +305,22 @@ export function resolveMiniProgramEntryInfo(
   const enterOptions = getMiniProgramEnterOptions()
   const primary = fallbackOptions != null ? fallbackOptions : enterOptions
   const secondary = fallbackOptions != null ? enterOptions : null
-  const primaryRaw = normalizeJSONObject(primary)
-  if (primaryRaw == null) {
+  if (primary == null) {
     return null
   }
-  const secondaryRaw = normalizeJSONObject(secondary)
 
   let path = normalizeEntryPath(
-    readStringField(primaryRaw, 'path')
+    readStringField(primary, 'path')
   )
-  if (path.length == 0 && secondaryRaw != null) {
+  if (path.length == 0 && secondary != null) {
     path = normalizeEntryPath(
-      readStringField(secondaryRaw, 'path')
+      readStringField(secondary, 'path')
     )
   }
 
-  let query = stringifyEntryQueryField(primaryRaw, 'query')
-  if (query.length == 0 && secondaryRaw != null) {
-    query = stringifyEntryQueryField(secondaryRaw, 'query')
+  let query = stringifyEntryQueryField(primary, 'query')
+  if (query.length == 0 && secondary != null) {
+    query = stringifyEntryQueryField(secondary, 'query')
   }
 
   const referrerExtraData = resolveReferrerExtraData(primary, secondary)

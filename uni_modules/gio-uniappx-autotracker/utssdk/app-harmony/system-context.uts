@@ -3,8 +3,6 @@ import {
   GioSystemContextFields,
   GioSystemContextResolver
 } from '../interface.uts'
-import { readStringField } from '../common/utils/base.uts'
-
 class AppHarmonySystemContextResolver implements GioSystemContextResolver {
   resolveSystemContext(
     systemInfo : UTSJSONObject | null,
@@ -15,8 +13,8 @@ class AppHarmonySystemContextResolver implements GioSystemContextResolver {
     deviceType : string
   ) : GioSystemContextFields | null {
     return {
-      appName: readStringField(systemInfo, 'appName'),
-      bundleId: readStringField(systemInfo, 'bundleId'),
+      appName: systemInfo != null ? systemInfo.getString('appName') : null,
+      bundleId: systemInfo != null ? systemInfo.getString('bundleId') : null,
       channel: null,
       deviceBrand: deviceBrand,
       deviceModel: null,

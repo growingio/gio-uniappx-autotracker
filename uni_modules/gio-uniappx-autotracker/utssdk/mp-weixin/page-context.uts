@@ -3,10 +3,10 @@
 import { GioPageContext } from '../interface.uts'
 import { registerPageContextResolver } from '../common/runtime/index.uts'
 import {
-  readArrayField as readArrayProperty,
-  readObjectField as readObjectProperty,
-  readStringField as readStringProperty
-} from '../common/utils/base.uts'
+  readArrayField,
+  readObjectField,
+  readStringField
+} from './base.uts'
 
 const GIO_MP_PAGE_TITLE_CACHE_KEY = '__gio_mp_page_titles__'
 const GIO_MP_CURRENT_TITLE_KEY = '__gio_mp_current_title__'
@@ -31,7 +31,7 @@ function normalizeMpRoutePath(route : string | null) : string {
 
 function readMpRuntimeObject(key : string) : UTSJSONObject | null {
   const runtime = (globalThis as unknown) as UTSJSONObject
-  return readObjectProperty(runtime, key)
+  return readObjectField(runtime, key)
 }
 
 function getMpRuntimeObject() : UTSJSONObject {
@@ -43,7 +43,7 @@ function cacheMpPageTitle(route : string, title : string) {
     return
   }
   const runtime = getMpRuntimeObject()
-  let cache = readObjectProperty(runtime, GIO_MP_PAGE_TITLE_CACHE_KEY)
+  let cache = readObjectField(runtime, GIO_MP_PAGE_TITLE_CACHE_KEY)
   if (cache == null) {
     cache = {} as UTSJSONObject
     runtime[GIO_MP_PAGE_TITLE_CACHE_KEY] = cache
@@ -58,7 +58,7 @@ function readCurrentPageRoute() : string {
       return ''
     }
     const page = pages[pages.length - 1] as UTSJSONObject
-    return normalizeMpRoutePath(readStringProperty(page, 'route'))
+    return normalizeMpRoutePath(readStringField(page, 'route'))
   } catch (_error) {}
   return ''
 }
@@ -76,9 +76,9 @@ function readCurrentPageObject() : UTSJSONObject | null {
 
 function readMpCachedPageTitle(route : string) : string | null {
   const runtime = getMpRuntimeObject()
-  const cache = readObjectProperty(runtime, GIO_MP_PAGE_TITLE_CACHE_KEY)
+  const cache = readObjectField(runtime, GIO_MP_PAGE_TITLE_CACHE_KEY)
   if (cache != null) {
-    const routeTitle = readStringProperty(cache, route)
+    const routeTitle = readStringField(cache, route)
     if (routeTitle != null) {
       return routeTitle
     }
@@ -90,7 +90,7 @@ function readMpCurrentTitleForRoute(route : string) : string | null {
   const runtime = getMpRuntimeObject()
   const currentRoute = readCurrentPageRoute()
   if (currentRoute.length > 0 && currentRoute == route) {
-    return readStringProperty(runtime, GIO_MP_CURRENT_TITLE_KEY)
+    return readStringField(runtime, GIO_MP_CURRENT_TITLE_KEY)
   }
   return null
 }
@@ -99,52 +99,52 @@ function readMpPageDataTitle(page : UTSJSONObject | null) : string | null {
   if (page == null) {
     return null
   }
-  const directTitle = readStringProperty(page, 'gioPageTitle')
+  const directTitle = readStringField(page, 'gioPageTitle')
   if (directTitle != null) {
     return directTitle
   }
-  const directNavigationTitle = readStringProperty(page, 'navigationBarTitleText')
+  const directNavigationTitle = readStringField(page, 'navigationBarTitleText')
   if (directNavigationTitle != null) {
     return directNavigationTitle
   }
-  const data = readObjectProperty(page, 'data')
-  const dataTitle = readStringProperty(data, 'gioPageTitle')
+  const data = readObjectField(page, 'data')
+  const dataTitle = readStringField(data, 'gioPageTitle')
   if (dataTitle != null) {
     return dataTitle
   }
-  const dataNavigationTitle = readStringProperty(data, 'navigationBarTitleText')
+  const dataNavigationTitle = readStringField(data, 'navigationBarTitleText')
   if (dataNavigationTitle != null) {
     return dataNavigationTitle
   }
-  const privateData = readObjectProperty(page, '$data')
-  const privateTitle = readStringProperty(privateData, 'gioPageTitle')
+  const privateData = readObjectField(page, '$data')
+  const privateTitle = readStringField(privateData, 'gioPageTitle')
   if (privateTitle != null) {
     return privateTitle
   }
-  return readStringProperty(privateData, 'navigationBarTitleText')
+  return readStringField(privateData, 'navigationBarTitleText')
 }
 
 function readMpTitleFromPageConfig(config : UTSJSONObject | null) : string | null {
   if (config == null) {
     return null
   }
-  const directTitle = readStringProperty(config, 'navigationBarTitleText')
+  const directTitle = readStringField(config, 'navigationBarTitleText')
   if (directTitle != null) {
     return directTitle
   }
-  const style = readObjectProperty(config, 'style')
-  const styleTitle = readStringProperty(style, 'navigationBarTitleText')
+  const style = readObjectField(config, 'style')
+  const styleTitle = readStringField(style, 'navigationBarTitleText')
   if (styleTitle != null) {
     return styleTitle
   }
-  const windowConfig = readObjectProperty(config, 'window')
-  const windowTitle = readStringProperty(windowConfig, 'navigationBarTitleText')
+  const windowConfig = readObjectField(config, 'window')
+  const windowTitle = readStringField(windowConfig, 'navigationBarTitleText')
   if (windowTitle != null) {
     return windowTitle
   }
-  const mod = readObjectProperty(config, 'mod')
-  const exportsValue = readObjectProperty(mod, 'exports')
-  return readStringProperty(exportsValue, 'navigationBarTitleText')
+  const mod = readObjectField(config, 'mod')
+  const exportsValue = readObjectField(mod, 'exports')
+  return readStringField(exportsValue, 'navigationBarTitleText')
 }
 
 function readMpTitleFromPagesArray(pagesValue : Array<UTSJSONObject> | null, route : string) : string | null {
@@ -158,7 +158,7 @@ function readMpTitleFromPagesArray(pagesValue : Array<UTSJSONObject> | null, rou
       continue
     }
     const pageConfig = item
-    const path = readStringProperty(pageConfig, 'path')
+    const path = readStringField(pageConfig, 'path')
     if (path == null || normalizeMpRoutePath(path) != route) {
       continue
     }
@@ -172,25 +172,25 @@ function readMpTitleFromPagesMap(pagesValue : UTSJSONObject | null, route : stri
     return null
   }
   const pages = pagesValue as UTSJSONObject
-  const pageConfig = readObjectProperty(pages, route)
+  const pageConfig = readObjectField(pages, route)
   if (pageConfig != null) {
     return readMpTitleFromPageConfig(pageConfig)
   }
-  return readMpTitleFromPageConfig(readObjectProperty(pages, `/${route}`))
+  return readMpTitleFromPageConfig(readObjectField(pages, `/${route}`))
 }
 
 function readMpTitleFromPagesConfig(config : UTSJSONObject | null, route : string) : string | null {
   if (config == null || route.length == 0) {
     return null
   }
-  const pagesValue = readArrayProperty(config, 'pages')
+  const pagesValue = readArrayField(config, 'pages')
   if (pagesValue != null && Array.isArray(pagesValue)) {
     const arrayTitle = readMpTitleFromPagesArray(pagesValue, route)
     if (arrayTitle != null) {
       return arrayTitle
     }
   }
-  const pagesObject = readObjectProperty(config, 'pages')
+  const pagesObject = readObjectField(config, 'pages')
   if (pagesObject != null) {
     return readMpTitleFromPagesMap(pagesObject, route)
   }
@@ -201,19 +201,19 @@ function readMpTitleFromPageObject(config : UTSJSONObject | null, route : string
   if (config == null || route.length == 0) {
     return null
   }
-  const pageValue = readObjectProperty(config, 'page')
+  const pageValue = readObjectField(config, 'page')
   if (pageValue == null) {
     return null
   }
-  let pageInfo = readObjectProperty(pageValue, route)
+  let pageInfo = readObjectField(pageValue, route)
   if (pageInfo == null) {
-    pageInfo = readObjectProperty(pageValue, `/${route}`)
+    pageInfo = readObjectField(pageValue, `/${route}`)
   }
   if (pageInfo == null) {
-    pageInfo = readObjectProperty(pageValue, `${route}.html`)
+    pageInfo = readObjectField(pageValue, `${route}.html`)
   }
   if (pageInfo == null) {
-    pageInfo = readObjectProperty(pageValue, `/${route}.html`)
+    pageInfo = readObjectField(pageValue, `/${route}.html`)
   }
   if (pageInfo != null) {
     const title = readMpTitleFromPageConfig(pageInfo)
@@ -228,15 +228,15 @@ function readMpTitleFromAppCode(appCode : UTSJSONObject | null, route : string) 
   if (appCode == null || route.length == 0) {
     return null
   }
-  let pageInfo = readObjectProperty(appCode, `${route}.json`)
+  let pageInfo = readObjectField(appCode, `${route}.json`)
   if (pageInfo == null) {
-    pageInfo = readObjectProperty(appCode, `/${route}.json`)
+    pageInfo = readObjectField(appCode, `/${route}.json`)
   }
   if (pageInfo == null) {
-    pageInfo = readObjectProperty(appCode, route)
+    pageInfo = readObjectField(appCode, route)
   }
   if (pageInfo == null) {
-    pageInfo = readObjectProperty(appCode, `/${route}`)
+    pageInfo = readObjectField(appCode, `/${route}`)
   }
   if (pageInfo == null) {
     return null
@@ -245,24 +245,24 @@ function readMpTitleFromAppCode(appCode : UTSJSONObject | null, route : string) 
 }
 
 function readMpGlobalTitle(config : UTSJSONObject | null) : string | null {
-  const globalStyle = readObjectProperty(config, 'globalStyle')
-  const globalTitle = readStringProperty(globalStyle, 'navigationBarTitleText')
+  const globalStyle = readObjectField(config, 'globalStyle')
+  const globalTitle = readStringField(globalStyle, 'navigationBarTitleText')
   if (globalTitle != null) {
     return globalTitle
   }
-  const globalConfig = readObjectProperty(config, 'global')
-  const globalWindow = readObjectProperty(globalConfig, 'window')
-  const windowTitle = readStringProperty(globalWindow, 'navigationBarTitleText')
+  const globalConfig = readObjectField(config, 'global')
+  const globalWindow = readObjectField(globalConfig, 'window')
+  const windowTitle = readStringField(globalWindow, 'navigationBarTitleText')
   if (windowTitle != null) {
     return windowTitle
   }
-  const windowConfig = readObjectProperty(config, 'window')
-  return readStringProperty(windowConfig, 'navigationBarTitleText')
+  const windowConfig = readObjectField(config, 'window')
+  return readStringField(windowConfig, 'navigationBarTitleText')
 }
 
 function readMpTabBarTitle(config : UTSJSONObject | null, route : string) : string | null {
-  const tabBar = readObjectProperty(config, 'tabBar')
-  const listValue = readArrayProperty(tabBar, 'list')
+  const tabBar = readObjectField(config, 'tabBar')
+  const listValue = readArrayField(tabBar, 'list')
   if (listValue == null || !Array.isArray(listValue)) {
     return null
   }
@@ -273,12 +273,12 @@ function readMpTabBarTitle(config : UTSJSONObject | null, route : string) : stri
       continue
     }
     const tabItem = item
-    const pagePath = readStringProperty(tabItem, 'pagePath')
-    const path = pagePath != null ? pagePath : readStringProperty(tabItem, 'path')
+    const pagePath = readStringField(tabItem, 'pagePath')
+    const path = pagePath != null ? pagePath : readStringField(tabItem, 'path')
     if (path == null || normalizeMpRoutePath(path) != route) {
       continue
     }
-    const text = readStringProperty(tabItem, 'text')
+    const text = readStringField(tabItem, 'text')
     if (text != null) {
       return text
     }
@@ -293,7 +293,7 @@ function resolveMiniProgramTitle(route : string) : string | null {
   }
   const currentPage = readCurrentPageObject()
   const currentRoute = currentPage != null
-    ? normalizeMpRoutePath(readStringProperty(currentPage, 'route'))
+    ? normalizeMpRoutePath(readStringField(currentPage, 'route'))
     : ''
   if (currentRoute.length > 0 && currentRoute == route) {
     const dataTitle = readMpPageDataTitle(currentPage)
@@ -375,7 +375,7 @@ function wrapMpNavigationTitleSetter(host : UTSJSONObject | null, key : string) 
   }
   const originalSetter = setterValue as MpOptionsFunction
   raw[key] = function(options : UTSJSONObject | null) : UTSJSONObject | null {
-    const title = readStringProperty(options, 'title')
+    const title = readStringField(options, 'title')
     if (title != null) {
       const route = readCurrentPageRoute()
       if (route.length > 0) {
