@@ -110,9 +110,6 @@ gio-uniappx-autotracker/
     app-ios/
       config.json
       index.uts
-    app-harmony/
-      config.json
-      index.uts
     mp-weixin/
       index.uts
       miniprogram.uts

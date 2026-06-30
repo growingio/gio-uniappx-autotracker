@@ -1,6 +1,6 @@
 # GrowingIO Measurement Protocol（全端）
 
-> 覆盖 **Web / 小程序(MinP) / App(iOS · Android · HarmonyOS)** 三端的事件上报协议。
+> 覆盖 **Web / 小程序(MinP) / App(iOS · Android)** 三端的事件上报协议。
 > 上报方式：`POST` 到 collect 接口，Body 为事件对象数组。每个事件 = 公共字段（context）+ 事件专有字段。
 
 ## 1. 事件类型与适用端
@@ -29,10 +29,10 @@
 | `sessionId` | string | ● | ● | ● | 访问会话 ID |
 | `dataSourceId` | string | ● | ● | ● | 数据源 ID |
 | `eventType` | string | ● | ● | ● | 事件类型（见上表枚举） |
-| `platform` | string | ● | ● | ● | Web：`web`；小程序：`MinP`；App：`iOS`/`Android`/`HarmonyOS` |
+| `platform` | string | ● | ● | ● | Web：`web`；小程序：`MinP`；App：`iOS`/`Android` |
 | `platformVersion` | string | — | ● | ● | 小程序：宿主（微信等）版本；App：操作系统版本 |
 | `timestamp` | long | ● | ● | ● | 事件时间戳 |
-| `domain` | string | ● | ● | ● | Web：网页域名；小程序：appId；App：包标识（iOS BundleID / Android·Harmony 包名）；Hybrid 为 H5 域名 |
+| `domain` | string | ● | ● | ● | Web：网页域名；小程序：appId；App：包标识（iOS BundleID / Android 包名）；Hybrid 为 H5 域名 |
 | `urlScheme` | string | — | — | ○ | App 链接协议（如 `growing.xxx`）。仅在 init 配置中显式传入时才随事件携带；未配置则不上报，SDK 不会自动生成 |
 | `appState` | string | — | — | ● | 应用前后台：`FOREGROUND` / `BACKGROUND` |
 | `appName` | string | — | — | ● | 应用名称 |
@@ -130,7 +130,7 @@
 
 | 维度 | Web | 小程序 | App |
 |---|---|---|---|
-| `platform` | `web` | `MinP` | `iOS` / `Android` / `HarmonyOS` |
+| `platform` | `web` | `MinP` | `iOS` / `Android` |
 | `domain` | 网页域名 | 小程序 appId | 包标识（BundleID / 包名） |
 | `screenWidth/Height` | 逻辑像素 | 物理像素 | 物理像素 |
 | `path`/`title`/`referralPage` | 公共字段 | 公共字段 | 仅关联页面的事件 |

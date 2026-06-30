@@ -79,7 +79,6 @@ npm run demo:open
 - `mp-weixin`
 - `app-android`
 - `app-ios`
-- `app-harmony`
 
 如果你要调试 `iOS` demo，本机还需要满足这两个前置条件：
 
@@ -90,7 +89,7 @@ npm run demo:open
 
 ## SDK 集成包
 
-SDK 以 `uni_modules` 集成包的形态放在 `uni_modules/gio-uniappx-autotracker`，包含 `web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 五端入口。其它工程要使用时，直接把整个 `uni_modules/gio-uniappx-autotracker` 目录拷贝进去即可，无需额外构建步骤。
+SDK 以 `uni_modules` 集成包的形态放在 `uni_modules/gio-uniappx-autotracker`，包含 `web`、`app-android`、`app-ios`、`mp-weixin` 入口。其它工程要使用时，直接把整个 `uni_modules/gio-uniappx-autotracker` 目录拷贝进去即可，无需额外构建步骤。
 
 当前目录职责约定：
 
@@ -105,7 +104,6 @@ SDK 以 `uni_modules` 集成包的形态放在 `uni_modules/gio-uniappx-autotrac
 - `utssdk/web/index.uts` 与 `utssdk/web/package.json`
 - `utssdk/app-android/index.uts` 与 `utssdk/app-android/config.json`
 - `utssdk/app-ios/index.uts` 与 `utssdk/app-ios/config.json`
-- `utssdk/app-harmony/index.uts` 与 `utssdk/app-harmony/config.json`
 - `utssdk/mp-weixin/index.uts`
 
 补充约束：
