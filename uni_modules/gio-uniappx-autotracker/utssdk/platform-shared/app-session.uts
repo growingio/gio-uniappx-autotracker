@@ -9,7 +9,7 @@ export function registerAppSessionPolicy() {
       return APP_SESSION_TIMEOUT_MS
     },
     shouldRenewSessionOnTimeout() : boolean {
-      return true
+      return false
     }
   })
 }

@@ -451,11 +451,14 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private shouldRenewSessionOnAppShow(
     entryInfo : GioEntryInfo | null
   ) : boolean {
-    if (!this.entryEnabled || this.lastAppHideAt <= 0) {
+    if (this.lastAppHideAt <= 0) {
       return false
     }
     if (now() - this.lastAppHideAt > this.getSessionTimeoutMs()) {
       return true
+    }
+    if (!this.entryEnabled) {
+      return false
     }
     return entryInfo != null &&
       entryInfo.scene.length > 0 &&
