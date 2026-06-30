@@ -64,7 +64,7 @@ type GioRuntimePolicy = {
   getUploadMaxConcurrency : (fallback : number) => number
 }
 
-type GioSessionTimeoutPolicy = {
+export type GioSessionTimeoutPolicy = {
   getSessionTimeoutMs : (fallback : number) => number
   shouldRenewSessionOnTimeout : () => boolean
 }
