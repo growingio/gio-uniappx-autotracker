@@ -24,7 +24,7 @@ registerRuntimePolicy({
     return MP_SESSION_TIMEOUT_MS
   },
   shouldRenewSessionOnTimeout() : boolean {
-    return true
+    return false
   },
   getMaxQueueSize(_fallback : number) : number {
     return MP_MAX_QUEUE_SIZE

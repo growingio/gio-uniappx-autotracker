@@ -49,7 +49,6 @@ import {
   shouldEmitPageWithoutShow,
   shouldEmitPageOnShow,
   shouldEmitVisitForSession,
-  shouldRenewSessionOnTimeout,
   shouldTrackAppClosed,
   supportsAppState,
   supportsLocation,
@@ -451,10 +450,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (!this.entryEnabled || this.lastAppHideAt <= 0) {
       return false
     }
-    if (
-      shouldRenewSessionOnTimeout() &&
-      now() - this.lastAppHideAt > this.getSessionTimeoutMs()
-    ) {
+    if (now() - this.lastAppHideAt > this.getSessionTimeoutMs()) {
       return true
     }
     return entryInfo != null &&
@@ -908,9 +904,6 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.syncEntryInfo(entryInfo)
     this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))
     if (this.shouldRenewSessionOnAppShow(entryInfo)) {
-      // 对齐独立小程序 SDK 的 lifeBeforeShow 语义：AppShow 切 session 时
-      // PAGE 交给随后到来的页面 onShow 发送，不在 SESSIONID_UPDATE 中补发。
-      this.currentPageShown = false
       this.userStore.renewSession(this.getSessionTimeoutMs())
     }
     if (!this.dataStore.hasCurrentPage()) {
