@@ -46,7 +46,6 @@ import {
   resolveMaxQueueSize,
   resolveSessionTimeoutMs,
   scheduleVisitAndPage,
-  shouldEmitPageWithoutShow,
   shouldEmitPageOnShow,
   shouldEmitVisitForSession,
   shouldRenewSessionOnTimeout,
@@ -164,17 +163,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
         emitVisit: (pageContext : GioPageContext | null) => {
           this.emitVisitEvent(pageContext, true)
         },
-        emitPage: (pageContext : GioPageContext | null) => {
-          this.emitPageEvent(pageContext)
-        },
         shouldHandleSessionUpdate: () : boolean => {
           return this.sessionUpdateReady
-        },
-        shouldEmitPage: (pageContext : GioPageContext | null) : boolean => {
-          if (pageContext == null) {
-            return false
-          }
-          return shouldEmitPageWithoutShow() || this.currentPageShown
         }
       }
     )
