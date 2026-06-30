@@ -127,6 +127,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
 
   initialize(options : GioInitOptions) : boolean {
     consoleText(this.getInitStartMessage(), 'info')
+    if (this.initialized) {
+      consoleText('SDK初始化失败，重复初始化，请检查初始化参数!', 'error')
+      return false
+    }
     if (
       isBlank(options.projectId) ||
       isBlank(options.dataSourceId) ||

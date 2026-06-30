@@ -157,6 +157,7 @@ UTS 约束说明：
 - 对外传入的配置对象不再依赖 `?` 可选属性
 - `idMapping` 默认 `false`；只有显式开启后，`setUserId(userId, userKey)` 里的 `userKey` 才会持久化并参与后续事件上报
 - `track` 直接按独立 SDK 风格使用 `gdp('track', eventName, properties)`
+- 当前不考虑多实例，`gdp('init', ...)` 只允许单实例首次初始化成功；重复初始化直接返回 `false`，不刷新配置或重置运行态
 - `setOptions` 参数必须显式包含布尔字段 `dataCollect`，当前不允许借此修改其他初始化项
 - `setLocation` 只接受合法经纬度数字：`latitude` 范围 `-90..90`，`longitude` 范围 `-180..180`；web 端调用会返回 `false`
 - `clearLocation` 清空运行时经纬度状态；web 端调用会返回 `false`

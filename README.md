@@ -24,6 +24,8 @@
 
 `setOptions` 当前只允许动态修改 `dataCollect`，不能作为通用运行时配置入口使用。传入其他字段不会扩展核心状态。
 
+`gdp('init', ...)` 按单实例 SDK 语义只允许成功调用一次。重复初始化会返回 `false` 并打印“SDK初始化失败，重复初始化，请检查初始化参数!”，不会刷新配置、重置队列或重新安装生命周期。
+
 微信小程序分享能力需要先通过 `gdp('registerPlugins', [{ name: 'gioShareTracking' }])` 注册启用。启用后，SDK 会代理业务页已定义的 `onShareAppMessage` / `onShareTimeline` / `onAddToFavorites`；未注册时只透传业务 handler 返回值，不补分享字段、不发送分享 / 收藏事件。SDK 不会给没有定义分享钩子的页面补方法，因此不会让其它页面平白多出转发菜单；`wrapShareAppMessage` / `wrapShareTimeline` / `wrapAddToFavorites` 仍保留为手动兜底 API。
 
 ## Demo 初始化
