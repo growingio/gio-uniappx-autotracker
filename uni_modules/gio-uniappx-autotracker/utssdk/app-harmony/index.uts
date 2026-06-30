@@ -1,8 +1,9 @@
 // Harmony 平台入口当前直接复用公共 utssdk API。
 import { GioTracker } from '../common/core/tracker.uts'
 import { createAppHarmonySystemContextResolver } from './system-context.uts'
-import '../platform-shared/app-runtime.uts'
+import { registerAppSessionPolicy } from '../platform-shared/app-session.uts'
 
+registerAppSessionPolicy()
 GioTracker.getInstance().setSystemContextResolver(
   createAppHarmonySystemContextResolver()
 )

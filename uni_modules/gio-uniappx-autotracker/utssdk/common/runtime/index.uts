@@ -64,6 +64,11 @@ type GioRuntimePolicy = {
   getUploadMaxConcurrency : (fallback : number) => number
 }
 
+type GioSessionTimeoutPolicy = {
+  getSessionTimeoutMs : (fallback : number) => number
+  shouldRenewSessionOnTimeout : () => boolean
+}
+
 // ABTest「首访 session 快照」的存储抽象。对齐独立 SDK 的 visitSids：
 // - mp / app（无页面刷新）放内存即可 —— 默认走下面的 builtinVisitSessionId；
 // - web 因为刷新会丢内存、且 session 自身持久化，必须把快照也持久化（见 web/runtime.uts
@@ -92,6 +97,7 @@ let registeredEventShaper : GioEventShaper | null = null
 let registeredEventSender : GioEventSender | null = null
 let registeredUploadPolicy : GioUploadPolicy | null = null
 let registeredRuntimePolicy : GioRuntimePolicy | null = null
+let registeredSessionTimeoutPolicy : GioSessionTimeoutPolicy | null = null
 let registeredVisitSessionStore : GioVisitSessionStore | null = null
 // 未注册平台存储时的内存兜底（mp / app 用），承载首访 session 快照。
 let builtinVisitSessionId : string = ''
@@ -152,6 +158,12 @@ export function registerRuntimePolicy (
   registeredRuntimePolicy = policy
 }
 
+export function registerSessionTimeoutPolicy (
+  policy : GioSessionTimeoutPolicy | null
+) {
+  registeredSessionTimeoutPolicy = policy
+}
+
 export function resolveInitStartMessage(fallback : string) : string {
   const policy = registeredRuntimePolicy
   return policy != null ? policy.getInitStartMessage(fallback) : fallback
@@ -164,12 +176,20 @@ export function resolveInitCompleteMessage(fallback : string) : string {
 
 export function resolveSessionTimeoutMs(fallback : number) : number {
   const policy = registeredRuntimePolicy
-  return policy != null ? policy.getSessionTimeoutMs(fallback) : fallback
+  if (policy != null) {
+    return policy.getSessionTimeoutMs(fallback)
+  }
+  const sessionPolicy = registeredSessionTimeoutPolicy
+  return sessionPolicy != null ? sessionPolicy.getSessionTimeoutMs(fallback) : fallback
 }
 
 export function shouldRenewSessionOnTimeout() : boolean {
   const policy = registeredRuntimePolicy
-  return policy != null ? policy.shouldRenewSessionOnTimeout() : false
+  if (policy != null) {
+    return policy.shouldRenewSessionOnTimeout()
+  }
+  const sessionPolicy = registeredSessionTimeoutPolicy
+  return sessionPolicy != null ? sessionPolicy.shouldRenewSessionOnTimeout() : false
 }
 
 export function resolveMaxQueueSize(fallback : number) : number {
