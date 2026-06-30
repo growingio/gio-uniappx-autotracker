@@ -28,10 +28,7 @@ import {
   verifyId
 } from '../utils/validate.uts'
 import { now } from '../utils/base.uts'
-import {
-  consoleText,
-  formatBeijingTimestamp
-} from '../utils/debug.uts'
+import { consoleText } from '../utils/debug.uts'
 import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
@@ -324,30 +321,21 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     )
   }
 
-  private stringifyLifecyclePageContext(pageContext : GioPageContext | null) : string {
-    if (pageContext == null) {
-      return 'path=- query= title= referralPage='
-    }
-    const query = pageContext.query != null ? pageContext.query : ''
-    const title = pageContext.title != null ? pageContext.title : ''
-    const referralPage = pageContext.referralPage != null ? pageContext.referralPage : ''
-    return `path=${pageContext.path} query=${query} title=${title} referralPage=${referralPage}`
-  }
-
   private logLifecycle(
     scope : string,
     hook : string,
-    pageContext : GioPageContext | null,
-    extra : string | null = null
+    pageContext : GioPageContext | null
   ) {
     if (!this.isDebugEnabled()) {
       return
     }
-    let message = `lifecycle ${scope}.${hook} ${this.stringifyLifecyclePageContext(pageContext)}`
-    if (extra != null && extra.length > 0) {
-      message += ` ${extra}`
+    const eventTime = Date.now()
+    if (scope == 'app') {
+      console.log(`App: ${hook} ${eventTime}`)
+      return
     }
-    console.log(`[GrowingIO Lifecycle][${formatBeijingTimestamp(Date.now())}] ${message}`)
+    const path = pageContext != null ? pageContext.path : ''
+    console.log(`Page: ${path} # ${hook} ${eventTime}`)
   }
 
   private handleFlushSuccess(events : Array<GioTrackEvent>) {
@@ -822,7 +810,11 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   onLaunch(options : UTSJSONObject | null = null) {
-    if (!this.ensureReady() || !this.entryEnabled) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.logLifecycle('app', 'onLaunch', null)
+    if (!this.entryEnabled) {
       return
     }
     this.syncEntryInfo(this.resolveEntryInfo(options))
@@ -940,8 +932,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.logLifecycle(
       'app',
       'onHide',
-      pageContext,
-      duration != null ? `duration=${duration}` : null
+      pageContext
     )
     if (shouldTrackAppClosed()) {
       this.lastAppHideAt = now()
