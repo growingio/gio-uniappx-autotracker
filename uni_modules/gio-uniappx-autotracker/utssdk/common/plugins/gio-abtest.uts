@@ -53,6 +53,26 @@ function readObject(value : any | null) : UTSJSONObject {
   return value as UTSJSONObject
 }
 
+function readScalarString(
+  source : UTSJSONObject,
+  key : string,
+  fallback : string = ''
+) : string {
+  const stringValue = source.getString(key)
+  if (stringValue != null) {
+    return stringValue as string
+  }
+  const numberValue = source.getNumber(key)
+  if (numberValue != null) {
+    return `${numberValue as number}`
+  }
+  const booleanValue = source.getBoolean(key)
+  if (booleanValue != null) {
+    return `${booleanValue as boolean}`
+  }
+  return fallback
+}
+
 function readRequestErrorMessage(source : RequestFail | null) : string {
   if (source == null) {
     return ''
@@ -323,9 +343,9 @@ export class GioABTestPlugin {
     // 这类写法会在运行时触发和 registerPlugins 一样的强转崩溃。
     const variables = responseData.getJSON('variables')
     const comparisonData = {
-      layerId: responseData.getString('layerId', stringifyScalar(layerId)),
-      strategyId: responseData.getString('strategyId', ''),
-      experimentId: responseData.getString('experimentId', ''),
+      layerId: readScalarString(responseData, 'layerId', stringifyScalar(layerId)),
+      strategyId: readScalarString(responseData, 'strategyId'),
+      experimentId: readScalarString(responseData, 'experimentId'),
       variables: variables != null ? variables : {} as UTSJSONObject
     } as UTSJSONObject
     const controlData = this.cloneComparisonData(originData)
