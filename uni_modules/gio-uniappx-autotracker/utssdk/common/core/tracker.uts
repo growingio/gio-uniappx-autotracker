@@ -92,7 +92,6 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private lastAppHideAt : number = 0
   private lastEntryScene : string = ''
   private identified : boolean = false
-  private sessionUpdatePageReplayPending : boolean = false
 
   private constructor() {}
 
@@ -172,7 +171,10 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
           return this.sessionUpdateReady
         },
         shouldEmitPage: (pageContext : GioPageContext | null) : boolean => {
-          return this.consumeSessionUpdatePageReplay(pageContext)
+          if (pageContext == null) {
+            return false
+          }
+          return shouldEmitPageWithoutShow() || this.currentPageShown
         }
       }
     )
@@ -495,17 +497,6 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
   }
 
-  private consumeSessionUpdatePageReplay(
-    pageContext : GioPageContext | null
-  ) : boolean {
-    const shouldReplay = this.sessionUpdatePageReplayPending
-    this.sessionUpdatePageReplayPending = false
-    if (!shouldReplay || pageContext == null) {
-      return false
-    }
-    return shouldEmitPageWithoutShow() || this.currentPageShown
-  }
-
   private recordEventContext(eventType : string, event : GioTrackEvent) {
     const path = event.path != null ? event.path as string : ''
     const query = event.query != null ? event.query as string : ''
@@ -546,9 +537,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.dataStore.setDataCollect(dataCollect)
     this.logDataCollectUpdated(dataCollect)
     if (dataCollect) {
-      this.sessionUpdatePageReplayPending = true
       this.userStore.renewSession(this.getSessionTimeoutMs())
-      this.sessionUpdatePageReplayPending = false
     }
     syncConfigToGlobal(this.options)
     return true
@@ -919,6 +908,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.syncEntryInfo(entryInfo)
     this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))
     if (this.shouldRenewSessionOnAppShow(entryInfo)) {
+      // 对齐独立小程序 SDK 的 lifeBeforeShow 语义：AppShow 切 session 时
+      // PAGE 交给随后到来的页面 onShow 发送，不在 SESSIONID_UPDATE 中补发。
+      this.currentPageShown = false
       this.userStore.renewSession(this.getSessionTimeoutMs())
     }
     if (!this.dataStore.hasCurrentPage()) {
