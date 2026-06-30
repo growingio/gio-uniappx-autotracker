@@ -46,6 +46,7 @@ import {
   resolveMaxQueueSize,
   resolveSessionTimeoutMs,
   scheduleVisitAndPage,
+  shouldEmitPageWithoutShow,
   shouldEmitPageOnShow,
   shouldEmitVisitForSession,
   shouldRenewSessionOnTimeout,
@@ -91,6 +92,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private lastAppHideAt : number = 0
   private lastEntryScene : string = ''
   private identified : boolean = false
+  private sessionUpdatePageReplayPending : boolean = false
 
   private constructor() {}
 
@@ -163,8 +165,14 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
         emitVisit: (pageContext : GioPageContext | null) => {
           this.emitVisitEvent(pageContext, true)
         },
+        emitPage: (pageContext : GioPageContext | null) => {
+          this.emitPageEvent(pageContext)
+        },
         shouldHandleSessionUpdate: () : boolean => {
           return this.sessionUpdateReady
+        },
+        shouldEmitPage: (pageContext : GioPageContext | null) : boolean => {
+          return this.consumeSessionUpdatePageReplay(pageContext)
         }
       }
     )
@@ -487,6 +495,17 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
   }
 
+  private consumeSessionUpdatePageReplay(
+    pageContext : GioPageContext | null
+  ) : boolean {
+    const shouldReplay = this.sessionUpdatePageReplayPending
+    this.sessionUpdatePageReplayPending = false
+    if (!shouldReplay || pageContext == null) {
+      return false
+    }
+    return shouldEmitPageWithoutShow() || this.currentPageShown
+  }
+
   private recordEventContext(eventType : string, event : GioTrackEvent) {
     const path = event.path != null ? event.path as string : ''
     const query = event.query != null ? event.query as string : ''
@@ -527,7 +546,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.dataStore.setDataCollect(dataCollect)
     this.logDataCollectUpdated(dataCollect)
     if (dataCollect) {
+      this.sessionUpdatePageReplayPending = true
       this.userStore.renewSession(this.getSessionTimeoutMs())
+      this.sessionUpdatePageReplayPending = false
     }
     syncConfigToGlobal(this.options)
     return true

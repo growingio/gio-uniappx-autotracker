@@ -29,7 +29,9 @@ const SENT_SIGN_SUFFIX = '_gdp_session_id_sent'
 
 export type GioSessionUpdateHandlers = {
   emitVisit : (pageContext : GioPageContext | null) => void
+  emitPage : (pageContext : GioPageContext | null) => void
   shouldHandleSessionUpdate : () => boolean
+  shouldEmitPage : (pageContext : GioPageContext | null) => boolean
 }
 
 export class GioDataStore {
@@ -93,8 +95,10 @@ export class GioDataStore {
     if (visitPageContext == null) {
       visitPageContext = this.buildLastVisitPageContext()
     }
-    // Session 更新只补 VISIT；PAGE 由页面生命周期 onShow 统一负责。
     handlers.emitVisit(visitPageContext)
+    if (handlers.shouldEmitPage(currentPageContext)) {
+      handlers.emitPage(currentPageContext)
+    }
   }
 
   private getMainStorage() : GioStorage {
