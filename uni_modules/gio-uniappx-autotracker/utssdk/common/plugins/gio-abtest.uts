@@ -14,7 +14,11 @@ import {
   now
 } from '../utils/base.uts'
 import { consoleText, debugLogRequest } from '../utils/debug.uts'
-import { stringifyScalar } from '../utils/validate.uts'
+import {
+  readNullableScalarString,
+  readScalarString,
+  stringifyScalar
+} from '../utils/validate.uts'
 
 const ABTEST_DEFAULT_SERVER_URL = 'https://ab.growingio.com'
 const ABTEST_DEFAULT_REQUEST_INTERVAL = 5
@@ -322,10 +326,13 @@ export class GioABTestPlugin {
     // 嵌套对象必须通过 getJSON 读取，不能直接把下标结果强转成 UTSJSONObject。
     // 这类写法会在运行时触发和 registerPlugins 一样的强转崩溃。
     const variables = responseData.getJSON('variables')
+    const resolvedLayerId = readScalarString(responseData, 'layerId', stringifyScalar(layerId))
+    const resolvedStrategyId = readScalarString(responseData, 'strategyId')
+    const resolvedExperimentId = readScalarString(responseData, 'experimentId')
     const comparisonData = {
-      layerId: responseData.getString('layerId', stringifyScalar(layerId)),
-      strategyId: responseData.getString('strategyId', ''),
-      experimentId: responseData.getString('experimentId', ''),
+      layerId: resolvedLayerId,
+      strategyId: resolvedStrategyId,
+      experimentId: resolvedExperimentId,
       variables: variables != null ? variables : {} as UTSJSONObject
     } as UTSJSONObject
     const controlData = this.cloneComparisonData(originData)
@@ -333,12 +340,12 @@ export class GioABTestPlugin {
     const controlValue = hashCode(jsonStringify(controlData))
 
     const result : GioABTestResult = {
-      layerId: comparisonData.getString('layerId', ''),
-      strategyId: comparisonData.getString('strategyId', ''),
-      experimentId: comparisonData.getString('experimentId', ''),
-      layerName: responseData.getString('layerName'),
-      experimentName: responseData.getString('experimentName'),
-      strategyName: responseData.getString('strategyName'),
+      layerId: resolvedLayerId,
+      strategyId: resolvedStrategyId,
+      experimentId: resolvedExperimentId,
+      layerName: readNullableScalarString(responseData, 'layerName'),
+      experimentName: readNullableScalarString(responseData, 'experimentName'),
+      strategyName: readNullableScalarString(responseData, 'strategyName'),
       variables: variables
     }
 

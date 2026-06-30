@@ -1,5 +1,6 @@
 // route.uts 负责把页面快照解析成统一的 path / query / title / signature。
 import { GioPageSnapshot } from '../interface.uts'
+import { readScalarString } from './utils/validate.uts'
 
 export type GioResolvedRoute = {
   path : string
@@ -29,19 +30,7 @@ function stringifyRouteQuery(value : any | null) : string {
     if (key.length == 0) {
       continue
     }
-    let itemValue = raw.getString(key, '')
-    if (itemValue.length == 0) {
-      const numberValue = raw.getNumber(key)
-      if (numberValue != null) {
-        itemValue = `${numberValue as number}`
-      }
-    }
-    if (itemValue.length == 0) {
-      const booleanValue = raw.getBoolean(key)
-      if (booleanValue != null) {
-        itemValue = `${booleanValue as boolean}`
-      }
-    }
+    const itemValue = readScalarString(raw, key)
     parts.push(`${key}=${itemValue}`)
   }
   return parts.join('&')

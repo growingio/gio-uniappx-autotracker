@@ -69,7 +69,7 @@ export function isValidIdentifyId (value : any | null) : boolean {
   return text.length > 0 && text != '0' && text != '-' && text != 'null' && text != 'undefined'
 }
 
-function stringifyScalarField(source : UTSJSONObject, key : string) : string {
+export function readNullableScalarString(source : UTSJSONObject, key : string) : string | null {
   const text = source.getString(key)
   if (text != null) {
     return text
@@ -82,7 +82,19 @@ function stringifyScalarField(source : UTSJSONObject, key : string) : string {
   if (booleanValue != null) {
     return `${booleanValue as boolean}`
   }
-  return ''
+  return null
+}
+
+export function readScalarString(
+  source : UTSJSONObject,
+  key : string,
+  fallback : string = ''
+) : string {
+  const value = readNullableScalarString(source, key)
+  if (value != null) {
+    return value as string
+  }
+  return fallback
 }
 
 export function normalizeTrackProperties (properties : UTSJSONObject | null) : UTSJSONObject | null {
@@ -126,7 +138,7 @@ export function normalizeTrackProperties (properties : UTSJSONObject | null) : U
       continue
     }
 
-    normalized[key] = stringifyScalarField(raw, rawKey).slice(0, 1000)
+    normalized[key] = readScalarString(raw, rawKey).slice(0, 1000)
   }
 
   return UTSJSONObject.keys(normalized).length > 0 ? normalized : null
