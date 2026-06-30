@@ -136,6 +136,11 @@ function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null
   const scene = raw.getString('scene')
   if (scene != null) {
     copied['scene'] = scene
+  } else {
+    const sceneNumber = raw.getNumber('scene')
+    if (sceneNumber != null) {
+      copied['scene'] = `${sceneNumber as number}`
+    }
   }
   const query = raw.getJSON('query')
   if (query != null) {
@@ -162,12 +167,12 @@ function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
 // uni-app x 的 MP-WEIXIN global mixin 会收到一轮带 App 入口参数的 onShow。
 // App 生命周期已由 uni.onAppShow/uni.onAppHide 显式桥接，这里只过滤掉这轮
 // App-like mixin 回调，避免被当作 Page onShow 重复发送 PAGE。
-function isLaunchOptionsSnapshot(source : UTSJSONObject | null) : boolean {
+// 场景切换进入时入口参数可能只有 scene/query/referrerInfo，不一定有 path。
+function isAppShowOptionsSnapshot(source : UTSJSONObject | null) : boolean {
   if (source == null) {
     return false
   }
-  return source.getString('path') != null &&
-    source.getString('scene') != null
+  return UTSJSONObject.keys(source).length > 0
 }
 
 function installMpAppLifecycle() {
@@ -289,7 +294,7 @@ const lifecycle = defineMixin({
   // @ts-ignore
   onShow(options : any | null) {
     const launchOptions = buildLaunchOptionsSnapshot(options)
-    if (isLaunchOptionsSnapshot(launchOptions)) {
+    if (isAppShowOptionsSnapshot(launchOptions)) {
       return
     }
     const pageSnapshot = buildPageSnapshot()
