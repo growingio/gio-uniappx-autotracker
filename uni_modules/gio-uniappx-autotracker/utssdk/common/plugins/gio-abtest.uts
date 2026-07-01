@@ -57,26 +57,6 @@ function readObject(value : any | null) : UTSJSONObject {
   return value as UTSJSONObject
 }
 
-function readScalarString(
-  source : UTSJSONObject,
-  key : string,
-  fallback : string = ''
-) : string {
-  const stringValue = source.getString(key)
-  if (stringValue != null) {
-    return stringValue as string
-  }
-  const numberValue = source.getNumber(key)
-  if (numberValue != null) {
-    return `${numberValue as number}`
-  }
-  const booleanValue = source.getBoolean(key)
-  if (booleanValue != null) {
-    return `${booleanValue as boolean}`
-  }
-  return fallback
-}
-
 function readRequestErrorMessage(source : RequestFail | null) : string {
   if (source == null) {
     return ''
