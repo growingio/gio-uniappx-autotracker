@@ -12,18 +12,33 @@ class AppHarmonySystemContextResolver implements GioSystemContextResolver {
     deviceBrand : string,
     deviceType : string
   ) : GioSystemContextFields | null {
+    let deviceModelText = ''
+    if (systemInfo != null) {
+      const primary = systemInfo.getString('deviceModel')
+      if (primary != null) {
+        deviceModelText = primary as string
+      } else {
+        const fallback = systemInfo.getString('model')
+        if (fallback != null) {
+          deviceModelText = fallback as string
+        }
+      }
+    }
+    const platformVersionText = version.length > 0
+      ? (deviceModelText.length > 0 ? `${deviceModelText} ${version}` : version)
+      : osLabel
     return {
       appName: systemInfo != null ? systemInfo.getString('appName') : null,
       bundleId: systemInfo != null ? systemInfo.getString('bundleId') : null,
       channel: null,
-      deviceBrand: deviceBrand,
+      deviceBrand: 'HUAWEI',
       deviceModel: null,
       deviceType: deviceType,
       language: null,
       networkState: null,
       operatingSystem: osLabel,
       platform: osLabel,
-      platformVersion: version.length > 0 ? version : osLabel
+      platformVersion: platformVersionText
     } as GioSystemContextFields
   }
 }

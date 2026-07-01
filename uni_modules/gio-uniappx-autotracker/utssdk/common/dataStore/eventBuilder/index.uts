@@ -84,7 +84,6 @@ export class GioEventBuilder {
     // 否则 iOS 侧很容易在大对象字面量 + 内联三元 / 强转 / 原生 Date 缺失方法的组合下，
     // 报 “unable to type-check in reasonable time”。
     const appVersionText : string = options.appVersion as string
-    const titleText : string = title != null ? (title as string) : ''
     const timestamp : number = now()
     const timezoneOffset : string = `${readTimezoneOffsetMinutes()}`
     const userKey : string | null = options.idMapping ? context.userKey : null
@@ -105,6 +104,9 @@ export class GioEventBuilder {
     const orientationText : string | null = (isApp && eventType == 'PAGE')
       ? readDeviceOrientation()
       : null
+    const titleText : string | null = (isApp && eventType != 'PAGE')
+      ? null
+      : (title != null ? (title as string) : '')
     return shapeTrackEvent({
       appChannel: appChannelText,
       appName: systemContext.appName,

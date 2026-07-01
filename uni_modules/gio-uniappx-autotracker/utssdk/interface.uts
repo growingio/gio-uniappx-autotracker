@@ -128,7 +128,7 @@ export type GioTrackEvent = {
   sessionId : string
   timestamp : number
   timezoneOffset : string
-  title : string
+  title : string | null
   userId : string | null
   userKey : string | null
   attributes : UTSJSONObject | null

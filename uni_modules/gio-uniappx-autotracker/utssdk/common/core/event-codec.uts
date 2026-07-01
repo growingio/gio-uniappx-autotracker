@@ -77,7 +77,7 @@ export function eventFromJSONObject(raw : UTSJSONObject) : GioTrackEvent {
     sessionId: raw.getString('sessionId', ''),
     timestamp: raw.getNumber('timestamp', 0),
     timezoneOffset: raw.getString('timezoneOffset', ''),
-    title: raw.getString('title', ''),
+    title: raw.getString('title'),
     userId: raw.getString('userId'),
     userKey: raw.getString('userKey'),
     attributes: raw.getJSON('attributes')
