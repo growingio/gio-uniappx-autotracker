@@ -56,20 +56,32 @@ function escapeDebugString(text : string) : string {
 }
 
 function renderDebugMember(obj : UTSJSONObject, key : string, indentLevel : number) : string {
-  const value = obj[key]
-  if (value == null) {
-    return 'null'
+  const stringValue = obj.getString(key)
+  if (stringValue != null) {
+    return `"${escapeDebugString(stringValue as string)}"`
   }
-  if (typeof value == 'string') {
-    return `"${escapeDebugString(obj.getString(key, ''))}"`
+  const booleanValue = obj.getBoolean(key)
+  if (booleanValue != null) {
+    return `${booleanValue as boolean}`
   }
-  if (typeof value == 'boolean') {
-    return `${obj.getBoolean(key, false)}`
+  const numberValue = obj.getNumber(key)
+  if (numberValue != null) {
+    return `${numberValue as number}`
   }
-  if (typeof value == 'number') {
-    return `${obj.getNumber(key, 0)}`
+  // #ifdef APP-HARMONY
+  const arrayValue = obj.getArray<Object>(key)
+  // #endif
+  // #ifndef APP-HARMONY
+  const arrayValue = obj.getArray(key)
+  // #endif
+  if (arrayValue != null) {
+    return prettyPrintDebugJson(arrayValue, indentLevel)
   }
-  return prettyPrintDebugJson(value, indentLevel)
+  const jsonValue = obj.getJSON(key)
+  if (jsonValue != null) {
+    return prettyPrintDebugJson(jsonValue, indentLevel)
+  }
+  return 'null'
 }
 
 function prettyPrintDebugJson(value : any | null, indentLevel : number = 0) : string {

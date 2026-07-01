@@ -274,7 +274,53 @@ uni.request({
 - `fail(e : RequestFail)` — 失败回调使用简写语法 + 类型标注
 - `} as RequestOptions<T>)` — 整个 options 对象末尾做类型断言，避免 `RequestOptions<String>` vs `RequestOptions<Any>` 的泛型冲突
 
-### 8. 多端兼容检查清单
+> ⚠️ **本节的“调用点必须写 `<T>`”只适用于 iOS/Android/web/mp，Harmony 恰好相反**（Harmony 的 `uni.request` 声明不带泛型，写 `<T>` 报 `Expected 0 type arguments`）。跨端写法见 §8.4。
+
+### 8. Harmony / ArkTS 专项（`arkts-no-any-unknown` 与跨端签名分叉）
+
+Harmony 端源码编译成 ArkTS，类型规则比 Kotlin/Swift 严格，且部分 uni API 的**签名与 iOS/Android 不一致**，同一份写法无法五端通吃，必须用 `// #ifdef APP-HARMONY` 分叉。以下均为实测坑。
+
+#### 8.1 `arkts-no-any-unknown`：禁止隐式 any 局部变量
+
+ArkTS 不允许类型为 `any` / `unknown`（含 `ESObject`）的局部变量（函数形参写 `any` 只告警，局部 `const`/`let` 直接报错）。
+
+- `const v = raw[key]`（`UTSJSONObject` 下标直读）结果是 `any` → 报错。改用 typed getter（`getString`/`getNumber`/`getBoolean`/`getJSON`），见 §6.5。
+- `raw.getArray(key)` 默认泛型是 `ESObject`（any 家族），`Array<ESObject>` 同样报错。**Harmony 必须显式 `raw.getArray<Object>(key)`**；但 iOS(Swift)/Android(Kotlin) 没有 `Object` 类型，只能用不带泛型的 `getArray(key)` → 需 `#ifdef` 分叉。
+
+#### 8.2 Harmony 上 `any` 编译成 `Object | null`，不接受 `undefined`
+
+uts 的 `any | null` 形参在 Harmony 编译成 `Object | null`。把一个 `X | undefined`（uni 类型里用 `?` 声明的可选字段，如 `RequestFail.errMsg?: string`、`IUniError`）传进这类形参会报 `'string | undefined' is not assignable to 'Object | null'`。iOS/Android 的 `any` 是真 any 能接住，所以这坑只在 Harmony 暴露。调用前用 `!= null` 收窄（与 `readRequestErrorMessage` 一致）：
+
+```uts
+const msg = err.errMsg != null ? (err.errMsg as string) : ''
+```
+
+#### 8.3 选项对象是 nominal class，Harmony 不能对匿名字面量做 `as`
+
+Harmony 的 `SetStorageOptions`、`RequestOptions<T>` 等是 `extends UTSObject` 的名义类。对匿名字面量做 `{...} as SetStorageOptions` 报 `neither type sufficiently overlaps`；而 iOS/Android 上裸字面量会被推断成 `UTSJSONObject`，**反而必须** `as` 才能匹配形参 → 需 `#ifdef` 分叉。Harmony 分支去掉 `as`、靠形参上下文推断类型，该类里「必填可空」的字段（如 `success`/`fail`/`complete`）要显式补 `null`，让字面量完整匹配类结构。
+
+#### 8.4 `uni.request` 泛型：iOS 要、Harmony 不要（推翻 §7 的单端写法）
+
+- iOS：调用点必须 `uni.request<T>(...)`，否则 `(any Any).Type` 转不成目标类型 / `generic parameter 'T' could not be inferred`。
+- Harmony：`uni.request` 声明不带泛型，写 `<T>` 报 `Expected 0 type arguments`。
+
+把 options 抽成 `const`（避免重复整段回调），只对调用行分叉：
+
+```uts
+const requestOptions = { url, method, /* success/fail... */ } as RequestOptions<T>
+// #ifdef APP-HARMONY
+uni.request(requestOptions)
+// #endif
+// #ifndef APP-HARMONY
+uni.request<T>(requestOptions)
+// #endif
+```
+
+#### 8.5 抽变量会触发更严格的检查
+
+把选项对象从 `uni.xxx({...})` 的内联实参改成 `const o = {...} as T`，ArkTS 会**深度检查回调函数体**（内联作实参时这些检查被延后/跳过）。所以抽变量可能新暴露 §8.2 这类潜在类型隐患——这是好事，按报错逐个收窄修掉即可。
+
+### 9. 多端兼容检查清单
 
 每次提交代码前，确认以下事项：
 
@@ -283,4 +329,7 @@ uni.request({
 - [ ] 没有 `typeof x === "..."`（使用 `==`）
 - [ ] 没有 `init`/`self` 作为标识符
 - [ ] 系统 API 返回值按可空类型处理
-- [ ] `uni.request()` 调用有关完整的泛型 + `as RequestOptions<T>` 标注
+- [ ] `uni.request()` 调用符合 §7 + §8.4：iOS/Android 带 `<T>`，Harmony 用 `#ifdef` 去掉泛型
+- [ ] Harmony：无 `raw[key]` 直读、`getArray()` 已带 `<Object>`（§8.1）
+- [ ] Harmony：可选字段（`?`/`undefined`）传入 `any|null` 形参前已 `!= null` 收窄（§8.2）
+- [ ] 跨端签名分叉的 API（`uni.request` 泛型、`getArray` 泛型、`setStorage` 断言）已用 `#ifdef APP-HARMONY` 处理

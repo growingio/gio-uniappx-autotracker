@@ -265,15 +265,12 @@ export class GioABTestPlugin {
     requestData['newDevice'] = newDevice
     debugLogRequest(opts.debug as boolean, 'abtest request', this.url, requestData)
     const currentPlugin = this
-    uni.request<UTSJSONObject>({
+    const requestOptions = {
       url: this.url,
       header: requestHeader,
       method: 'POST',
       data: requestData,
       timeout: this.requestTimeout,
-      // 这里必须把 uni.request 的泛型 T 固定成 `UTSJSONObject`。
-      // 如果写成 `any`，Android 侧仍可能把 RequestOptions 推断成字符串分支并拒绝编译；
-      // 同时 success 回调里的 `res.data` 也需要稳定落成真正的 UTSJSONObject。
       success: (res : RequestSuccess<UTSJSONObject>) => {
         // 4xx/5xx：uni.request 各端都走 success（带 statusCode），与独立 web 裸 XHR 走 fail
         // 不同。按 ADR-014/015，传输层失败一律回 stale（上一次存储的实验数据），且仍写 sign
@@ -314,7 +311,13 @@ export class GioABTestPlugin {
         consoleText(`获取ABTest数据失败! ${errMsg.slice(0, 30)}!`, 'error')
         niceCallback(callback, originData)
       }
-    } as RequestOptions<UTSJSONObject>)
+    } as RequestOptions<UTSJSONObject>
+    // #ifdef APP-HARMONY
+    uni.request(requestOptions)
+    // #endif
+    // #ifndef APP-HARMONY
+    uni.request<UTSJSONObject>(requestOptions)
+    // #endif
   }
 
   private experimentVerify(
