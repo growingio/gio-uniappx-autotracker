@@ -112,13 +112,36 @@ export function normalizeTrackProperties (properties : UTSJSONObject | null) : U
       continue
     }
 
+    const key = rawKey.slice(0, 100)
+
+    // #ifdef APP-HARMONY
+    const arrayValue = raw.getArray<Object>(rawKey)
+    if (arrayValue != null) {
+      const items = arrayValue as Array<Object>
+      const parts = [] as Array<string>
+      const maxLength = items.length > 100 ? 100 : items.length
+      for (let j = 0; j < maxLength; j++) {
+        const item = items[j]
+        if (item == null) {
+          continue
+        }
+        parts.push(stringifyScalar(item))
+      }
+      normalized[key] = parts.join('||').slice(0, 1000)
+      continue
+    }
+    const scalarText = readNullableScalarString(raw, rawKey)
+    if (scalarText == null) {
+      continue
+    }
+    normalized[key] = (scalarText as string).slice(0, 1000)
+    // #endif
+
+    // #ifndef APP-HARMONY
     const value = raw[rawKey]
     if (value == null) {
       continue
     }
-
-    const key = rawKey.slice(0, 100)
-
     if (Array.isArray(value)) {
       const arrayValue = value as Array<any>
       const parts = [] as Array<string>
@@ -133,12 +156,11 @@ export function normalizeTrackProperties (properties : UTSJSONObject | null) : U
       normalized[key] = parts.join('||').slice(0, 1000)
       continue
     }
-
     if (typeof value == 'object' || typeof value == 'function') {
       continue
     }
-
     normalized[key] = readScalarString(raw, rawKey).slice(0, 1000)
+    // #endif
   }
 
   return UTSJSONObject.keys(normalized).length > 0 ? normalized : null

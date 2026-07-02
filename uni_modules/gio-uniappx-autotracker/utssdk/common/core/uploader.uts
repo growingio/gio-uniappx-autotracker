@@ -206,7 +206,9 @@ export class GioUploader {
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
       if (key == 'title') {
-        sanitized[key] = raw[key]
+        if (raw[key] != null) {
+          sanitized[key] = raw[key]
+        }
         continue
       }
       const sanitizedValue = this.sanitizeValue(raw[key])
@@ -346,7 +348,7 @@ export class GioUploader {
       return true
     }
 
-    uni.request<string>({
+    const requestOptions = {
       url: collectUrl,
       method: 'POST',
       dataType: 'text',
@@ -363,10 +365,17 @@ export class GioUploader {
         this.finishBatch(batch, false, fail)
       },
       fail: (err : RequestFail) => {
-        debugLog(options.debug as boolean, `request fail errCode=${stringifyScalar(err.errCode)} errMsg=${stringifyScalar(err.errMsg)}`)
+        const failErrMsg = err.errMsg != null ? (err.errMsg as string) : ''
+        debugLog(options.debug as boolean, `request fail errCode=${stringifyScalar(err.errCode)} errMsg=${failErrMsg}`)
         this.finishBatch(batch, false, fail)
       }
-    } as RequestOptions<string>)
+    } as RequestOptions<string>
+    // #ifdef APP-HARMONY
+    uni.request(requestOptions)
+    // #endif
+    // #ifndef APP-HARMONY
+    uni.request<string>(requestOptions)
+    // #endif
     return true
   }
 

@@ -74,10 +74,21 @@ export class GioEventPersistence {
         eventToJSONObject(event),
         now() + this.expireMs
       )
+      // #ifdef APP-HARMONY
+      uni.setStorage({
+        key: storageKey,
+        data: wrapped,
+        success: null,
+        fail: null,
+        complete: null
+      })
+      // #endif
+      // #ifndef APP-HARMONY
       uni.setStorage({
         key: storageKey,
         data: wrapped
       } as SetStorageOptions)
+      // #endif
     } catch (_error) {}
   }
 
