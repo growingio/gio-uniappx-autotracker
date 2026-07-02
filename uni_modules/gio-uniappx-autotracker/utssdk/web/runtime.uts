@@ -443,8 +443,13 @@ function resolveBrowserPageContext(
   const useUnified = options != null ? options.useUnified : true
   if (
     useUnified &&
-    logicalPageContext != null &&
-    logicalPageContext.path.length > 0
+    (logicalPageContext == null || logicalPageContext.path.length == 0)
+  ) {
+    return null
+  }
+  if (
+    useUnified &&
+    logicalPageContext != null
   ) {
     path = logicalPageContext.path
   }
