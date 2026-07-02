@@ -114,6 +114,9 @@ export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
       options: optionsValue
     } as GioPluginItem)
   }
+  if (items.length == 0) {
+    return false
+  }
   return tracker.registerPlugins(items)
 }
 
