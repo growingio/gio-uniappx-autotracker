@@ -1,0 +1,349 @@
+// plugin.uts 是 Vue / JS 编译层的生命周期桥接入口。
+// 这里只负责挂载 mixin、提取页面快照和启动参数快照，再把稳定对象转发给 utssdk；
+// 初始化、session、事件构建和上报都由 utssdk 内部处理。
+
+// #ifdef MP-WEIXIN
+import {
+  onHide as handleOnHide,
+  onLaunch as handleOnLaunch,
+  onPageLoad as handleOnPageLoad,
+  onPageUnload as handleOnPageUnload,
+  onShow as handleOnShow
+} from './utssdk/mp-weixin/index.uts'
+// #endif
+// #ifndef MP-WEIXIN
+import {
+  onHide as handleOnHide,
+  onLaunch as handleOnLaunch,
+  onPageLoad as handleOnPageLoad,
+  onPageUnload as handleOnPageUnload,
+  onShow as handleOnShow
+} from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
+// #ifdef MP-WEIXIN
+import {
+  wrapAddToFavorites as gioWrapAddToFavorites,
+  wrapShareAppMessage as gioWrapShareAppMessage,
+  wrapShareTimeline as gioWrapShareTimeline
+} from './utssdk/mp-weixin/index.uts'
+export {
+  gioWrapAddToFavorites as wrapAddToFavorites,
+  gioWrapShareAppMessage as wrapShareAppMessage,
+  gioWrapShareTimeline as wrapShareTimeline
+}
+// #endif
+let lifecycleInstalled = false
+// #ifdef MP-WEIXIN
+let mpAppLifecycleInstalled = false
+let mpShareAutoHookInstalled = false
+// #endif
+
+// #ifdef MP-WEIXIN
+type MpOptionsFactory = (options : any | null) => any | null
+type MpShareHandler = (options : any | null) => any | null
+// #endif
+
+function copyJSONObject(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const text = JSON.stringify(source)
+  if (text == null || text.length == 0) {
+    return null
+  }
+  const copied = JSON.parseObject(text)
+  if (copied == null || UTSJSONObject.keys(copied).length == 0) {
+    return null
+  }
+  return copied
+}
+
+function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null {
+  if (source == null) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const appId = source.getString('appId')
+  if (appId != null) {
+    copied['appId'] = appId
+  }
+  const extraData = source.getJSON('extraData')
+  if (extraData != null) {
+    copied['extraData'] = extraData
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function getCurrentUniPage() : UniPage | null {
+  const pages = getCurrentPages()
+  if (pages.length == 0) {
+    return null
+  }
+  return pages[pages.length - 1]
+}
+
+// #ifndef MP-WEIXIN
+function readCurrentPageTitle(page : UniPage) : string | null {
+  try {
+    const pageStyle = page.$getPageStyle()
+    const titleValue = pageStyle.getString('navigationBarTitleText', '')
+    return titleValue.length > 0 ? titleValue : null
+  } catch (_error) {
+    return null
+  }
+}
+// #endif
+
+// 页面实例不能直接进入 utssdk。
+// App 端通过官方页面栈读取稳定 UniPage 字段，再转成明确 UTSJSONObject 快照。
+function buildPageSnapshot() : UTSJSONObject | null {
+  const page = getCurrentUniPage()
+  if (page == null || page.route.length == 0) {
+    return null
+  }
+
+  const snapshot = {} as UTSJSONObject
+  snapshot['route'] = page.route
+  // #ifndef MP-WEIXIN
+  const title = readCurrentPageTitle(page)
+  if (title != null) {
+    snapshot['title'] = title
+  }
+  // #endif
+  const options = copyJSONObject(page.options)
+  if (options != null) {
+    snapshot['options'] = options
+  }
+  return snapshot
+}
+
+// 启动参数同样先裁成稳定快照，避免把原始 options 直接传入原生编译层。
+function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null {
+  const raw = copyJSONObject(options)
+  if (raw == null) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const path = raw.getString('path')
+  if (path != null) {
+    copied['path'] = path
+  }
+  const scene = raw.getString('scene')
+  if (scene != null) {
+    copied['scene'] = scene
+  } else {
+    const sceneNumber = raw.getNumber('scene')
+    if (sceneNumber != null) {
+      copied['scene'] = `${sceneNumber as number}`
+    }
+  }
+  const query = raw.getJSON('query')
+  if (query != null) {
+    copied['query'] = query
+  }
+  const referrerInfo = copyReferrerInfo(raw.getJSON('referrerInfo'))
+  if (referrerInfo != null) {
+    copied['referrerInfo'] = referrerInfo
+  }
+  const refererInfo = copyReferrerInfo(raw.getJSON('refererInfo'))
+  if (refererInfo != null) {
+    copied['refererInfo'] = refererInfo
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+// 页面生命周期参数通常就是 route query 的平铺对象。
+// 这里仍然做浅拷贝，但不能按启动参数那套白名单裁剪，否则普通页面参数会被误丢弃。
+function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
+  return copyJSONObject(options)
+}
+
+// #ifdef MP-WEIXIN
+// uni-app x 的 MP-WEIXIN global mixin 会收到一轮带 App 入口参数的 onShow。
+// App 生命周期已由 uni.onAppShow/uni.onAppHide 显式桥接，这里只过滤掉这轮
+// App-like mixin 回调，避免被当作 Page onShow 重复发送 PAGE。
+// 场景切换进入时入口参数可能只有 scene/query/referrerInfo，不一定有 path。
+function isAppShowOptionsSnapshot(source : UTSJSONObject | null) : boolean {
+  if (source == null) {
+    return false
+  }
+  return UTSJSONObject.keys(source).length > 0
+}
+
+function installMpAppLifecycle() {
+  if (mpAppLifecycleInstalled) {
+    return
+  }
+  mpAppLifecycleInstalled = true
+  const runtime = uni as any
+  const onAppShow = runtime.onAppShow
+  if (typeof onAppShow == 'function') {
+    onAppShow((options : any | null) => {
+      handleOnShow(null, buildLaunchOptionsSnapshot(options))
+    })
+  }
+  const onAppHide = runtime.onAppHide
+  if (typeof onAppHide == 'function') {
+    onAppHide(() => {
+      handleOnHide(null)
+    })
+  }
+}
+
+function wrapMpShareHandler(
+  target : UTSJSONObject,
+  key : string
+) {
+  const markerKey = `__gio_${key}_hooked`
+  if (target[markerKey] != null) {
+    return
+  }
+  const handler = target[key]
+  if (handler == null || typeof handler != 'function') {
+    return
+  }
+  const shareHandler = handler as MpShareHandler
+  if (key == 'onShareAppMessage') {
+    target[key] = gioWrapShareAppMessage(shareHandler)
+  } else if (key == 'onShareTimeline') {
+    target[key] = gioWrapShareTimeline(shareHandler)
+  } else if (key == 'onAddToFavorites') {
+    target[key] = gioWrapAddToFavorites(shareHandler)
+  }
+  target[markerKey] = true
+}
+
+function wrapMpShareHandlers(target : any | null) {
+  if (target == null || typeof target != 'object' || Array.isArray(target)) {
+    return
+  }
+  const raw = target as UTSJSONObject
+  wrapMpShareHandler(raw, 'onShareAppMessage')
+  wrapMpShareHandler(raw, 'onShareTimeline')
+  wrapMpShareHandler(raw, 'onAddToFavorites')
+  const methods = raw['methods']
+  if (methods != null && typeof methods == 'object' && !Array.isArray(methods)) {
+    const rawMethods = methods as UTSJSONObject
+    wrapMpShareHandler(rawMethods, 'onShareAppMessage')
+    wrapMpShareHandler(rawMethods, 'onShareTimeline')
+    wrapMpShareHandler(rawMethods, 'onAddToFavorites')
+  }
+}
+
+function installMpShareAutoHook() {
+  if (mpShareAutoHookInstalled) {
+    return
+  }
+  mpShareAutoHookInstalled = true
+  const runtime = globalThis as UTSJSONObject
+  const pageFactoryValue = runtime['Page']
+  if (pageFactoryValue != null && typeof pageFactoryValue == 'function') {
+    const originalPage = pageFactoryValue as MpOptionsFactory
+    runtime['Page'] = function(options : any | null) : any | null {
+      wrapMpShareHandlers(options)
+      return originalPage(options)
+    }
+  }
+  const componentFactoryValue = runtime['Component']
+  if (componentFactoryValue != null && typeof componentFactoryValue == 'function') {
+    const originalComponent = componentFactoryValue as MpOptionsFactory
+    runtime['Component'] = function(options : any | null) : any | null {
+      wrapMpShareHandlers(options)
+      return originalComponent(options)
+    }
+  }
+}
+// #endif
+
+// #ifdef APP-IOS || APP-HARMONY
+function isAppInstance(instance : any | null) : boolean {
+  if (instance == null) {
+    return true
+  }
+  // @ts-ignore
+  const page = instance.$page
+  return page == null
+}
+// #endif
+
+const lifecycle = defineMixin({
+  // 各端页面实例类型不同，mixin 生命周期函数的 this / options 只能在桥接层按 any 接住，
+  // 再尽快转换成明确快照对象。
+  // @ts-ignore
+  onLaunch(options : any | null) {
+    handleOnLaunch(buildLaunchOptionsSnapshot(options))
+  },
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onLoad(options : OnLoadOptions) {
+    // #ifdef MP-WEIXIN
+    wrapMpShareHandlers(this)
+    // #endif
+    handleOnPageLoad(
+      buildPageSnapshot(),
+      buildPageOptionsSnapshot(options)
+    )
+  },
+  // #ifdef MP-WEIXIN
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onShow(options : any | null) {
+    const launchOptions = buildLaunchOptionsSnapshot(options)
+    if (isAppShowOptionsSnapshot(launchOptions)) {
+      return
+    }
+    const pageSnapshot = buildPageSnapshot()
+    handleOnShow(
+      pageSnapshot,
+      null
+    )
+  },
+  // #endif
+  // #ifndef MP-WEIXIN
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onShow() {
+    // #ifdef APP-IOS || APP-HARMONY
+    if (isAppInstance(this)) {
+      handleOnShow(null, null)
+      return
+    }
+    // #endif
+    const pageSnapshot = buildPageSnapshot()
+    handleOnShow(
+      pageSnapshot,
+      null
+    )
+  },
+  // #endif
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onHide() {
+    // #ifdef APP-IOS || APP-HARMONY
+    if (isAppInstance(this)) {
+      handleOnHide(null)
+      return
+    }
+    // #endif
+    const pageSnapshot = buildPageSnapshot()
+    handleOnHide(pageSnapshot)
+  },
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onUnload() {
+    handleOnPageUnload(buildPageSnapshot())
+  }
+})
+
+export function installGioLifecycle(app : VueApp) : boolean {
+  if (lifecycleInstalled) {
+    return true
+  }
+  // #ifdef MP-WEIXIN
+  installMpAppLifecycle()
+  installMpShareAutoHook()
+  // #endif
+  app.mixin(lifecycle)
+  lifecycleInstalled = true
+  return true
+}

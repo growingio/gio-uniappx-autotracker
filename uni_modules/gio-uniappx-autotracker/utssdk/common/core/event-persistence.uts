@@ -1,0 +1,157 @@
+// event-persistence.uts 负责 app 端事件的本地落盘 / 删除 / 启动恢复。设计见 docs/event-persistence-design.md。
+import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
+import { DEFAULT_DATA_VALIDITY_DAYS } from '../config.uts'
+import { now } from '../utils/base.uts'
+import { shouldPersistEvents } from '../runtime/index.uts'
+import {
+  buildWrappedStorageValue,
+  readStructuredStorageValue
+} from '../storage/index.uts'
+import { eventFromJSONObject, eventToJSONObject } from './event-codec.uts'
+
+export type GioPersistedEvent = {
+  storageKey : string
+  event : GioTrackEvent
+}
+
+export const MAX_PERSISTED_EVENTS = 300
+
+const DAY_MS = 24 * 60 * 60 * 1000
+
+export class GioEventPersistence {
+  private enabled : boolean = false
+  private prefix : string = ''
+  private expireMs : number = DEFAULT_DATA_VALIDITY_DAYS * DAY_MS
+  private keysInOrder : Array<string> = []
+
+  configure(options : GioInitOptions) {
+    this.enabled = this.resolveEnabled()
+    this.prefix = `${options.projectId}_${options.dataSourceId}_event_`
+    this.expireMs = (options.dataValidityPeriod as number) * DAY_MS
+  }
+
+  private resolveEnabled() : boolean {
+    return shouldPersistEvents()
+  }
+
+  isEnabled() : boolean {
+    return this.enabled
+  }
+
+  buildKey(requestId : string) : string {
+    return `${this.prefix}${requestId}`
+  }
+
+  persist(storageKey : string, event : GioTrackEvent) {
+    if (!this.enabled) {
+      return
+    }
+    this.writeStorage(storageKey, event)
+    this.keysInOrder.push(storageKey)
+    while (this.keysInOrder.length > MAX_PERSISTED_EVENTS) {
+      const evicted = this.keysInOrder.shift()
+      if (evicted != null) {
+        this.deleteStorage(evicted as string)
+      }
+    }
+  }
+
+  remove(storageKey : string) {
+    if (!this.enabled) {
+      return
+    }
+    const index = this.keysInOrder.indexOf(storageKey)
+    if (index >= 0) {
+      this.keysInOrder.splice(index, 1)
+    }
+    this.deleteStorage(storageKey)
+  }
+
+  private writeStorage(storageKey : string, event : GioTrackEvent) {
+    try {
+      const wrapped = buildWrappedStorageValue(
+        storageKey,
+        eventToJSONObject(event),
+        now() + this.expireMs
+      )
+      // #ifdef APP-HARMONY
+      uni.setStorage({
+        key: storageKey,
+        data: wrapped,
+        success: null,
+        fail: null,
+        complete: null
+      })
+      // #endif
+      // #ifndef APP-HARMONY
+      uni.setStorage({
+        key: storageKey,
+        data: wrapped
+      } as SetStorageOptions)
+      // #endif
+    } catch (_error) {}
+  }
+
+  private deleteStorage(storageKey : string) {
+    try {
+      uni.removeStorage({
+        key: storageKey
+      } as RemoveStorageOptions)
+    } catch (_error) {}
+  }
+
+  loadAll() : Array<GioPersistedEvent> {
+    const result = [] as Array<GioPersistedEvent>
+    this.keysInOrder = []
+    if (!this.enabled) {
+      return result
+    }
+    try {
+      const keys = this.readPersistedKeys()
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
+        const raw = uni.getStorageSync(key)
+        const parsed = readStructuredStorageValue(key, raw)
+        if (parsed == null) {
+          uni.removeStorageSync(key)
+          continue
+        }
+        result.push({
+          storageKey: key,
+          event: eventFromJSONObject(parsed as UTSJSONObject)
+        } as GioPersistedEvent)
+      }
+      result.sort((a : GioPersistedEvent, b : GioPersistedEvent) : number => {
+        if (a.event.timestamp < b.event.timestamp) {
+          return -1
+        }
+        if (a.event.timestamp > b.event.timestamp) {
+          return 1
+        }
+        return 0
+      })
+      for (let i = 0; i < result.length; i++) {
+        this.keysInOrder.push(result[i].storageKey)
+      }
+    } catch (_error) {}
+    return result
+  }
+
+  private readPersistedKeys() : Array<string> {
+    const matched = [] as Array<string>
+    try {
+      const info = uni.getStorageInfoSync()
+      if (info != null && Array.isArray(info.keys)) {
+        const keys = info.keys as Array<string>
+        for (let i = 0; i < keys.length; i++) {
+          const key = keys[i]
+          if (key.startsWith(this.prefix)) {
+            matched.push(key)
+          }
+        }
+      }
+    } catch (_error) {}
+    return matched
+  }
+
+}

@@ -1,0 +1,41 @@
+import { createSSRApp } from 'vue'
+import App from './App.uvue'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
+
+export function createApp() {
+	const app = createSSRApp(App)
+
+	try {
+		gdp('init', {
+			app: app,
+			projectId: '0a1b4118dd954ec3bcc69da5138bdb96',
+			dataSourceId: '87b895fe7505e4b3',
+			appId: 'wx03fed32794143578',
+			serverUrl: 'https://napi.growingio.com',
+			appVersion: '1.0.0',
+			debug: true,
+			forceLogin: false,
+			idMapping: false,
+			useUnified: false,
+			// storageType: 'localStorage',
+			dataCollect: true
+		})
+		gdp('registerPlugins', [
+			{
+				name: 'gioShareTracking',
+			},
+			{
+				name: 'gioABTest',
+				options: {
+					abServerUrl: 'https://ab.growingio.com',
+				} as UTSJSONObject,
+			},
+		] as Array<UTSJSONObject>)
+	} catch (error) {
+		console.error('[showcase] failed to initialize gdp sdk', error)
+	}
+
+	return {
+		app,
+	}
+}

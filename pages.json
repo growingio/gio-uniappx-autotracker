@@ -1,0 +1,86 @@
+{
+	"pages": [
+		{
+			"path": "pages/index/index",
+			"style": {
+				"navigationBarTitleText": "GIO uni-app-x SDK showcase"
+			}
+		},
+		{
+			"path": "pages/custom-event/custom-event",
+			"style": {
+				"navigationBarTitleText": "自定义事件 / track"
+			}
+		},
+		{
+			"path": "pages/user/user",
+			"style": {
+				"navigationBarTitleText": "用户身份 / setUserId"
+			}
+		},
+		{
+			"path": "pages/lifecycle/lifecycle",
+			"style": {
+				"navigationBarTitleText": "VISIT / PAGE / APP_CLOSED"
+			}
+		},
+		{
+			"path": "pages/route/route",
+			"style": {
+				"navigationBarTitleText": "路由 / referralPage"
+			}
+		},
+		{
+			"path": "pages/abtest/abtest",
+			"style": {
+				"navigationBarTitleText": "ABTest / getABTest"
+			}
+		},
+		{
+			"path": "pages/datacollect/datacollect",
+			"style": {
+				"navigationBarTitleText": "数据采集开关 / setOptions"
+			}
+		}
+		// #ifdef MP-WEIXIN
+		,
+		{
+			"path": "pages/share/share",
+			"style": {
+				"navigationBarTitleText": "分享 / 朋友圈 / 收藏"
+			}
+		}
+		// #endif
+	],
+	"globalStyle": {
+		"navigationBarTextStyle": "black",
+		"navigationBarTitleText": "GIO Showcase",
+		"navigationBarBackgroundColor": "#F8F8F8",
+		"backgroundColor": "#F8F8F8"
+	},
+	"tabBar": {
+		"color": "#7A7E83",
+		"selectedColor": "#1677FF",
+		"borderStyle": "black",
+		"backgroundColor": "#FFFFFF",
+		"position": "bottom",
+		"list": [
+			{
+				"pagePath": "pages/index/index",
+				"text": "首页"
+			},
+			{
+				"pagePath": "pages/custom-event/custom-event",
+				"text": "自定义"
+			},
+			{
+				"pagePath": "pages/user/user",
+				"text": "用户"
+			},
+			{
+				"pagePath": "pages/lifecycle/lifecycle",
+				"text": "生命周期"
+			}
+		]
+	}
+}

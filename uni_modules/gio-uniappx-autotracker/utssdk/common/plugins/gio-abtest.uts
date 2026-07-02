@@ -1,0 +1,380 @@
+// gio-abtest.uts 实现单实例 ABTest 插件能力。
+import {
+  GioABTestCallback,
+  GioABTestHost,
+  GioABTestPluginOptions,
+  GioABTestResult,
+  GioContext,
+  GioInitOptions,
+  GioStorage
+} from '../../interface.uts'
+import {
+  hashCode,
+  jsonStringify,
+  now
+} from '../utils/base.uts'
+import { consoleText, debugLogRequest } from '../utils/debug.uts'
+import {
+  readNullableScalarString,
+  readScalarString,
+  stringifyScalar
+} from '../utils/validate.uts'
+
+const ABTEST_DEFAULT_SERVER_URL = 'https://ab.growingio.com'
+const ABTEST_DEFAULT_REQUEST_INTERVAL = 5
+const ABTEST_DEFAULT_REQUEST_TIMEOUT = 1000
+const ABTEST_MAX_REQUEST_INTERVAL = 60 * 24
+const ABTEST_MAX_REQUEST_TIMEOUT = 5000
+const ABTEST_MIN_REQUEST_TIMEOUT = 100
+const ABTEST_SIGN_SUFFIX = '_gdp_abt_sign'
+const ABTEST_DATA_SUFFIX = '_gdp_abtd'
+
+function niceCallback(callback : GioABTestCallback | null, value : GioABTestResult | UTSJSONObject) {
+  if (callback == null) {
+    return
+  }
+  try {
+    callback(value)
+  } catch (error) {
+    consoleText(`回调执行失败！${error}`, 'error')
+  }
+}
+
+function isEmptyLayerId(layerId : any) : boolean {
+  // 先字符串化再判断 number 分支，避免 Swift 在模板字符串路径里生成不稳定的 NSNumber 强转。
+  const text = stringifyScalar(layerId)
+  if (typeof layerId == 'number') {
+    const numeric = parseFloat(text)
+    return numeric <= 0
+  }
+  return text.length == 0
+}
+
+function readObject(value : any | null) : UTSJSONObject {
+  if (value == null) {
+    return {} as UTSJSONObject
+  }
+  return value as UTSJSONObject
+}
+
+function readRequestErrorMessage(source : RequestFail | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const errMsg = source.errMsg
+  if (errMsg != null) {
+    return stringifyScalar(errMsg)
+  }
+  const errCode = source.errCode
+  if (errCode != null) {
+    return stringifyScalar(errCode)
+  }
+  return '请求失败'
+}
+
+function endOfNextDay() : number {
+  const date = new Date()
+  return new Date(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate() + 1
+  ).getTime()
+}
+
+export class GioABTestPlugin {
+  private tracker : GioABTestHost
+  private requestInterval : number = ABTEST_DEFAULT_REQUEST_INTERVAL
+  private requestTimeout : number = ABTEST_DEFAULT_REQUEST_TIMEOUT
+  private url : string = ''
+  private storage : GioStorage | null = null
+
+  constructor(tracker : GioABTestHost, options : GioABTestPluginOptions | null = null) {
+    this.tracker = tracker
+    this.storage = tracker.getStorage().getLocalStorage()
+
+    // 这里把原先的小方法逻辑直接内联到构造函数里。
+    // Swift 不允许在 `super.init()` 之前调用实例自己的方法，而 UTS 会把那类调用提前生成。
+    if (options != null) {
+      const intervalValue = options.requestInterval
+      if (intervalValue != null) {
+        const value = intervalValue as number
+        if (value >= 0 && value <= ABTEST_MAX_REQUEST_INTERVAL) {
+          this.requestInterval = value
+        }
+      }
+      const timeoutValue = options.requestTimeout
+      if (timeoutValue != null) {
+        const value = timeoutValue as number
+        if (
+          value >= ABTEST_MIN_REQUEST_TIMEOUT &&
+          value <= ABTEST_MAX_REQUEST_TIMEOUT
+        ) {
+          this.requestTimeout = value
+        }
+      }
+    }
+
+    const abServerUrl = options != null ? options.abServerUrl : null
+    const serverUrl = abServerUrl != null && abServerUrl.length > 0
+      ? stringifyScalar(abServerUrl)
+      : ABTEST_DEFAULT_SERVER_URL
+    this.url = serverUrl.startsWith('http')
+      ? `${serverUrl}/diversion/specified-layer-variables`
+      : `https://${serverUrl}/diversion/specified-layer-variables`
+
+  }
+
+  // newDevice 判定：仅当首访 session 快照存在且仍等于当前 session 时为 true，对齐独立 SDK
+  // 的 `visitSids === getSessionId`。判为非新设备时清掉快照（对齐 web removeVisitSids；
+  // mp / app 内存清理为结果等价的空操作）。快照只在「全新设备」首访时被 tracker 写入，
+  // 故老设备恒为 false。
+  private resolveNewDevice(ctx : GioContext) : boolean {
+    const snapshot = this.tracker.readVisitSessionId()
+    const isNew = snapshot.length > 0 && snapshot == ctx.sessionId
+    if (!isNew) {
+      this.tracker.clearVisitSession()
+    }
+    return isNew
+  }
+
+  private getHashKey(layerId : any) : number {
+    const options = this.tracker.getOptions()
+    const context = this.tracker.getContext()
+    if (options == null || context == null) {
+      return 0
+    }
+    const opts = options as GioInitOptions
+    const ctx = context as GioContext
+    const projectId = stringifyScalar(opts.projectId)
+    const deviceId = stringifyScalar(ctx.deviceId)
+    const layer = stringifyScalar(layerId)
+    return hashCode(
+      `g0#${projectId}#${deviceId}#${layer}`,
+      true
+    )
+  }
+
+  private getSignStorageKey(hashKey : number) : string {
+    return `${hashKey}${ABTEST_SIGN_SUFFIX}`
+  }
+
+  private getDataStorageKey(hashKey : number) : string {
+    return `${hashKey}${ABTEST_DATA_SUFFIX}`
+  }
+
+  private readCachedData(hashKey : number) : UTSJSONObject {
+    const value = (this.storage as GioStorage).getItem(this.getDataStorageKey(hashKey))
+    if (value == null) {
+      return {} as UTSJSONObject
+    }
+    return value as UTSJSONObject
+  }
+
+  private writeCachedData(hashKey : number, data : GioABTestResult) {
+    (this.storage as GioStorage).setItem(this.getDataStorageKey(hashKey), {
+      layerId: data.layerId,
+      strategyId: data.strategyId,
+      experimentId: data.experimentId,
+      layerName: data.layerName,
+      experimentName: data.experimentName,
+      strategyName: data.strategyName,
+      variables: data.variables
+    } as UTSJSONObject, endOfNextDay())
+  }
+
+  private getSign(hashKey : number) : number {
+    const value = (this.storage as GioStorage).getItem(this.getSignStorageKey(hashKey))
+    if (value == null) {
+      return 0
+    }
+    if (typeof value == 'number') {
+      return value as number
+    }
+    if (typeof value == 'string') {
+      return parseFloat(value as string)
+    }
+    return 0
+  }
+
+  private updateSign(hashKey : number) {
+    (this.storage as GioStorage).setItem(
+      this.getSignStorageKey(hashKey),
+      1,
+      now() + 1000 * 60 * this.requestInterval
+    )
+  }
+
+  private cloneComparisonData(originData : UTSJSONObject) : UTSJSONObject {
+    const cloned = {} as UTSJSONObject
+    const keys = UTSJSONObject.keys(originData)
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]
+      if (
+        key == 'layerName' ||
+        key == 'strategyName' ||
+        key == 'experimentName'
+      ) {
+        continue
+      }
+      cloned[key] = originData[key]
+    }
+    return cloned
+  }
+
+  getABTest(
+    layerId : any,
+    callback : GioABTestCallback | null = null
+  ) {
+    if (isEmptyLayerId(layerId)) {
+      consoleText('获取ABTest数据失败! 实验层Id不合法!', 'error')
+      niceCallback(callback, {} as UTSJSONObject)
+      return
+    }
+    const hashKey = this.getHashKey(layerId)
+    const sign = this.getSign(hashKey)
+    const originData = this.readCachedData(hashKey)
+    if (sign == 0) {
+      this.initiateRequest(layerId, originData, callback, 0)
+      return
+    }
+    niceCallback(callback, originData)
+  }
+
+  private initiateRequest(
+    layerId : any,
+    originData : UTSJSONObject,
+    callback : GioABTestCallback | null,
+    retryCount : number
+  ) {
+    const options = this.tracker.getOptions()
+    const context = this.tracker.getContext()
+    if (options == null || context == null) {
+      niceCallback(callback, {} as UTSJSONObject)
+      return
+    }
+    const opts = options as GioInitOptions
+    const ctx = context as GioContext
+    const newDevice = this.resolveNewDevice(ctx)
+    const requestHeader = {} as UTSJSONObject
+    requestHeader['Content-Type'] = 'application/x-www-form-urlencoded'
+    const requestData = {} as UTSJSONObject
+    requestData['accountId'] = stringifyScalar(opts.projectId)
+    requestData['datasourceId'] = stringifyScalar(opts.dataSourceId)
+    requestData['distinctId'] = stringifyScalar(ctx.deviceId)
+    requestData['layerId'] = stringifyScalar(layerId)
+    requestData['newDevice'] = newDevice
+    debugLogRequest(opts.debug as boolean, 'abtest request', this.url, requestData)
+    const currentPlugin = this
+    const requestOptions = {
+      url: this.url,
+      header: requestHeader,
+      method: 'POST',
+      data: requestData,
+      timeout: this.requestTimeout,
+      success: (res : RequestSuccess<UTSJSONObject>) => {
+        // 4xx/5xx：uni.request 各端都走 success（带 statusCode），与独立 web 裸 XHR 走 fail
+        // 不同。按 ADR-014/015，传输层失败一律回 stale（上一次存储的实验数据），且仍写 sign
+        // 节流（复刻独立 web xhr.onload 的节流）。无缓存时 originData 已是 {}，首访失败不变。
+        if (res.statusCode >= 400) {
+          consoleText(`获取ABTest数据失败! 请求状态码 ${stringifyScalar(res.statusCode)}!`, 'error')
+          niceCallback(callback, originData)
+          this.updateSign(this.getHashKey(layerId))
+          return
+        }
+        const data = readObject(res.data)
+        const code = data.getNumber('code', -1)
+        if (code == 0) {
+          this.experimentVerify(layerId, data, originData, callback)
+        } else {
+          // 业务失败（2xx 但 code!=0）：有意保持回 {}（ADR-014 §80：业务失败仍回 {}）。
+          const errorMsg = data.getString('errorMsg', '')
+          consoleText(`获取ABTest数据失败! ${errorMsg}!`, 'error')
+          niceCallback(callback, {} as UTSJSONObject)
+        }
+        this.updateSign(this.getHashKey(layerId))
+      },
+      fail(e : RequestFail) {
+        const errMsg = readRequestErrorMessage(e)
+        // 有意偏离 standalone（独立 web/mp 超时回 {}）：本仓库回 stale，让接口超时不丢已生效
+        // 实验配置（ADR-015 §F）。超时不写 sign（对齐独立 xhr.ontimeout 不节流）。
+        if (errMsg.indexOf('timeout') >= 0) {
+          consoleText('获取ABTest数据失败! 请求超时!', 'error')
+          niceCallback(callback, originData)
+          return
+        }
+        // 网络错误：按单次请求链路重试，不写 sign（对齐独立 xhr.onerror）。
+        if (retryCount < 2) {
+          currentPlugin.initiateRequest(layerId, originData, callback, retryCount + 1)
+          return
+        }
+        // 有意偏离 standalone（独立重试耗尽回 {}）：本仓库回 stale（ADR-015 §F）。
+        consoleText(`获取ABTest数据失败! ${errMsg.slice(0, 30)}!`, 'error')
+        niceCallback(callback, originData)
+      }
+    } as RequestOptions<UTSJSONObject>
+    // #ifdef APP-HARMONY
+    uni.request(requestOptions)
+    // #endif
+    // #ifndef APP-HARMONY
+    uni.request<UTSJSONObject>(requestOptions)
+    // #endif
+  }
+
+  private experimentVerify(
+    layerId : any,
+    responseData : UTSJSONObject,
+    originData : UTSJSONObject,
+    callback : GioABTestCallback | null
+  ) {
+    // 嵌套对象必须通过 getJSON 读取，不能直接把下标结果强转成 UTSJSONObject。
+    // 这类写法会在运行时触发和 registerPlugins 一样的强转崩溃。
+    const variables = responseData.getJSON('variables')
+    const resolvedLayerId = readScalarString(responseData, 'layerId', stringifyScalar(layerId))
+    const resolvedStrategyId = readScalarString(responseData, 'strategyId')
+    const resolvedExperimentId = readScalarString(responseData, 'experimentId')
+    const comparisonData = {
+      layerId: resolvedLayerId,
+      strategyId: resolvedStrategyId,
+      experimentId: resolvedExperimentId,
+      variables: variables != null ? variables : {} as UTSJSONObject
+    } as UTSJSONObject
+    const controlData = this.cloneComparisonData(originData)
+    const comparisonValue = hashCode(jsonStringify(comparisonData))
+    const controlValue = hashCode(jsonStringify(controlData))
+
+    const result : GioABTestResult = {
+      layerId: resolvedLayerId,
+      strategyId: resolvedStrategyId,
+      experimentId: resolvedExperimentId,
+      layerName: readNullableScalarString(responseData, 'layerName'),
+      experimentName: readNullableScalarString(responseData, 'experimentName'),
+      strategyName: readNullableScalarString(responseData, 'strategyName'),
+      variables: variables
+    }
+
+    this.writeCachedData(this.getHashKey(layerId), result)
+
+    // Swift 里 number 会映射成 NSNumber，直接做 `!=` 比较容易产生歧义，这里统一转成字符串比较。
+    if (
+      `${comparisonValue}` != `${controlValue}` &&
+      result.strategyId.length > 0 &&
+      result.experimentId.length > 0
+    ) {
+      this.buildExperimentHitEvent(result)
+    }
+
+    niceCallback(callback, result)
+  }
+
+  private buildExperimentHitEvent(result : GioABTestResult) {
+    const attributes = {
+      $exp_layer_id: result.layerId,
+      $exp_id: result.experimentId,
+      $exp_strategy_id: result.strategyId,
+      $exp_layer_name: result.layerName != null ? result.layerName : '',
+      $exp_name: result.experimentName != null ? result.experimentName : '',
+      $exp_strategy_name: result.strategyName != null ? result.strategyName : ''
+    } as UTSJSONObject
+    this.tracker.trackPluginEvent('$exp_hit', attributes)
+  }
+}

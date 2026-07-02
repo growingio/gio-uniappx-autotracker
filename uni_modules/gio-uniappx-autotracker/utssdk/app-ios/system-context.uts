@@ -1,0 +1,43 @@
+// iOS App 端系统字段解析器。
+import {
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../interface.uts'
+import { resolveIosDeviceModel } from '../common/utils/device-model.uts'
+function mapIosDeviceType(deviceType : string) : string {
+  return deviceType.toLowerCase() == 'pad' ? 'iPad' : 'iPhone'
+}
+
+class AppIosSystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    systemInfo : UTSJSONObject | null,
+    osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    const rawDeviceModel = systemInfo != null ? systemInfo.getString('deviceModel') : null
+    let deviceModel = ''
+    if (rawDeviceModel != null) {
+      deviceModel = rawDeviceModel
+    }
+    return {
+      appName: systemInfo != null ? systemInfo.getString('appName') : null,
+      bundleId: systemInfo != null ? systemInfo.getString('bundleId') : null,
+      channel: null,
+      deviceBrand: 'Apple',
+      deviceModel: resolveIosDeviceModel(deviceModel),
+      deviceType: mapIosDeviceType(deviceType),
+      language: null,
+      networkState: null,
+      operatingSystem: osLabel,
+      platform: osLabel,
+      platformVersion: version.length > 0 ? version : osLabel
+    } as GioSystemContextFields
+  }
+}
+
+export function createAppIosSystemContextResolver() : GioSystemContextResolver {
+  return new AppIosSystemContextResolver()
+}

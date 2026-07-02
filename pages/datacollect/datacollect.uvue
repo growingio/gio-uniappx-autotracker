@@ -1,0 +1,100 @@
+<template>
+	<scroll-view class="page">
+		<view class="section">
+			<text class="h2">数据采集开关 · setOptions</text>
+			<text class="desc">通过 setOptions({ dataCollect: boolean }) 动态控制 SDK 是否采集数据。关闭后 track / 自动事件均不会上报，重新开启后恢复。</text>
+		</view>
+
+		<view class="section">
+			<text class="h2">当前状态</text>
+			<view class="status-row">
+				<text class="status-label">dataCollect:</text>
+				<text :class="['status-value', dataCollectOn ? 'on' : 'off']">{{ dataCollectOn ? 'true (采集中)' : 'false (已暂停)' }}</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="h2">操作</text>
+			<view class="btn-row">
+				<button class="btn on" @click="onEnable">开启采集 (true)</button>
+				<button class="btn off" @click="onDisable">关闭采集 (false)</button>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="h2">验证步骤</text>
+			<text class="hint">1. 点击「关闭采集」，dataCollect 设为 false。</text>
+			<text class="hint">2. 点「发一条测试事件」，此时 track 返回 true（本地接受），但网络面板不应出现新请求。</text>
+			<text class="hint">3. 点击「开启采集」，恢复为 true，后续事件正常上报。</text>
+			<text class="hint">4. 开启后会自动刷新 sessionId（renewSession），可观察新 VISIT。</text>
+			<button class="btn ghost" @click="onTestTrack">发一条测试事件</button>
+			<button class="btn ghost" @click="onInvalidParams">传非法参数测试</button>
+		</view>
+
+		<view class="result">
+			<text class="label">操作记录：</text>
+			<text class="val" v-for="(log, index) in logs" :key="index">{{ log }}</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
+
+const dataCollectOn = ref(true)
+const logs = ref<string[]>([])
+
+function appendLog(msg: string) {
+	logs.value = [msg].concat(logs.value).slice(0, 10)
+}
+
+function onEnable() {
+	const ok = gdp('setOptions', { dataCollect: true } as UTSJSONObject) as boolean
+	dataCollectOn.value = true
+	appendLog('setOptions({ dataCollect: true }) => ' + (ok ? 'success' : 'fail'))
+}
+
+function onDisable() {
+	const ok = gdp('setOptions', { dataCollect: false } as UTSJSONObject) as boolean
+	dataCollectOn.value = false
+	appendLog('setOptions({ dataCollect: false }) => ' + (ok ? 'success' : 'fail'))
+}
+
+function onTestTrack() {
+	const ok = gdp('track', 'datacollect_test_event', {
+		toggle: dataCollectOn.value ? 'on' : 'off',
+		tick: Date.now(),
+	} as UTSJSONObject) as boolean
+	appendLog('track(datacollect_test_event) => ' + (ok ? 'success' : 'fail') + ' (dataCollect=' + dataCollectOn.value + ')')
+}
+
+function onInvalidParams() {
+	const r1 = gdp('setOptions', {} as UTSJSONObject) as boolean
+	appendLog('setOptions({}) => ' + (r1 ? 'success' : 'fail') + ' (缺少 dataCollect 字段)')
+
+	const r2 = gdp('setOptions', { dataCollect: 'yes' } as UTSJSONObject) as boolean
+	appendLog("setOptions({ dataCollect: 'yes' }) => " + (r2 ? 'success' : 'fail') + ' (类型不是 boolean)')
+}
+</script>
+
+<style>
+.page { padding: 20rpx; flex: 1; }
+.section { background: #fff; padding: 20rpx; margin-bottom: 20rpx; border-radius: 10rpx; }
+.h2 { font-size: 30rpx; font-weight: bold; }
+.desc { font-size: 24rpx; color: #666; margin: 8rpx 0 12rpx; }
+.status-row { flex-direction: row; align-items: center; margin-top: 12rpx; }
+.status-label { font-size: 28rpx; color: #333; }
+.status-value { font-size: 28rpx; font-weight: bold; margin-left: 8rpx; }
+.status-value.on { color: #13a87f; }
+.status-value.off { color: #f5222d; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.btn { font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; color: #fff; }
+.btn.on { background: #13a87f; }
+.btn.off { background: #f5222d; }
+.btn.ghost { background: #fff; color: #1677ff; border: 1rpx solid #1677ff; }
+.result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }
+.label { font-size: 24rpx; color: #999; }
+.val { font-size: 24rpx; color: #333; margin-top: 4rpx; }
+.hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+</style>

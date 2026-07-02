@@ -1,0 +1,167 @@
+// validate.uts 放业务层可复用的输入校验与属性归一化工具。
+
+export function isBlank (value : string | null) : boolean {
+  return value == null || value.length == 0
+}
+
+const INVALID_ID_VALUES = ['-', 'null', 'undefined']
+
+export function verifyId (value : string | null) : boolean {
+  if (isBlank(value)) {
+    return false
+  }
+  const trimmed = (value as string).trim()
+  if (trimmed.length == 0) {
+    return false
+  }
+  if (INVALID_ID_VALUES.includes(trimmed)) {
+    return false
+  }
+  return true
+}
+
+const EVENT_NAME_REG = /^[a-zA-Z_][0-9a-zA-Z_]{0,100}$/
+
+export function isValidEventName (eventName : string | null) : boolean {
+  if (isBlank(eventName)) {
+    return false
+  }
+  return (eventName as string).match(EVENT_NAME_REG) != null
+}
+
+// 把标量按真实类型解包成字符串。iOS 上对 any 直接 `${value}` 会渲染出 "Optional(...)"。
+export function stringifyScalar (value : any | null) : string {
+  if (value == null) {
+    return ''
+  }
+  if (typeof value == 'string') {
+    return value as string
+  }
+  if (typeof value == 'number') {
+    return `${value as number}`
+  }
+  if (typeof value == 'boolean') {
+    return `${value as boolean}`
+  }
+  return ''
+}
+
+// 把标量按真实类型解包成数字（与 stringifyScalar 配对）。string 走 parseFloat，其余/缺失返回 0。
+export function numberifyScalar (value : any | null) : number {
+  if (value == null) {
+    return 0
+  }
+  if (typeof value == 'number') {
+    return value as number
+  }
+  if (typeof value == 'string') {
+    return parseFloat(value as string)
+  }
+  return 0
+}
+
+export function isValidIdentifyId (value : any | null) : boolean {
+  if (value == null) {
+    return false
+  }
+  // 这里只按字符串形态校验，不走 number 分支比较，避免 Swift 侧被编成不稳定的 NSNumber 比较。
+  const text = stringifyScalar(value)
+  return text.length > 0 && text != '0' && text != '-' && text != 'null' && text != 'undefined'
+}
+
+export function readNullableScalarString(source : UTSJSONObject, key : string) : string | null {
+  const text = source.getString(key)
+  if (text != null) {
+    return text
+  }
+  const numberValue = source.getNumber(key)
+  if (numberValue != null) {
+    return `${numberValue as number}`
+  }
+  const booleanValue = source.getBoolean(key)
+  if (booleanValue != null) {
+    return `${booleanValue as boolean}`
+  }
+  return null
+}
+
+export function readScalarString(
+  source : UTSJSONObject,
+  key : string,
+  fallback : string = ''
+) : string {
+  const value = readNullableScalarString(source, key)
+  if (value != null) {
+    return value as string
+  }
+  return fallback
+}
+
+export function normalizeTrackProperties (properties : UTSJSONObject | null) : UTSJSONObject | null {
+  if (properties == null) {
+    return null
+  }
+
+  const normalized = {} as UTSJSONObject
+  const raw = properties as UTSJSONObject
+  const keys = UTSJSONObject.keys(raw)
+
+  for (let i = 0; i < keys.length; i++) {
+    const rawKey = keys[i]
+    if (rawKey == '&&sendTo') {
+      continue
+    }
+
+    const key = rawKey.slice(0, 100)
+
+    // #ifdef APP-HARMONY
+    const arrayValue = raw.getArray<Object>(rawKey)
+    if (arrayValue != null) {
+      const items = arrayValue as Array<Object>
+      const parts = [] as Array<string>
+      const maxLength = items.length > 100 ? 100 : items.length
+      for (let j = 0; j < maxLength; j++) {
+        const item = items[j]
+        if (item == null) {
+          continue
+        }
+        parts.push(stringifyScalar(item))
+      }
+      normalized[key] = parts.join('||').slice(0, 1000)
+      continue
+    }
+    const scalarText = readNullableScalarString(raw, rawKey)
+    if (scalarText == null) {
+      continue
+    }
+    normalized[key] = (scalarText as string).slice(0, 1000)
+    // #endif
+
+    // #ifndef APP-HARMONY
+    const value = raw[rawKey]
+    if (value == null) {
+      continue
+    }
+    if (Array.isArray(value)) {
+      const arrayValue = value as Array<any>
+      const parts = [] as Array<string>
+      const maxLength = arrayValue.length > 100 ? 100 : arrayValue.length
+      for (let j = 0; j < maxLength; j++) {
+        const item = arrayValue[j]
+        if (item == null) {
+          continue
+        }
+        parts.push(stringifyScalar(item))
+      }
+      normalized[key] = parts.join('||').slice(0, 1000)
+      continue
+    }
+    if (typeof value == 'object' || typeof value == 'function') {
+      continue
+    }
+    normalized[key] = readScalarString(raw, rawKey).slice(0, 1000)
+    // #endif
+  }
+
+  return UTSJSONObject.keys(normalized).length > 0 ? normalized : null
+}

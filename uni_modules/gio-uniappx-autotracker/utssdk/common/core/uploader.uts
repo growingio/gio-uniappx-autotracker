@@ -1,0 +1,446 @@
+// uploader 负责事件排队、批量发送、失败重试和 forceLogin 积压释放。
+import { GioInitOptions, GioTrackEvent } from '../../interface.uts'
+import { DEFAULT_REQUEST_TIMEOUT_MS } from '../config.uts'
+import { BoxArray, guid, jsonStringify, utf8ByteLength } from '../utils/base.uts'
+import { stringifyScalar } from '../utils/validate.uts'
+import { debugLog, debugLogRequest } from '../utils/debug.uts'
+import { buildCollectUrl } from '../utils/request.uts'
+import {
+  dispatchViaEventSender,
+  resolveUploadMaxConcurrency,
+  resolveUploadFlushDelay,
+  resolveUploadMaxBatchPayloadBytes,
+  resolveUploadMaxBatchSize,
+  resolveUploadRequestTimeout,
+  shouldScheduleUploadFlush
+} from '../runtime/index.uts'
+import { GioEventPersistence } from './event-persistence.uts'
+import { eventToJSONObject } from './event-codec.uts'
+
+type GioQueuedEvent = {
+  requestId : string
+  retryCount : number
+  event : GioTrackEvent
+  storageKey : string | null
+}
+
+type GioUploadBatch = {
+  items : Array<GioQueuedEvent>
+  data : Array<UTSJSONObject>
+}
+
+const MAX_BATCH_EVENTS = 50
+const MAX_RETRY_COUNT = 2
+const DEFAULT_MAX_BATCH_PAYLOAD_BYTES = 512 * 1024
+
+export class GioUploader {
+  private options : GioInitOptions | null = null
+  private pending : BoxArray<GioQueuedEvent> = new BoxArray()
+  private hoarding : BoxArray<GioQueuedEvent> = new BoxArray()
+  private activeRequests : number = 0
+  private flushing : boolean = false
+  private forceLogin : boolean = false
+  private onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
+  private flushTimer : number = 0
+  private persistence : GioEventPersistence = new GioEventPersistence()
+
+  configure(
+    options : GioInitOptions,
+    onFlushSuccess : ((events : Array<GioTrackEvent>) => void) | null = null
+  ) {
+    this.options = options
+    this.forceLogin = options.forceLogin == true
+    this.onFlushSuccess = onFlushSuccess
+    this.persistence.configure(options)
+    this.restorePersistedEvents()
+  }
+
+  private restorePersistedEvents() {
+    if (!this.persistence.isEnabled()) {
+      return
+    }
+    const restored = this.persistence.loadAll()
+    if (restored.length == 0) {
+      return
+    }
+    for (let i = 0; i < restored.length; i++) {
+      const item = restored[i]
+      this.pending.push({
+        requestId: item.storageKey,
+        retryCount: 0,
+        event: item.event,
+        storageKey: item.storageKey
+      } as GioQueuedEvent)
+    }
+    this.requestFlush()
+  }
+
+  private shouldDelayFlush() : boolean {
+    return shouldScheduleUploadFlush()
+  }
+
+  private maxConcurrency() : number {
+    return resolveUploadMaxConcurrency(1)
+  }
+
+  private closeIfIdle() {
+    if (this.pending.length == 0 && this.activeRequests == 0) {
+      this.flushing = false
+    }
+  }
+
+  private continueFlush() {
+    if (this.pending.length == 0) {
+      this.closeIfIdle()
+      return
+    }
+    if (this.flushing) {
+      this.drain(null, null)
+      return
+    }
+    if (this.shouldDelayFlush()) {
+      this.scheduleFlush()
+      return
+    }
+    this.flush(null, null)
+  }
+
+  private sanitizeValue(value : any | null) : any | null {
+    if (value == null) {
+      return null
+    }
+    if (typeof value == 'string') {
+      return value.length > 0 ? value : null
+    }
+    if (Array.isArray(value)) {
+      const items = [] as Array<any>
+      for (let i = 0; i < value.length; i++) {
+        const sanitizedItem = this.sanitizeValue(value[i])
+        if (sanitizedItem != null) {
+          items.push(sanitizedItem)
+        }
+      }
+      return items
+    }
+    if (typeof value == 'object') {
+      const raw = value as UTSJSONObject
+      const sanitized = {} as UTSJSONObject
+      const keys = UTSJSONObject.keys(raw)
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
+        const sanitizedValue = this.sanitizeValue(raw[key])
+        if (sanitizedValue != null) {
+          sanitized[key] = sanitizedValue
+        }
+      }
+      return UTSJSONObject.keys(sanitized).length > 0 ? sanitized : null
+    }
+    return value
+  }
+
+  private scheduleFlush() {
+    if (this.flushTimer > 0 || this.pending.length == 0) {
+      return
+    }
+    this.flushTimer = setTimeout(() => {
+      this.flushTimer = 0
+      this.flush(null, null)
+    }, resolveUploadFlushDelay(0)) as number
+  }
+
+  requestFlush() {
+    this.continueFlush()
+  }
+
+  enqueue(event : GioTrackEvent, maxQueueSize : number) {
+    const queue = this.forceLogin ? this.hoarding : this.pending
+    const requestId = guid()
+    const queued : GioQueuedEvent = {
+      requestId: requestId,
+      retryCount: 0,
+      event: event,
+      storageKey: null
+    }
+    if (!this.forceLogin && this.persistence.isEnabled()) {
+      const key = this.persistence.buildKey(requestId)
+      queued.storageKey = key
+      this.persistence.persist(key, event)
+    }
+    queue.push(queued)
+    if (queue.length > maxQueueSize) {
+      queue.shift()
+    }
+    if (!this.forceLogin) {
+      this.continueFlush()
+    }
+  }
+
+  setForceLogin(forceLogin : boolean) {
+    this.forceLogin = forceLogin
+  }
+
+  releaseHoarding(deviceId : string, maxQueueSize : number) {
+    for (let i = 0; i < this.hoarding.length; i++) {
+      const queued = this.hoarding.get(i as number)
+      if (queued != null) {
+        queued.event.deviceId = deviceId
+        if (this.persistence.isEnabled() && queued.storageKey == null) {
+          const key = this.persistence.buildKey(queued.requestId)
+          queued.storageKey = key
+          this.persistence.persist(key, queued.event)
+        }
+        this.pending.push(queued)
+        if (this.pending.length > maxQueueSize) {
+          this.pending.shift()
+        }
+      }
+    }
+    this.hoarding = new BoxArray()
+    this.scheduleFlush()
+  }
+
+  private sanitizeEvent(event : GioTrackEvent) : UTSJSONObject {
+    const sanitized = {} as UTSJSONObject
+    const raw = eventToJSONObject(event)
+    const keys = UTSJSONObject.keys(raw)
+    for (let i = 0; i < keys.length; i++) {
+      const key = keys[i]
+      if (key == 'title') {
+        if (raw[key] != null) {
+          sanitized[key] = raw[key]
+        }
+        continue
+      }
+      const sanitizedValue = this.sanitizeValue(raw[key])
+      if (sanitizedValue == null) {
+        continue
+      }
+      sanitized[key] = sanitizedValue
+    }
+    return sanitized
+  }
+
+  private buildRequestHeader() : UTSJSONObject {
+    const header = {} as UTSJSONObject
+    header['content-type'] = 'application/json;charset=UTF-8'
+    return header
+  }
+
+  private getMaxBatchEvents() : number {
+    return resolveUploadMaxBatchSize(MAX_BATCH_EVENTS)
+  }
+
+  private makeBatch(items : Array<GioQueuedEvent>) : GioUploadBatch {
+    const requestData = [] as Array<UTSJSONObject>
+    for (let i = 0; i < items.length; i++) {
+      requestData.push(this.sanitizeEvent(items[i].event))
+    }
+    const batch : GioUploadBatch = {
+      items: items,
+      data: requestData
+    }
+    return batch
+  }
+
+  private takePayloadBatch(
+    maxBatchEvents : number,
+    maxPayloadBytes : number
+  ) : GioUploadBatch {
+    const items = [] as Array<GioQueuedEvent>
+    const data = [] as Array<UTSJSONObject>
+    let sumEventBytes = 0
+    while (this.pending.length > 0 && items.length < maxBatchEvents) {
+      const queued = this.pending.get(items.length as number)
+      if (queued == null) {
+        break
+      }
+      const eventData = this.sanitizeEvent(queued.event)
+      const eventBytes = utf8ByteLength(jsonStringify(eventData))
+      const candidateBytes = 2 + sumEventBytes + eventBytes + (items.length as number)
+      if (candidateBytes > maxPayloadBytes && items.length > 0) {
+        break
+      }
+      items.push(queued)
+      data.push(eventData)
+      sumEventBytes += eventBytes
+      // 单条事件已超阈值时仍独立发送，避免队列卡住。
+      if (candidateBytes > maxPayloadBytes) {
+        break
+      }
+    }
+    this.pending.splice(0, items.length as number)
+    const batch : GioUploadBatch = {
+      items: items,
+      data: data
+    }
+    return batch
+  }
+
+  private takeBatch() : GioUploadBatch {
+    const maxBatchEvents = this.getMaxBatchEvents()
+    const maxPayloadBytes = resolveUploadMaxBatchPayloadBytes(DEFAULT_MAX_BATCH_PAYLOAD_BYTES)
+    if (maxPayloadBytes > 0) {
+      return this.takePayloadBatch(maxBatchEvents, maxPayloadBytes)
+    }
+    const items = this.pending.slice(0, maxBatchEvents)
+    this.pending.splice(0, items.length as number)
+    return this.makeBatch(items)
+  }
+
+  private finishBatch(
+    batch : GioUploadBatch,
+    success : boolean,
+    callback : (() => void) | null
+  ) {
+    if (success) {
+      for (let i = 0; i < batch.items.length; i++) {
+        const storageKey = batch.items[i].storageKey
+        if (storageKey != null) {
+          this.persistence.remove(storageKey as string)
+        }
+      }
+    }
+    if (success && this.onFlushSuccess != null) {
+      const batchEvents = [] as Array<GioTrackEvent>
+      for (let i = 0; i < batch.items.length; i++) {
+        batchEvents.push(batch.items[i].event)
+      }
+      this.onFlushSuccess(batchEvents)
+    }
+    if (!success) {
+      this.retry(batch.items)
+    }
+    if (callback != null) {
+      callback()
+    }
+    if (this.activeRequests > 0) {
+      this.activeRequests--
+    }
+    this.continueFlush()
+  }
+
+  private sendBatch(
+    batch : GioUploadBatch,
+    success : (() => void) | null,
+    fail : (() => void) | null
+  ) : boolean {
+    const options = this.options
+    if (options == null) {
+      return false
+    }
+    const sendAt = Date.now()
+    this.activeRequests++
+    const payload = jsonStringify(batch.data)
+
+    const collectUrl = `${buildCollectUrl(options.serverUrl, options.projectId)}?stm=${sendAt}&compress=0`
+    debugLogRequest(options.debug as boolean, 'request', collectUrl, batch.data)
+    const dispatched = dispatchViaEventSender(
+      collectUrl,
+      batch.data,
+      () => {
+        this.finishBatch(batch, true, success)
+      },
+      () => {
+        this.finishBatch(batch, false, fail)
+      }
+    )
+    if (dispatched) {
+      return true
+    }
+
+    const requestOptions = {
+      url: collectUrl,
+      method: 'POST',
+      dataType: 'text',
+      timeout: resolveUploadRequestTimeout(DEFAULT_REQUEST_TIMEOUT_MS),
+      header: this.buildRequestHeader(),
+      data: payload,
+      success: (res : RequestSuccess<string>) => {
+        const statusCode = res.statusCode
+        if (statusCode == 200 || statusCode == 204) {
+          this.finishBatch(batch, true, success)
+          return
+        }
+        debugLog(options.debug as boolean, `request non-2xx statusCode=${stringifyScalar(statusCode)} data=${stringifyScalar(res.data)}`)
+        this.finishBatch(batch, false, fail)
+      },
+      fail: (err : RequestFail) => {
+        const failErrMsg = err.errMsg != null ? (err.errMsg as string) : ''
+        debugLog(options.debug as boolean, `request fail errCode=${stringifyScalar(err.errCode)} errMsg=${failErrMsg}`)
+        this.finishBatch(batch, false, fail)
+      }
+    } as RequestOptions<string>
+    // #ifdef APP-HARMONY
+    uni.request(requestOptions)
+    // #endif
+    // #ifndef APP-HARMONY
+    uni.request<string>(requestOptions)
+    // #endif
+    return true
+  }
+
+  private drain(
+    success : (() => void) | null,
+    fail : (() => void) | null
+  ) : boolean {
+    if (this.options == null) {
+      return false
+    }
+    if (this.pending.length == 0) {
+      this.closeIfIdle()
+      return false
+    }
+    let slots = this.maxConcurrency() - this.activeRequests
+    if (slots <= 0) {
+      return false
+    }
+    let dispatched = false
+    while (this.pending.length > 0 && slots > 0) {
+      const batch = this.takeBatch()
+      if (batch.items.length == 0) {
+        break
+      }
+      if (!this.sendBatch(batch, success, fail)) {
+        break
+      }
+      dispatched = true
+      slots--
+    }
+    this.closeIfIdle()
+    return dispatched
+  }
+
+  flush(success : (() => void) | null = null, fail : (() => void) | null = null) : boolean {
+    if (this.options == null) {
+      return false
+    }
+    if (this.pending.length == 0) {
+      this.closeIfIdle()
+      return false
+    }
+    // flush 窗口打开后，拆出的 batch 不再重复等待平台延迟策略。
+    this.flushing = true
+    return this.drain(success, fail)
+  }
+
+  private retry(batch : Array<GioQueuedEvent>) {
+    const retriable = [] as Array<GioQueuedEvent>
+    for (let i = 0; i < batch.length; i++) {
+      const queued = batch[i]
+      if (queued.retryCount >= MAX_RETRY_COUNT) {
+        continue
+      }
+      const retried : GioQueuedEvent = {
+        requestId: queued.requestId,
+        retryCount: queued.retryCount + 1,
+        event: queued.event,
+        storageKey: queued.storageKey
+      }
+      retriable.push(retried)
+    }
+    // 倒序 unshift，保证重试事件回到队首后仍保持原顺序。
+    for (let i = retriable.length - 1; i >= 0; i--) {
+      this.pending.unshift(retriable[i])
+    }
+  }
+}

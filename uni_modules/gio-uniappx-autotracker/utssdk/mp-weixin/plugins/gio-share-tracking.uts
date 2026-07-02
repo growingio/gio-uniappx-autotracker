@@ -1,0 +1,540 @@
+// gio-share-tracking.uts 实现微信小程序分享、朋友圈和收藏采集插件能力。
+import { GioPageContext, GioShareTrackingHost } from '../../interface.uts'
+import { GioTracker } from '../../common/core/tracker.uts'
+
+// 微信小程序独有的「分享 / 分享朋友圈 / 加收藏」采集。
+//
+// 对齐独立小程序 SDK「只代理已定义对应钩子的页面」：JS 桥接层会自动包装业务页已经
+// 声明的 onShareAppMessage / onShareTimeline / onAddToFavorites；不会通过全局 mixin
+// 给所有页面补分享 hook，避免让未声明分享能力的页面平白出现转发菜单。这里仍导出
+// wrap* 作为手动兜底 API。
+
+// 分享 / 收藏系统事件名 —— 与独立小程序 SDK 一致（带 `$` 前缀，属系统事件，
+// 不走 track() 的事件名校验，经 host.emitShareEvent 内部直发）。
+const MP_EVENT_ON_SHARE = '$mp_on_share'
+const MP_EVENT_SHARE_TIMELINE = '$mp_share_timeline'
+const MP_EVENT_ADD_FAVORITES = '$mp_add_favorites'
+const SHARE_PROMISE_TIMEOUT_MS = 3000
+
+function readShareString(source : any | null, key : string) : string | null {
+  if (source == null) {
+    return null
+  }
+  const value = (source as UTSJSONObject)[key]
+  if (value == null) {
+    return null
+  }
+  const text = `${value}`
+  return text.length > 0 ? text : null
+}
+
+// 安全读取 options.target.id —— options / target 任一为空都回 null，避免对 null 做下标访问。
+function readShareTargetId(options : any | null) : string | null {
+  if (options == null) {
+    return null
+  }
+  const target = (options as UTSJSONObject)['target']
+  return readShareString(target, 'id')
+}
+
+function hasShareKey(source : any | null, key : string) : boolean {
+  if (source == null || typeof source != 'object') {
+    return false
+  }
+  const keys = UTSJSONObject.keys(source as UTSJSONObject)
+  for (let i = 0; i < keys.length; i++) {
+    if (keys[i] == key) {
+      return true
+    }
+  }
+  return false
+}
+
+function normalizeShareQuery(queryText : string) : string {
+  if (queryText.length == 0) {
+    return ''
+  }
+  let normalized = queryText
+  if (normalized.startsWith('?') || normalized.startsWith('&')) {
+    normalized = normalized.slice(1)
+  }
+  if (normalized.length == 0) {
+    return ''
+  }
+  const segments = normalized.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    parts.push(segment)
+  }
+  return parts.join('&')
+}
+
+function filterDefaultShareQuery(queryText : string | null) : string | null {
+  if (queryText == null || queryText.length == 0) {
+    return null
+  }
+  const normalized = normalizeShareQuery(queryText)
+  if (normalized.length == 0) {
+    return null
+  }
+  const segments = normalized.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    const equalIndex = segment.indexOf('=')
+    const key = equalIndex >= 0 ? segment.slice(0, equalIndex) : segment
+    const lowerKey = key.toLowerCase()
+    if (key == 'gdpCircleRoomCollectUrl' || lowerKey.startsWith('utm_')) {
+      continue
+    }
+    parts.push(segment)
+  }
+  if (parts.length == 0) {
+    return null
+  }
+  return parts.join('&')
+}
+
+function splitSharePath(pathText : string | null) : Array<string> {
+  if (pathText == null || pathText.length == 0) {
+    return ['', '']
+  }
+  const queryIndex = pathText.indexOf('?')
+  if (queryIndex < 0) {
+    return [pathText, '']
+  }
+  return [
+    pathText.slice(0, queryIndex),
+    pathText.slice(queryIndex + 1)
+  ] as Array<string>
+}
+
+function normalizeSharePath(pathText : string | null) : string {
+  if (pathText == null || pathText.length == 0) {
+    return ''
+  }
+  const splitResult = splitSharePath(pathText)
+  let path = splitResult[0]
+  if (path.length == 0) {
+    return ''
+  }
+  while (path.startsWith('/')) {
+    path = path.slice(1)
+  }
+  return path.length > 0 ? `/${path}` : ''
+}
+
+function mergeShareResult(
+  originResult : any | null,
+  resolvedResult : any | null
+) : any | null {
+  const mergedResult = {} as UTSJSONObject
+  let hasMergedField = false
+  if (originResult != null && typeof originResult == 'object') {
+    const originRaw = originResult as UTSJSONObject
+    const originKeys = UTSJSONObject.keys(originRaw)
+    for (let i = 0; i < originKeys.length; i++) {
+      const key = originKeys[i]
+      mergedResult[key] = originRaw[key]
+      hasMergedField = true
+    }
+  }
+  if (resolvedResult != null && typeof resolvedResult == 'object') {
+    const resolvedRaw = resolvedResult as UTSJSONObject
+    const resolvedKeys = UTSJSONObject.keys(resolvedRaw)
+    for (let i = 0; i < resolvedKeys.length; i++) {
+      const key = resolvedKeys[i]
+      mergedResult[key] = resolvedRaw[key]
+      hasMergedField = true
+    }
+  }
+  return hasMergedField ? mergedResult : null
+}
+
+function updateShareResult(
+  shareResult : any | null,
+  pageContext : GioPageContext | null,
+  fillParams : boolean = true
+) : any | null {
+  if (shareResult == null || typeof shareResult != 'object') {
+    return shareResult
+  }
+  const result = shareResult as UTSJSONObject
+  const resultHasPath = hasShareKey(result, 'path')
+  const resultHasQuery = hasShareKey(result, 'query')
+  const currentPath = pageContext != null ? pageContext.path : ''
+  const currentQuery = pageContext != null ? pageContext.query : null
+  const normalizedCurrentPath = normalizeSharePath(currentPath)
+  const resultPathText = readShareString(result, 'path')
+  const resolvedResultPath = resultHasPath
+    ? normalizeSharePath(resultPathText)
+    : normalizedCurrentPath
+  const path = resolvedResultPath.length > 0
+    ? resolvedResultPath
+    : normalizedCurrentPath
+  let query = ''
+  if (resultHasQuery) {
+    query = normalizeShareQuery(readShareString(result, 'query') != null
+      ? (readShareString(result, 'query') as string)
+      : '')
+  } else if (resultHasPath) {
+    const splitResult = splitSharePath(resultPathText)
+    query = normalizeShareQuery(splitResult[1])
+  } else {
+    const filtered = filterDefaultShareQuery(currentQuery)
+    query = filtered != null ? filtered : ''
+  }
+
+  if (fillParams || resultHasPath) {
+    result['path'] = query.length > 0 ? `${path}?${query}` : path
+  }
+  if (fillParams || resultHasQuery) {
+    result['query'] = query
+  }
+  return result
+}
+
+// 构建分享 / 收藏事件属性。字段集严格按 eventName 分支，对齐独立 SDK
+// `gio-miniprogram-autotracker/src/core/dataStore/index.ts:672-763`：
+//   - `$mp_on_share`        → $from / $target / $share_title / $share_path / $share_query
+//   - `$mp_share_timeline`  → $target / $share_title / $share_path / $share_query（无 $from）
+//   - `$mp_add_favorites`   → $share_title / $share_path / $share_query（无 $from / $target）
+//
+// 取数：$share_title / $share_path / $share_query 优先取业务方 handler 的返回值
+// （shareResult，对齐独立 `updateResult`：path 串按 `?` 拆出 path 与 query），取不到则
+// 兜底当前页面的 title / path / query。$from / $target 取自微信回传的 options（仅
+// onShareAppMessage 形如 { from, target }）。仅写入非空字段，遵循项目「显式 null」约定。
+function buildShareEventProps(
+  eventName : string,
+  shareResult : any | null,
+  options : any | null,
+  pageContext : GioPageContext | null
+) : UTSJSONObject {
+  const currentTitle = pageContext != null ? pageContext.title : null
+  const currentPath = pageContext != null ? pageContext.path : ''
+  const currentQuery = pageContext != null ? pageContext.query : null
+  const resultHasPath = hasShareKey(shareResult, 'path')
+  const resultHasQuery = hasShareKey(shareResult, 'query')
+
+  const props = {} as UTSJSONObject
+
+  const resultTitle = readShareString(shareResult, 'title')
+  const shareTitle = resultTitle != null ? resultTitle : currentTitle
+  if (shareTitle != null) {
+    props['$share_title'] = shareTitle
+  }
+
+  // 业务返回的 path 可能带 query（`/pages/x?a=1`），按 `?` 拆开；拆不出则兜底当前页。
+  const resultPath = readShareString(shareResult, 'path')
+  const resultQuery = readShareString(shareResult, 'query')
+  let sharePath : string | null = currentPath.length > 0 ? currentPath : null
+  let shareQuery : string | null = null
+  if (!resultHasPath && !resultHasQuery) {
+    shareQuery = filterDefaultShareQuery(currentQuery)
+  }
+  if (resultHasPath) {
+    const splitResult = splitSharePath(resultPath)
+    const customPath = splitResult[0]
+    const customQuery = splitResult[1]
+    if (customPath.length > 0) {
+      sharePath = customPath
+    }
+    if (!resultHasQuery && customQuery.length > 0) {
+      shareQuery = normalizeShareQuery(customQuery)
+    }
+  }
+  if (resultHasQuery) {
+    const normalizedQuery = normalizeShareQuery(
+      resultQuery != null ? resultQuery : ''
+    )
+    shareQuery = normalizedQuery.length > 0 ? normalizedQuery : null
+  }
+  if (sharePath != null) {
+    props['$share_path'] = sharePath
+  }
+  if (shareQuery != null && shareQuery.length > 0) {
+    props['$share_query'] = shareQuery
+  }
+
+  if (eventName != MP_EVENT_ADD_FAVORITES) {
+    const extraAttributes = shareResult != null
+      ? (shareResult as UTSJSONObject).getJSON('attributes')
+      : null
+    if (extraAttributes != null) {
+      const keys = UTSJSONObject.keys(extraAttributes)
+      for (let i = 0; i < keys.length; i++) {
+        const key = keys[i]
+        props[key] = extraAttributes[key]
+      }
+    }
+  }
+
+  if (eventName == MP_EVENT_ON_SHARE) {
+    const from = readShareString(options, 'from')
+    if (from != null) {
+      props['$from'] = from
+    }
+    const target = readShareTargetId(options)
+    if (target != null) {
+      props['$target'] = target
+    }
+  } else if (eventName == MP_EVENT_SHARE_TIMELINE) {
+    const target = readShareTargetId(options)
+    if (target != null) {
+      props['$target'] = target
+    }
+  }
+  return props
+}
+
+// 翻转 shareOut（仅 onShareAppMessage）+ 按插件注册状态发事件。
+// 未通过 registerPlugins([{ name: 'gioShareTracking' }]) 启用时，wrapper 只透传
+// 业务 handler 结果，不补分享字段、不翻 shareOut、不发送分享 / 收藏事件。
+export type GioShareAppMessageHandler = (options : any | null) => any | null
+export type GioShareTimelineHandler = (options : any | null) => any | null
+export type GioAddToFavoritesHandler = (options : any | null) => any | null
+
+function invokeShareHandler(
+  handler : any | null,
+  instance : any | null,
+  options : any | null
+) : any | null {
+  if (handler == null) {
+    return null
+  }
+  return handler.call(instance, options)
+}
+
+export class GioShareTrackingPlugin {
+  private host : GioShareTrackingHost
+
+  constructor(host : GioShareTrackingHost) {
+    this.host = host
+  }
+
+  private emitShare(
+    eventName : string,
+    shareResult : any | null,
+    options : any | null,
+    flipShareOut : boolean
+  ) {
+    if (!this.host.isShareTrackingEnabled()) {
+      return
+    }
+    if (flipShareOut) {
+      this.host.setShareOut(true)
+    }
+    this.host.emitShareEvent(
+      eventName,
+      buildShareEventProps(eventName, shareResult, options, this.host.getCurrentPageContext())
+    )
+  }
+
+  private emitResolvedShare(
+    eventName : string,
+    originResult : any | null,
+    options : any | null,
+    flipShareOut : boolean
+  ) {
+    if (!this.host.isShareTrackingEnabled()) {
+      return
+    }
+    const pageContext = this.host.getCurrentPageContext()
+    const thenableSource = readThenableSource(originResult)
+    if (thenableSource == null) {
+      const updatedResult = updateShareResult(originResult, pageContext, true)
+      this.emitShare(eventName, updatedResult, options, flipShareOut)
+      return
+    }
+    if (flipShareOut) {
+      this.host.setShareOut(true)
+    }
+    if (!this.host.isShareTrackingEnabled()) {
+      return
+    }
+    const returnedResult = updateShareResult(originResult, pageContext, false)
+    let emitted = false
+    const emitFallback = () => {
+      if (emitted) {
+        return
+      }
+      emitted = true
+      const mergedFallback = mergeShareResult(returnedResult, null)
+      const updatedFallback = updateShareResult(mergedFallback, pageContext, true)
+      this.emitShare(
+        eventName,
+        updatedFallback,
+        options,
+        false
+      )
+    }
+    setTimeout(() => {
+      emitFallback()
+    }, SHARE_PROMISE_TIMEOUT_MS)
+    try {
+      invokeThenable(thenableSource, (resolvedResult : any | null) => {
+        if (emitted) {
+          return
+        }
+        emitted = true
+        const mergedResult = mergeShareResult(returnedResult, resolvedResult)
+        const updatedResult = updateShareResult(mergedResult, pageContext, true)
+        this.emitShare(
+          eventName,
+          updatedResult,
+          options,
+          false
+        )
+      }, () => {
+        emitFallback()
+      })
+    } catch (_error) {
+      emitFallback()
+    }
+  }
+
+  wrapShareAppMessage(
+    handler : GioShareAppMessageHandler | null
+  ) : GioShareAppMessageHandler {
+    const plugin = this
+    return function (options : any | null) : any | null {
+      const originResult = invokeShareHandler(handler, this, options)
+      if (!plugin.host.isShareTrackingEnabled()) {
+        return originResult
+      }
+      const result = normalizeShareOriginResult(originResult)
+      plugin.emitResolvedShare(MP_EVENT_ON_SHARE, result, options, true)
+      return updateShareResult(
+        result,
+        plugin.host.getCurrentPageContext(),
+        readThenableSource(result) == null
+      )
+    }
+  }
+
+  wrapShareTimeline(
+    handler : GioShareTimelineHandler | null
+  ) : GioShareTimelineHandler {
+    const plugin = this
+    return function (options : any | null) : any | null {
+      const originResult = invokeShareHandler(handler, this, options)
+      if (!plugin.host.isShareTrackingEnabled()) {
+        return originResult
+      }
+      const result = normalizeShareOriginResult(originResult)
+      plugin.emitResolvedShare(MP_EVENT_SHARE_TIMELINE, result, options, false)
+      return updateShareResult(
+        result,
+        plugin.host.getCurrentPageContext(),
+        readThenableSource(result) == null
+      )
+    }
+  }
+
+  wrapAddToFavorites(
+    handler : GioAddToFavoritesHandler | null
+  ) : GioAddToFavoritesHandler {
+    const plugin = this
+    return function (options : any | null) : any | null {
+      const originResult = invokeShareHandler(handler, this, options)
+      if (!plugin.host.isShareTrackingEnabled()) {
+        return originResult
+      }
+      const result = normalizeShareOriginResult(originResult)
+      plugin.emitResolvedShare(MP_EVENT_ADD_FAVORITES, result, options, false)
+      return updateShareResult(
+        result,
+        plugin.host.getCurrentPageContext(),
+        readThenableSource(result) == null
+      )
+    }
+  }
+}
+
+function normalizeShareOriginResult(result : any | null) : any | null {
+  if (result != null) {
+    return result
+  }
+  return {} as UTSJSONObject
+}
+
+function readThenableSource(source : any | null) : any | null {
+  if (source == null) {
+    return null
+  }
+  const sourceRaw = source as UTSJSONObject
+  const thenValue = sourceRaw['then']
+  if (thenValue != null && typeof thenValue == 'function') {
+    return source
+  }
+  const promiseValue = sourceRaw['promise']
+  if (promiseValue == null) {
+    return null
+  }
+  const nestedThen = (promiseValue as UTSJSONObject)['then']
+  if (nestedThen != null && typeof nestedThen == 'function') {
+    return promiseValue
+  }
+  return null
+}
+
+function invokeThenable(
+  source : any | null,
+  handler : (value : any | null) => void,
+  rejectHandler : (() => void) | null
+) {
+  if (source == null) {
+    return
+  }
+  const raw = source as UTSJSONObject
+  const thenValue = raw['then']
+  if (thenValue != null && typeof thenValue == 'function') {
+    if (rejectHandler != null) {
+      (source as UTSJSONObject)['then'](handler, rejectHandler)
+      return
+    }
+    (source as UTSJSONObject)['then'](handler)
+  }
+}
+
+let shareTrackingPlugin : GioShareTrackingPlugin | null = null
+
+export function installGioShareTrackingPlugin(host : GioShareTrackingHost) {
+  shareTrackingPlugin = new GioShareTrackingPlugin(host)
+}
+
+function getShareTrackingPlugin() : GioShareTrackingPlugin {
+  if (shareTrackingPlugin == null) {
+    shareTrackingPlugin = new GioShareTrackingPlugin(GioTracker.getInstance())
+  }
+  return shareTrackingPlugin as GioShareTrackingPlugin
+}
+
+// 包装页面的 onShareAppMessage：调用业务 handler 取返回值后采集 $mp_on_share，
+// 并原样透传返回值给微信（不改变实际转发内容）。
+export function wrapShareAppMessage(
+  handler : GioShareAppMessageHandler | null
+) : GioShareAppMessageHandler {
+  return getShareTrackingPlugin().wrapShareAppMessage(handler)
+}
+
+// 包装页面的 onShareTimeline：朋友圈不离开小程序进程，不翻 shareOut。
+export function wrapShareTimeline(
+  handler : GioShareTimelineHandler | null
+) : GioShareTimelineHandler {
+  return getShareTrackingPlugin().wrapShareTimeline(handler)
+}
+
+// 包装页面的 onAddToFavorites：收藏不离开小程序进程，不翻 shareOut。
+export function wrapAddToFavorites(
+  handler : GioAddToFavoritesHandler | null
+) : GioAddToFavoritesHandler {
+  return getShareTrackingPlugin().wrapAddToFavorites(handler)
+}

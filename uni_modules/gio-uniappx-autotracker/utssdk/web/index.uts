@@ -1,0 +1,37 @@
+// Web 平台入口：注册浏览器运行时实现，再复用公共 utssdk API。
+import { GioTracker } from '../common/core/tracker.uts'
+import { createWebSystemContextResolver } from './system-context.uts'
+import { createOriginalSourceStore } from '../platform-shared/original-source.uts'
+import { initialize as coreInitialize } from '../index.uts'
+import './runtime.uts'
+
+GioTracker.getInstance().setOriginalSourceStore(
+  createOriginalSourceStore()
+)
+GioTracker.getInstance().setSystemContextResolver(
+  createWebSystemContextResolver()
+)
+
+export {
+  clearLocation,
+  clearUserId,
+  getABTest,
+  identify,
+  onHide,
+  onLaunch,
+  onPageLoad,
+  onPageUnload,
+  onShow,
+  registerPlugins,
+  setLocation,
+  setOptions,
+  setUserAttributes,
+  setUserId,
+  track
+} from '../index.uts'
+export { GioGdpInitOptions } from '../index.uts'
+
+export function initialize(options : UTSJSONObject) : boolean {
+  try { window['vdsConfig'] = options } catch (_error) {}
+  return coreInitialize(options)
+}

@@ -1,0 +1,455 @@
+// runtime/index.uts 是“平台运行时注册表”。
+// common 只依赖这里的抽象钩子，不直接依赖 web / mp / app 的具体实现。
+import {
+  GioInitOptions,
+  GioPageContext,
+  GioStorage,
+  GioTrackEvent
+} from '../../interface.uts'
+
+type GioPlatformStorageFactory = {
+  createMainStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
+  createOriginalSourceStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
+  createLocalStorage : (options : GioInitOptions, fallback : GioStorage) => GioStorage
+}
+
+type GioPageContextResolver = {
+  resolvePageContext : (pageContext : GioPageContext | null) => GioPageContext | null
+}
+
+type GioPageContextWaitPolicy = {
+  shouldWaitForPageContext : (options : GioInitOptions) => boolean
+}
+
+type GioRuntimeBehavior = {
+  scheduleVisitAndPage : (dispatch : (() => void)) => void
+  shouldTrackAppClosed : () => boolean
+  shouldEmitPageOnShow : () => boolean
+  shouldEmitVisitForSession : (
+    options : GioInitOptions,
+    sessionId : string
+  ) => boolean
+}
+
+type GioEventShaper = {
+  shapeTrackEvent : (event : GioTrackEvent) => GioTrackEvent
+}
+
+type GioEventSender = {
+  sendEvent : (
+    url : string,
+    data : Array<UTSJSONObject>,
+    onSuccess : (() => void) | null,
+    onFail : (() => void) | null
+  ) => void
+}
+
+type GioUploadPolicy = {
+  shouldScheduleFlush : () => boolean
+  getFlushDelay : () => number
+  getMaxBatchSize : () => number
+  getMaxBatchPayloadBytes : () => number
+}
+
+type GioRuntimePolicy = {
+  getInitStartMessage : (fallback : string) => string
+  getInitCompleteMessage : (fallback : string) => string
+  getSessionTimeoutMs : (fallback : number) => number
+  shouldRenewSessionOnTimeout : () => boolean
+  getMaxQueueSize : (fallback : number) => number
+  shouldPersistSessionId : () => boolean
+  shouldPersistEvents : () => boolean
+  shouldWaitForNetworkState : () => boolean
+  shouldEmitPageWithoutShow : () => boolean
+  supportsAppState : () => boolean
+  supportsLocation : () => boolean
+  getPageReferralFallback : (options : GioInitOptions) => string
+  getUploadRequestTimeout : (fallback : number) => number
+  getUploadMaxConcurrency : (fallback : number) => number
+}
+
+export type GioSessionTimeoutPolicy = {
+  getSessionTimeoutMs : (fallback : number) => number
+  shouldRenewSessionOnTimeout : () => boolean
+}
+
+// ABTest「首访 session 快照」的存储抽象。对齐独立 SDK 的 visitSids：
+// - mp / app（无页面刷新）放内存即可 —— 默认走下面的 builtinVisitSessionId；
+// - web 因为刷新会丢内存、且 session 自身持久化，必须把快照也持久化（见 web/runtime.uts
+//   registerVisitSessionStore，落 localStorage），才能复刻「首个 session 内刷新仍 newDevice=true」。
+type GioVisitSessionStore = {
+  record : (sessionId : string) => void
+  read : () => string
+  clear : () => void
+}
+
+type GioConfigSyncer = {
+  syncConfig : (options : GioInitOptions) => void
+}
+
+type GioNetworkStateProvider = {
+  loadNetworkState : (
+    setNetworkState : ((networkType : string) => void),
+    markReady : (() => void)
+  ) => void
+}
+
+let registeredStorageFactory : GioPlatformStorageFactory | null = null
+let registeredPageContextResolver : GioPageContextResolver | null = null
+let registeredPageContextWaitPolicy : GioPageContextWaitPolicy | null = null
+let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
+let registeredEventShaper : GioEventShaper | null = null
+let registeredEventSender : GioEventSender | null = null
+let registeredUploadPolicy : GioUploadPolicy | null = null
+let registeredRuntimePolicy : GioRuntimePolicy | null = null
+let registeredSessionTimeoutPolicy : GioSessionTimeoutPolicy | null = null
+let registeredVisitSessionStore : GioVisitSessionStore | null = null
+// 未注册平台存储时的内存兜底（mp / app 用），承载首访 session 快照。
+let builtinVisitSessionId : string = ''
+let registeredConfigSyncer : GioConfigSyncer | null = null
+let registeredNetworkStateProvider : GioNetworkStateProvider | null = null
+
+export function registerPlatformStorageFactory (
+  factory : GioPlatformStorageFactory | null
+) {
+  registeredStorageFactory = factory
+}
+
+export function registerPageContextResolver (
+  resolver : GioPageContextResolver | null
+) {
+  registeredPageContextResolver = resolver
+}
+
+export function registerPageContextWaitPolicy (
+  policy : GioPageContextWaitPolicy | null
+) {
+  registeredPageContextWaitPolicy = policy
+}
+
+export function registerRuntimeBehavior (
+  behavior : GioRuntimeBehavior | null
+) {
+  registeredRuntimeBehavior = behavior
+}
+
+export function registerEventShaper (
+  shaper : GioEventShaper | null
+) {
+  registeredEventShaper = shaper
+}
+
+export function registerEventSender (
+  sender : GioEventSender | null
+) {
+  registeredEventSender = sender
+}
+
+export function registerUploadPolicy (
+  policy : GioUploadPolicy | null
+) {
+  registeredUploadPolicy = policy
+}
+
+export function registerConfigSyncer (
+  syncer : GioConfigSyncer | null
+) {
+  registeredConfigSyncer = syncer
+}
+
+export function registerNetworkStateProvider (
+  provider : GioNetworkStateProvider | null
+) {
+  registeredNetworkStateProvider = provider
+}
+
+export function registerRuntimePolicy (
+  policy : GioRuntimePolicy | null
+) {
+  registeredRuntimePolicy = policy
+}
+
+export function registerSessionTimeoutPolicy (
+  policy : GioSessionTimeoutPolicy | null
+) {
+  registeredSessionTimeoutPolicy = policy
+}
+
+export function resolveInitStartMessage(fallback : string) : string {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getInitStartMessage(fallback) : fallback
+}
+
+export function resolveInitCompleteMessage(fallback : string) : string {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getInitCompleteMessage(fallback) : fallback
+}
+
+export function resolveSessionTimeoutMs(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  if (policy != null) {
+    return policy.getSessionTimeoutMs(fallback)
+  }
+  const sessionPolicy = registeredSessionTimeoutPolicy
+  return sessionPolicy != null ? sessionPolicy.getSessionTimeoutMs(fallback) : fallback
+}
+
+export function shouldRenewSessionOnTimeout() : boolean {
+  const policy = registeredRuntimePolicy
+  if (policy != null) {
+    return policy.shouldRenewSessionOnTimeout()
+  }
+  const sessionPolicy = registeredSessionTimeoutPolicy
+  return sessionPolicy != null ? sessionPolicy.shouldRenewSessionOnTimeout() : false
+}
+
+export function resolveMaxQueueSize(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getMaxQueueSize(fallback) : fallback
+}
+
+export function shouldPersistSessionId() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldPersistSessionId() : false
+}
+
+export function shouldPersistEvents() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldPersistEvents() : true
+}
+
+export function shouldWaitForNetworkState() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldWaitForNetworkState() : true
+}
+
+export function shouldWaitForPageContext(options : GioInitOptions) : boolean {
+  const policy = registeredPageContextWaitPolicy
+  return policy != null ? policy.shouldWaitForPageContext(options) : false
+}
+
+export function shouldEmitPageWithoutShow() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldEmitPageWithoutShow() : false
+}
+
+export function supportsAppState() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.supportsAppState() : true
+}
+
+export function supportsLocation() : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.supportsLocation() : true
+}
+
+export function resolvePageReferralFallback(options : GioInitOptions) : string {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.getPageReferralFallback(options) : ''
+}
+
+export function resolveUploadRequestTimeout(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  const value = policy != null ? policy.getUploadRequestTimeout(fallback) : fallback
+  return value > 0 ? value : fallback
+}
+
+export function resolveUploadMaxConcurrency(fallback : number) : number {
+  const policy = registeredRuntimePolicy
+  const value = policy != null ? policy.getUploadMaxConcurrency(fallback) : fallback
+  return value > 0 ? value : fallback
+}
+
+export function syncConfigToGlobal (options : GioInitOptions) {
+  const syncer = registeredConfigSyncer
+  if (syncer == null) {
+    return
+  }
+  syncer.syncConfig(options)
+}
+
+export function loadRuntimeNetworkState (
+  setNetworkState : ((networkType : string) => void),
+  markReady : (() => void)
+) : boolean {
+  const provider = registeredNetworkStateProvider
+  if (provider == null) {
+    return false
+  }
+  provider.loadNetworkState(setNetworkState, markReady)
+  return true
+}
+
+export function registerVisitSessionStore (
+  store : GioVisitSessionStore | null
+) {
+  registeredVisitSessionStore = store
+}
+
+// 首访 session 快照的读 / 写 / 清，统一从 runtime 内部分发到「已注册平台存储」或内存兜底，
+// 调用方（tracker / 插件经 host）只见纯字符串，不必对 any 类型的 store 调方法（UTS 不允许）。
+// 与 dispatchViaEventSender 同思路。
+export function recordVisitSessionSnapshot (sessionId : string) {
+  const store = registeredVisitSessionStore
+  if (store == null) {
+    builtinVisitSessionId = sessionId
+    return
+  }
+  store.record(sessionId)
+}
+
+export function readVisitSessionSnapshot () : string {
+  const store = registeredVisitSessionStore
+  if (store == null) {
+    return builtinVisitSessionId
+  }
+  return store.read()
+}
+
+export function clearVisitSessionSnapshot () {
+  const store = registeredVisitSessionStore
+  if (store == null) {
+    builtinVisitSessionId = ''
+    return
+  }
+  store.clear()
+}
+
+// 发送逻辑统一从 runtime 内部分发，这里能看到 GioEventSender 的明确类型。
+// uploader 只拿到 boolean 结果，不需要在 `any` sender 上直接调方法。
+export function dispatchViaEventSender (
+  url : string,
+  data : Array<UTSJSONObject>,
+  onSuccess : (() => void) | null,
+  onFail : (() => void) | null
+) : boolean {
+  const sender = registeredEventSender
+  if (sender == null) {
+    return false
+  }
+  sender.sendEvent(url, data, onSuccess, onFail)
+  return true
+}
+
+export function shouldScheduleUploadFlush () : boolean {
+  const policy = registeredUploadPolicy
+  if (policy == null) {
+    return false
+  }
+  return policy.shouldScheduleFlush()
+}
+
+export function resolveUploadFlushDelay (fallback : number) : number {
+  const policy = registeredUploadPolicy
+  if (policy == null) {
+    return fallback
+  }
+  return policy.getFlushDelay()
+}
+
+export function resolveUploadMaxBatchSize (fallback : number) : number {
+  const policy = registeredUploadPolicy
+  if (policy == null) {
+    return fallback
+  }
+  const size = policy.getMaxBatchSize()
+  return size > 0 ? size : fallback
+}
+
+export function resolveUploadMaxBatchPayloadBytes (fallback : number) : number {
+  const policy = registeredUploadPolicy
+  if (policy == null) {
+    return fallback
+  }
+  const bytes = policy.getMaxBatchPayloadBytes()
+  return bytes > 0 ? bytes : fallback
+}
+
+export function resolveMainStorage (
+  options : GioInitOptions,
+  fallback : GioStorage
+) : GioStorage {
+  const factory = registeredStorageFactory
+  if (factory == null) {
+    return fallback
+  }
+  return factory.createMainStorage(options, fallback)
+}
+
+export function resolveOriginalSourceStorage (
+  options : GioInitOptions,
+  fallback : GioStorage
+) : GioStorage {
+  const factory = registeredStorageFactory
+  if (factory == null) {
+    return fallback
+  }
+  return factory.createOriginalSourceStorage(options, fallback)
+}
+
+export function resolveLocalStorage (
+  options : GioInitOptions,
+  fallback : GioStorage
+) : GioStorage {
+  const factory = registeredStorageFactory
+  if (factory == null) {
+    return fallback
+  }
+  return factory.createLocalStorage(options, fallback)
+}
+
+export function resolvePageContext (
+  pageContext : GioPageContext | null
+) : GioPageContext | null {
+  const resolver = registeredPageContextResolver
+  if (resolver == null) {
+    return pageContext
+  }
+  return resolver.resolvePageContext(pageContext)
+}
+
+export function scheduleVisitAndPage (dispatch : (() => void)) {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    dispatch()
+    return
+  }
+  behavior.scheduleVisitAndPage(dispatch)
+}
+
+export function shouldTrackAppClosed () : boolean {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    return true
+  }
+  return behavior.shouldTrackAppClosed()
+}
+
+export function shouldEmitPageOnShow() : boolean {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    return true
+  }
+  return behavior.shouldEmitPageOnShow()
+}
+
+export function shouldEmitVisitForSession(
+  options : GioInitOptions,
+  sessionId : string
+) : boolean {
+  const behavior = registeredRuntimeBehavior
+  if (behavior == null) {
+    return false
+  }
+  return behavior.shouldEmitVisitForSession(options, sessionId)
+}
+
+export function shapeTrackEvent (
+  event : GioTrackEvent
+) : GioTrackEvent {
+  const shaper = registeredEventShaper
+  if (shaper == null) {
+    return event
+  }
+  return shaper.shapeTrackEvent(event)
+}

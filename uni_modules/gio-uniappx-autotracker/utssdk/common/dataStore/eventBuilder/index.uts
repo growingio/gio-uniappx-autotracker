@@ -1,0 +1,148 @@
+// eventBuilder 负责把上下文、用户身份和业务属性拼成统一事件对象。
+import {
+  GioInitOptions,
+  GioOriginalSource,
+  GioPageContext,
+  GioTrackEvent
+} from '../../../interface.uts'
+import { SDK_VERSION } from '../../config.uts'
+import { now, readTimezoneOffsetMinutes } from '../../utils/base.uts'
+import {
+  resolvePageContext as resolveRuntimePageContext,
+  shapeTrackEvent
+} from '../../runtime/index.uts'
+import { GioSystemContext, readDeviceOrientation } from '../../utils/system.uts'
+import { GioUserStore } from '../../userStore/index.uts'
+
+export class GioEventBuilder {
+  private userStore : GioUserStore | null = null
+
+  configure(userStore : GioUserStore) {
+    this.userStore = userStore
+  }
+
+  // 这里故意不用 `resolvePageContext` 这个名字。
+  // UTS-iOS 会忽略 import alias 并带模块名前缀调用，同名方法容易和 runtime 的导入函数撞名。
+  private composePageContext(
+    eventType : string,
+    pageContext : GioPageContext | null,
+    originalSource : GioOriginalSource | null
+  ) : GioPageContext | null {
+    if (eventType == 'VISIT' && originalSource != null) {
+      return {
+        path: originalSource.path,
+        query: originalSource.query,
+        title: originalSource.title,
+        referralPage: originalSource.referralPage,
+        duration: pageContext != null ? pageContext.duration : null
+      } as GioPageContext
+    }
+    if (eventType != 'VISIT' && eventType != 'PAGE') {
+      return pageContext
+    }
+    return resolveRuntimePageContext(pageContext)
+  }
+
+  buildEvent(
+    options : GioInitOptions,
+    systemContext : GioSystemContext,
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null,
+    appChannel : string | null,
+    originalSource : GioOriginalSource | null,
+    latitude : number | null,
+    longitude : number | null
+  ) : GioTrackEvent {
+    const userStore = this.userStore as GioUserStore
+    const context = userStore.getContext()
+    const resolvedPageContext = this.composePageContext(
+      eventType,
+      pageContext,
+      originalSource
+    )
+    let path : string | null = null
+    let query : string | null = null
+    let title : string | null = null
+    let referralPage : string | null = null
+    if (resolvedPageContext != null) {
+      path = resolvedPageContext.path
+      query = resolvedPageContext.query
+      title = resolvedPageContext.title
+      referralPage = resolvedPageContext.referralPage
+    }
+    let eventName : string | null = null
+    if (eventType == 'CUSTOM') {
+      eventName = name
+    }
+    let eventSequenceId : number | null = null
+    if (
+      eventType != 'APP_CLOSED' &&
+      eventType != 'LOGIN_USER_ATTRIBUTES'
+    ) {
+      eventSequenceId = userStore.getNextEventSequenceId()
+    }
+    // 这里把复杂表达式先拆到局部变量里，只保留简单字段访问内联写进对象字面量。
+    // 否则 iOS 侧很容易在大对象字面量 + 内联三元 / 强转 / 原生 Date 缺失方法的组合下，
+    // 报 “unable to type-check in reasonable time”。
+    const appVersionText : string = options.appVersion as string
+    const timestamp : number = now()
+    const timezoneOffset : string = `${readTimezoneOffsetMinutes()}`
+    const userKey : string | null = options.idMapping ? context.userKey : null
+    const domainText : string = systemContext.bundleId.length > 0
+      ? systemContext.bundleId
+      : options.appId
+    const isApp : boolean = systemContext.isApp
+    const operatingSystemText : string | null = isApp ? null : systemContext.operatingSystem
+    let appChannelText : string | null = null
+    if (isApp && systemContext.channel.length > 0) {
+      appChannelText = systemContext.channel
+    } else if (!isApp) {
+      appChannelText = appChannel
+    }
+    const referralPageText : string | null = referralPage
+    const orientationText : string | null = (isApp && eventType == 'PAGE')
+      ? readDeviceOrientation()
+      : null
+    const titleText : string | null = title != null ? (title as string) : ''
+    return shapeTrackEvent({
+      appChannel: appChannelText,
+      appName: systemContext.appName,
+      appState: systemContext.appState,
+      appVersion: appVersionText,
+      dataSourceId: options.dataSourceId,
+      deviceBrand: systemContext.deviceBrand,
+      deviceId: context.deviceId,
+      deviceModel: systemContext.deviceModel,
+      deviceType: systemContext.deviceType,
+      domain: domainText,
+      urlScheme: options.urlScheme,
+      eventName: eventName,
+      eventSequenceId: eventSequenceId,
+      eventType: eventType,
+      language: systemContext.language,
+      latitude: latitude,
+      longitude: longitude,
+      networkState: systemContext.networkState,
+      operatingSystem: operatingSystemText,
+      path: path,
+      platform: systemContext.platform,
+      platformVersion: systemContext.platformVersion,
+      protocolType: null,
+      orientation: orientationText,
+      query: query,
+      referralPage: referralPageText,
+      screenHeight: systemContext.screenHeight,
+      screenWidth: systemContext.screenWidth,
+      sdkVersion: SDK_VERSION,
+      sessionId: context.sessionId,
+      timestamp: timestamp,
+      timezoneOffset: timezoneOffset,
+      title: titleText,
+      userId: context.userId,
+      userKey: userKey,
+      attributes: properties
+    } as GioTrackEvent)
+  }
+}

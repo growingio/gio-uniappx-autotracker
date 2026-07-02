@@ -1,0 +1,289 @@
+// storage/index.uts 负责统一包装存储读写、过期时间和 `_gioenc` 编解码。
+import { GioInitOptions, GioStorage, GioStorageProvider } from '../../interface.uts'
+import { now, jsonStringify } from '../utils/base.uts'
+import {
+  resolveLocalStorage,
+  resolveMainStorage,
+  resolveOriginalSourceStorage
+} from '../runtime/index.uts'
+import {
+  decryptStorageString,
+  encryptStorageString
+} from './encrypt.uts'
+
+const STORAGE_ENCRYPTED_SUFFIX = '_gioenc'
+const DEFAULT_STORAGE_EXPIRE_MS = 1000 * 60 * 60 * 24 * 365 * 3
+
+function shouldAttemptJsonParse(text : string) : boolean {
+  if (text.length == 0) {
+    return false
+  }
+  const first = text.charAt(0)
+  return (
+    first == '{' ||
+    first == '[' ||
+    first == '"' ||
+    text == 'true' ||
+    text == 'false' ||
+    text == 'null'
+  )
+}
+
+export function getActualStorageKey (key : string) : string {
+  if (!key.endsWith(STORAGE_ENCRYPTED_SUFFIX)) {
+    return key
+  }
+  return key.slice(0, key.length - STORAGE_ENCRYPTED_SUFFIX.length)
+}
+
+function shouldEncryptStorageValue(key : string, value : any) : boolean {
+  return key.endsWith(STORAGE_ENCRYPTED_SUFFIX) &&
+    typeof value == 'string' &&
+    value.length > 0
+}
+
+function encodeStorageValue(key : string, value : any) : any {
+  if (shouldEncryptStorageValue(key, value)) {
+    return encryptStorageString(`${value}`)
+  }
+  return value
+}
+
+function decodeStorageValue(key : string, value : any | null) : any | null {
+  if (
+    key.endsWith(STORAGE_ENCRYPTED_SUFFIX) &&
+    typeof value == 'string'
+  ) {
+    return decryptStorageString(value)
+  }
+  return value
+}
+
+export function readDirectStorageValue (
+  key : string,
+  rawValue : any | null
+) : any | null {
+  if (rawValue == null) {
+    return null
+  }
+  return parseStorageValue(decodeStorageValue(key, rawValue))
+}
+
+export function parseStorageValue (value : any | null) : any | null {
+  if (value == null) {
+    return null
+  }
+  if (typeof value != 'string') {
+    return value
+  }
+  const text = `${value}`
+  // shouldAttemptJsonParse 已经把纯数字字符串排除了，所以这里不需要再内联
+  // parseFloat / isNaN 判定，避免 Swift 把它当成字符串上的非法数值运算。
+  if (shouldAttemptJsonParse(text)) {
+    try {
+      return JSON.parse(text)
+    } catch (_error) {
+      return text
+    }
+  }
+  return text
+}
+
+export function getDefaultStorageExpiredAt () : number {
+  return now() + DEFAULT_STORAGE_EXPIRE_MS
+}
+
+export function buildWrappedStorageValue (
+  key : string,
+  value : any,
+  expiredAt : number | null
+) : string {
+  // 先把过期时间收成明确 number，避免 Swift 用装箱 NSNumber 去做 `> 0` 比较。
+  let resolvedExpiredAt = getDefaultStorageExpiredAt()
+  if (expiredAt != null) {
+    resolvedExpiredAt = expiredAt
+  }
+  const storedValue = {
+    value: encodeStorageValue(key, value),
+    expiredAt: resolvedExpiredAt
+  } as UTSJSONObject
+  return jsonStringify(storedValue)
+}
+
+export function readWrappedStorageValue (
+  key : string,
+  rawValue : any | null
+) : any | null {
+  if (rawValue == null) {
+    return null
+  }
+  let parsedValue : any | null = rawValue
+  if (typeof rawValue == 'string') {
+    const text = `${rawValue}`
+    if (text.length == 0) {
+      return null
+    }
+    if (!shouldAttemptJsonParse(text)) {
+      return parseStorageValue(decodeStorageValue(key, text))
+    }
+    try {
+      parsedValue = JSON.parse(text)
+    } catch (_error) {
+      return parseStorageValue(decodeStorageValue(key, text))
+    }
+  }
+  if (parsedValue == null) {
+    return null
+  }
+  const envelope = parsedValue as UTSJSONObject
+  if (
+    envelope['expiredAt'] != null &&
+    envelope['value'] != null
+  ) {
+    const expiredAt = envelope.getNumber('expiredAt', 0)
+    if (expiredAt > 0 && expiredAt <= now()) {
+      return null
+    }
+    return parseStorageValue(
+      decodeStorageValue(key, envelope['value'])
+    )
+  }
+  return parseStorageValue(decodeStorageValue(key, parsedValue))
+}
+
+export function readStructuredStorageValue (
+  key : string,
+  rawValue : any | null
+) : any | null {
+  if (rawValue == null || typeof rawValue != 'string') {
+    return null
+  }
+  const text = `${rawValue}`
+  if (text.length == 0) {
+    return null
+  }
+  if (!text.startsWith('{')) {
+    return null
+  }
+  let parsedValue : any | null = null
+  try {
+    parsedValue = JSON.parse(text)
+  } catch (_error) {
+    return null
+  }
+  if (parsedValue == null) {
+    return null
+  }
+  const envelope = parsedValue as UTSJSONObject
+  if (
+    envelope['expiredAt'] == null ||
+    envelope['value'] == null
+  ) {
+    return null
+  }
+  const expiredAt = envelope.getNumber('expiredAt', 0)
+  if (expiredAt <= now()) {
+    return null
+  }
+  return parseStorageValue(
+    decodeStorageValue(key, envelope['value'])
+  )
+}
+
+export function buildCookieStorageValue (
+  key : string,
+  value : any
+) : string {
+  const storedValue = encodeStorageValue(key, value)
+  if (storedValue == null) {
+    return ''
+  }
+  if (typeof storedValue == 'string') {
+    return storedValue
+  }
+  return jsonStringify(storedValue)
+}
+
+function readUniStorageRaw(key : string) : any | null {
+  const actualKey = getActualStorageKey(key)
+  let value = uni.getStorageSync(actualKey)
+  if (value == null && actualKey != key) {
+    value = uni.getStorageSync(key)
+  }
+  return value
+}
+
+function writeUniStorageRaw(key : string, value : string) {
+  uni.setStorageSync(getActualStorageKey(key), value)
+}
+
+function removeUniStorageRaw(key : string) {
+  const actualKey = getActualStorageKey(key)
+  uni.removeStorageSync(actualKey)
+  if (actualKey != key) {
+    uni.removeStorageSync(key)
+  }
+}
+
+function getUniStorageKeys() : Array<string> {
+  try {
+    const info = uni.getStorageInfoSync()
+    if (info != null && Array.isArray(info.keys)) {
+      return info.keys as Array<string>
+    }
+  } catch (_error) {}
+  return [] as Array<string>
+}
+
+export class GioStorageEngine implements GioStorage {
+  getItem(key : string) : any | null {
+    return readWrappedStorageValue(key, readUniStorageRaw(key))
+  }
+
+  setItem(key : string, value : any, expiredAt : number | null) {
+    const wrappedValue = buildWrappedStorageValue(key, value, expiredAt)
+    writeUniStorageRaw(key, wrappedValue)
+  }
+
+  removeItem(key : string) {
+    removeUniStorageRaw(key)
+  }
+
+  hasItem(key : string) : boolean {
+    return this.getItem(key) != null
+  }
+
+  getKeys() : Array<string> {
+    return getUniStorageKeys()
+  }
+}
+
+export class GioStorageContainer implements GioStorageProvider {
+  private mainStorage : GioStorage = new GioStorageEngine()
+  private originalSourceStorage : GioStorage = new GioStorageEngine()
+  private localStorage : GioStorage = new GioStorageEngine()
+
+  initialize(options : GioInitOptions) {
+    const defaultMainStorage = new GioStorageEngine()
+    const defaultOriginalSourceStorage = new GioStorageEngine()
+    const defaultLocalStorage = new GioStorageEngine()
+    this.mainStorage = resolveMainStorage(options, defaultMainStorage)
+    this.originalSourceStorage = resolveOriginalSourceStorage(
+      options,
+      defaultOriginalSourceStorage
+    )
+    this.localStorage = resolveLocalStorage(options, defaultLocalStorage)
+  }
+
+  getMainStorage() : GioStorage {
+    return this.mainStorage
+  }
+
+  getOriginalSourceStorage() : GioStorage {
+    return this.originalSourceStorage
+  }
+
+  getLocalStorage() : GioStorage {
+    return this.localStorage
+  }
+}

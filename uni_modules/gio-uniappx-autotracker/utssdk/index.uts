@@ -1,0 +1,114 @@
+// utssdk/index.uts 是原生编译层的统一入口。
+// 这里只暴露公共 API，并把调用转给 GioTracker；不要在这里引入 Vue 层生命周期实现。
+import { normalizeInitOptions } from './common/config.uts'
+import { GioPluginItem } from './interface.uts'
+import { GioTracker } from './common/core/tracker.uts'
+// #ifdef APP-IOS
+// iOS 专属 resolver 的注册只能放在函数体内：UTS-iOS（Swift）不允许文件顶层出现表达式语句。
+import { createAppIosSystemContextResolver } from './app-ios/system-context.uts'
+import { registerAppSessionPolicy } from './platform-shared/app-session.uts'
+// #endif
+
+const tracker = GioTracker.getInstance()
+
+export function initialize (options : UTSJSONObject) : boolean {
+  // #ifdef APP-IOS
+  registerAppSessionPolicy()
+  tracker.setSystemContextResolver(createAppIosSystemContextResolver())
+  // #endif
+  return tracker.initialize(normalizeInitOptions(options))
+}
+
+// 这些生命周期入口的对象参数必须显式声明成 `UTSJSONObject | null`（与 initialize / track
+// 一致）。若声明成 `any`，iOS 原生桥不会把 JS 对象 marshal 成 UTSJSONObject，下游
+// `as UTSJSONObject` / 字段读取会 dynamicCast 失败直接崩溃。
+export function onLaunch(options : UTSJSONObject | null = null) {
+  tracker.onLaunch(options)
+}
+
+export function onPageLoad(page : UTSJSONObject | null, options : UTSJSONObject | null) {
+  tracker.onPageLoad(page, options)
+}
+
+export function onShow(target : UTSJSONObject | null, options : UTSJSONObject | null = null) {
+  tracker.onShow(target, options)
+}
+
+export function onHide(target : UTSJSONObject | null) {
+  tracker.onHide(target)
+}
+
+export function onPageUnload(page : UTSJSONObject | null) {
+  tracker.onPageUnload(page)
+}
+
+export function track(eventName : string, properties : UTSJSONObject | null = null) : boolean {
+  return tracker.track(eventName, properties)
+}
+
+export function setUserId(userId : string, userKey : string | null = null) : boolean {
+  return tracker.setUserId(userId, userKey)
+}
+
+export function setOptions (options : UTSJSONObject) : boolean {
+  return tracker.setOptions(options)
+}
+
+export function setLocation(latitude : number, longitude : number) : boolean {
+  return tracker.setLocation(latitude, longitude)
+}
+
+export function clearLocation () : boolean {
+  return tracker.clearLocation()
+}
+
+export function setUserAttributes (userAttributes : UTSJSONObject | null) : boolean {
+  return tracker.setUserAttributes(userAttributes)
+}
+
+export function identify (assignmentId : any) : boolean {
+  return tracker.identify(assignmentId)
+}
+
+export function clearUserId () : boolean {
+  return tracker.clearUserId()
+}
+
+export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
+  // 这里必须显式声明为 `Array<UTSJSONObject>`，不能放宽成 `Array<any>`。
+  // uni-app x 的 JS↔UTS 桥只会在声明类型明确时把数组元素编组成真正的 UTSJSONObject；
+  // 如果写成 `Array<any>`，元素会以桥接原始值进入，后续按 UTSJSONObject 读取会在 iOS
+  // 侧触发运行时强转崩溃（swift_dynamicCastFailure / SIGABRT）。
+  const items = [] as Array<GioPluginItem>
+  for (let i = 0; i < plugins.length; i++) {
+    const raw = plugins[i]
+    const nameValue = raw.getString('name')
+    if (nameValue == null || nameValue.length == 0) {
+      continue
+    }
+    // 嵌套对象必须通过 getJSON 读取，不能写 `raw['options'] as UTSJSONObject`。
+    // 下标访问拿到的是桥接层原始值，直接强转在运行时会崩；getJSON 才会返回真正的
+    // `UTSJSONObject | null`。
+    const optionsValue = raw.getJSON('options')
+    items.push({
+      name: nameValue,
+      options: optionsValue
+    } as GioPluginItem)
+  }
+  return tracker.registerPlugins(items)
+}
+
+export function getABTest(
+  layerId : any,
+  callback : ((result : any) => void) | null = null
+) : boolean {
+  return tracker.getABTest(layerId, callback)
+}
+
+// 不要在这里重新导出 plugin.uts。
+// 这里是 utssdk 的原生入口；如果把 plugin.uts 卷进来，会把 defineMixin 之类的 Vue 全局
+// 一起带进 Kotlin / Swift 编译阶段，直接破坏原生编译。
+
+// 这些类型和工具通过模块根路径重新导出，供 plugin.uts / gdp.uts 等外层文件使用，
+// 外层不需要再深入 import 内部实现路径。
+export { GioGdpInitOptions } from './interface.uts'

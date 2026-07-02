@@ -1,0 +1,405 @@
+// 微信小程序页面上下文补全。
+// common 只调用 runtime resolver，这里集中处理 MP-WEIXIN 的 title 来源链路。
+import { GioPageContext } from '../interface.uts'
+import { registerPageContextResolver } from '../common/runtime/index.uts'
+import {
+  readArrayField,
+  readObjectField,
+  readStringField
+} from './base.uts'
+
+const GIO_MP_PAGE_TITLE_CACHE_KEY = '__gio_mp_page_titles__'
+const GIO_MP_CURRENT_TITLE_KEY = '__gio_mp_current_title__'
+let mpPageContextResolverInstalled = false
+
+type MpOptionsFunction = (options : UTSJSONObject | null) => UTSJSONObject | null
+
+function normalizeMpRoutePath(route : string | null) : string {
+  if (route == null || route.length == 0) {
+    return ''
+  }
+  let value = route as string
+  while (value.startsWith('/')) {
+    value = value.slice(1)
+  }
+  const queryIndex = value.indexOf('?')
+  if (queryIndex >= 0) {
+    value = value.slice(0, queryIndex)
+  }
+  return value
+}
+
+function readMpRuntimeObject(key : string) : UTSJSONObject | null {
+  const runtime = (globalThis as unknown) as UTSJSONObject
+  return readObjectField(runtime, key)
+}
+
+function getMpRuntimeObject() : UTSJSONObject {
+  return (globalThis as unknown) as UTSJSONObject
+}
+
+function cacheMpPageTitle(route : string, title : string) {
+  if (route.length == 0 || title.length == 0) {
+    return
+  }
+  const runtime = getMpRuntimeObject()
+  let cache = readObjectField(runtime, GIO_MP_PAGE_TITLE_CACHE_KEY)
+  if (cache == null) {
+    cache = {} as UTSJSONObject
+    runtime[GIO_MP_PAGE_TITLE_CACHE_KEY] = cache
+  }
+  cache[normalizeMpRoutePath(route)] = title
+}
+
+function readCurrentPageRoute() : string {
+  try {
+    const pages = getCurrentPages()
+    if (pages.length == 0) {
+      return ''
+    }
+    const page = pages[pages.length - 1] as UTSJSONObject
+    return normalizeMpRoutePath(readStringField(page, 'route'))
+  } catch (_error) {}
+  return ''
+}
+
+function readCurrentPageObject() : UTSJSONObject | null {
+  try {
+    const pages = getCurrentPages()
+    if (pages.length == 0) {
+      return null
+    }
+    return pages[pages.length - 1] as UTSJSONObject
+  } catch (_error) {}
+  return null
+}
+
+function readMpCachedPageTitle(route : string) : string | null {
+  const runtime = getMpRuntimeObject()
+  const cache = readObjectField(runtime, GIO_MP_PAGE_TITLE_CACHE_KEY)
+  if (cache != null) {
+    const routeTitle = readStringField(cache, route)
+    if (routeTitle != null) {
+      return routeTitle
+    }
+  }
+  return null
+}
+
+function readMpCurrentTitleForRoute(route : string) : string | null {
+  const runtime = getMpRuntimeObject()
+  const currentRoute = readCurrentPageRoute()
+  if (currentRoute.length > 0 && currentRoute == route) {
+    return readStringField(runtime, GIO_MP_CURRENT_TITLE_KEY)
+  }
+  return null
+}
+
+function readMpPageDataTitle(page : UTSJSONObject | null) : string | null {
+  if (page == null) {
+    return null
+  }
+  const directTitle = readStringField(page, 'gioPageTitle')
+  if (directTitle != null) {
+    return directTitle
+  }
+  const directNavigationTitle = readStringField(page, 'navigationBarTitleText')
+  if (directNavigationTitle != null) {
+    return directNavigationTitle
+  }
+  const data = readObjectField(page, 'data')
+  const dataTitle = readStringField(data, 'gioPageTitle')
+  if (dataTitle != null) {
+    return dataTitle
+  }
+  const dataNavigationTitle = readStringField(data, 'navigationBarTitleText')
+  if (dataNavigationTitle != null) {
+    return dataNavigationTitle
+  }
+  const privateData = readObjectField(page, '$data')
+  const privateTitle = readStringField(privateData, 'gioPageTitle')
+  if (privateTitle != null) {
+    return privateTitle
+  }
+  return readStringField(privateData, 'navigationBarTitleText')
+}
+
+function readMpTitleFromPageConfig(config : UTSJSONObject | null) : string | null {
+  if (config == null) {
+    return null
+  }
+  const directTitle = readStringField(config, 'navigationBarTitleText')
+  if (directTitle != null) {
+    return directTitle
+  }
+  const style = readObjectField(config, 'style')
+  const styleTitle = readStringField(style, 'navigationBarTitleText')
+  if (styleTitle != null) {
+    return styleTitle
+  }
+  const windowConfig = readObjectField(config, 'window')
+  const windowTitle = readStringField(windowConfig, 'navigationBarTitleText')
+  if (windowTitle != null) {
+    return windowTitle
+  }
+  const mod = readObjectField(config, 'mod')
+  const exportsValue = readObjectField(mod, 'exports')
+  return readStringField(exportsValue, 'navigationBarTitleText')
+}
+
+function readMpTitleFromPagesArray(pagesValue : Array<UTSJSONObject> | null, route : string) : string | null {
+  if (pagesValue == null || !Array.isArray(pagesValue)) {
+    return null
+  }
+  const pages = pagesValue as Array<UTSJSONObject>
+  for (let i = 0; i < pages.length; i++) {
+    const item = pages[i]
+    if (item == null || Array.isArray(item)) {
+      continue
+    }
+    const pageConfig = item
+    const path = readStringField(pageConfig, 'path')
+    if (path == null || normalizeMpRoutePath(path) != route) {
+      continue
+    }
+    return readMpTitleFromPageConfig(pageConfig)
+  }
+  return null
+}
+
+function readMpTitleFromPagesMap(pagesValue : UTSJSONObject | null, route : string) : string | null {
+  if (pagesValue == null || typeof pagesValue != 'object' || Array.isArray(pagesValue)) {
+    return null
+  }
+  const pages = pagesValue as UTSJSONObject
+  const pageConfig = readObjectField(pages, route)
+  if (pageConfig != null) {
+    return readMpTitleFromPageConfig(pageConfig)
+  }
+  return readMpTitleFromPageConfig(readObjectField(pages, `/${route}`))
+}
+
+function readMpTitleFromPagesConfig(config : UTSJSONObject | null, route : string) : string | null {
+  if (config == null || route.length == 0) {
+    return null
+  }
+  const pagesValue = readArrayField(config, 'pages')
+  if (pagesValue != null && Array.isArray(pagesValue)) {
+    const arrayTitle = readMpTitleFromPagesArray(pagesValue, route)
+    if (arrayTitle != null) {
+      return arrayTitle
+    }
+  }
+  const pagesObject = readObjectField(config, 'pages')
+  if (pagesObject != null) {
+    return readMpTitleFromPagesMap(pagesObject, route)
+  }
+  return null
+}
+
+function readMpTitleFromPageObject(config : UTSJSONObject | null, route : string) : string | null {
+  if (config == null || route.length == 0) {
+    return null
+  }
+  const pageValue = readObjectField(config, 'page')
+  if (pageValue == null) {
+    return null
+  }
+  let pageInfo = readObjectField(pageValue, route)
+  if (pageInfo == null) {
+    pageInfo = readObjectField(pageValue, `/${route}`)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectField(pageValue, `${route}.html`)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectField(pageValue, `/${route}.html`)
+  }
+  if (pageInfo != null) {
+    const title = readMpTitleFromPageConfig(pageInfo)
+    if (title != null) {
+      return title
+    }
+  }
+  return readMpTitleFromPageConfig(pageValue)
+}
+
+function readMpTitleFromAppCode(appCode : UTSJSONObject | null, route : string) : string | null {
+  if (appCode == null || route.length == 0) {
+    return null
+  }
+  let pageInfo = readObjectField(appCode, `${route}.json`)
+  if (pageInfo == null) {
+    pageInfo = readObjectField(appCode, `/${route}.json`)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectField(appCode, route)
+  }
+  if (pageInfo == null) {
+    pageInfo = readObjectField(appCode, `/${route}`)
+  }
+  if (pageInfo == null) {
+    return null
+  }
+  return readMpTitleFromPageConfig(pageInfo)
+}
+
+function readMpGlobalTitle(config : UTSJSONObject | null) : string | null {
+  const globalStyle = readObjectField(config, 'globalStyle')
+  const globalTitle = readStringField(globalStyle, 'navigationBarTitleText')
+  if (globalTitle != null) {
+    return globalTitle
+  }
+  const globalConfig = readObjectField(config, 'global')
+  const globalWindow = readObjectField(globalConfig, 'window')
+  const windowTitle = readStringField(globalWindow, 'navigationBarTitleText')
+  if (windowTitle != null) {
+    return windowTitle
+  }
+  const windowConfig = readObjectField(config, 'window')
+  return readStringField(windowConfig, 'navigationBarTitleText')
+}
+
+function readMpTabBarTitle(config : UTSJSONObject | null, route : string) : string | null {
+  const tabBar = readObjectField(config, 'tabBar')
+  const listValue = readArrayField(tabBar, 'list')
+  if (listValue == null || !Array.isArray(listValue)) {
+    return null
+  }
+  const list = listValue as Array<UTSJSONObject>
+  for (let i = 0; i < list.length; i++) {
+    const item = list[i]
+    if (item == null || Array.isArray(item)) {
+      continue
+    }
+    const tabItem = item
+    const pagePath = readStringField(tabItem, 'pagePath')
+    const path = pagePath != null ? pagePath : readStringField(tabItem, 'path')
+    if (path == null || normalizeMpRoutePath(path) != route) {
+      continue
+    }
+    const text = readStringField(tabItem, 'text')
+    if (text != null) {
+      return text
+    }
+  }
+  return null
+}
+
+function resolveMiniProgramTitle(route : string) : string | null {
+  const cachedTitle = readMpCachedPageTitle(route)
+  if (cachedTitle != null) {
+    return cachedTitle
+  }
+  const currentPage = readCurrentPageObject()
+  const currentRoute = currentPage != null
+    ? normalizeMpRoutePath(readStringField(currentPage, 'route'))
+    : ''
+  if (currentRoute.length > 0 && currentRoute == route) {
+    const dataTitle = readMpPageDataTitle(currentPage)
+    if (dataTitle != null) {
+      cacheMpPageTitle(route, dataTitle)
+      return dataTitle
+    }
+  }
+  const config = readMpRuntimeObject('__wxConfig__')
+  const pageTitle = readMpTitleFromPagesConfig(config, route)
+  if (pageTitle != null) {
+    cacheMpPageTitle(route, pageTitle)
+    return pageTitle
+  }
+  const pageObjectTitle = readMpTitleFromPageObject(config, route)
+  if (pageObjectTitle != null) {
+    cacheMpPageTitle(route, pageObjectTitle)
+    return pageObjectTitle
+  }
+  const appCode = readMpRuntimeObject('__wxAppCode__')
+  const appCodeTitle = readMpTitleFromAppCode(appCode, route)
+  if (appCodeTitle != null) {
+    cacheMpPageTitle(route, appCodeTitle)
+    return appCodeTitle
+  }
+  const appCodePagesTitle = readMpTitleFromPagesConfig(appCode, route)
+  if (appCodePagesTitle != null) {
+    cacheMpPageTitle(route, appCodePagesTitle)
+    return appCodePagesTitle
+  }
+  const tabTitle = readMpTabBarTitle(config, route)
+  if (tabTitle != null) {
+    cacheMpPageTitle(route, tabTitle)
+    return tabTitle
+  }
+  const globalTitle = readMpGlobalTitle(config)
+  if (globalTitle != null) {
+    cacheMpPageTitle(route, globalTitle)
+    return globalTitle
+  }
+  return readMpCurrentTitleForRoute(route)
+}
+
+export function resolveMiniProgramPageContext(
+  pageContext : GioPageContext | null
+) : GioPageContext | null {
+  if (pageContext == null) {
+    return null
+  }
+  if (pageContext.title != null && pageContext.title.length > 0) {
+    return pageContext
+  }
+  const route = normalizeMpRoutePath(pageContext.path)
+  const title = resolveMiniProgramTitle(route)
+  if (title == null) {
+    return pageContext
+  }
+  return {
+    path: pageContext.path,
+    query: pageContext.query,
+    title: title,
+    referralPage: pageContext.referralPage,
+    duration: pageContext.duration
+  } as GioPageContext
+}
+
+function wrapMpNavigationTitleSetter(host : UTSJSONObject | null, key : string) {
+  if (host == null || typeof host != 'object' || Array.isArray(host)) {
+    return
+  }
+  const raw = host
+  const markerKey = `__gio_${key}_hooked`
+  if (raw[markerKey] != null) {
+    return
+  }
+  const setterValue = raw[key]
+  if (setterValue == null || typeof setterValue != 'function') {
+    return
+  }
+  const originalSetter = setterValue as MpOptionsFunction
+  raw[key] = function(options : UTSJSONObject | null) : UTSJSONObject | null {
+    const title = readStringField(options, 'title')
+    if (title != null) {
+      const route = readCurrentPageRoute()
+      if (route.length > 0) {
+        cacheMpPageTitle(route, title)
+      }
+      const runtime = getMpRuntimeObject()
+      runtime[GIO_MP_CURRENT_TITLE_KEY] = title
+    }
+    return originalSetter(options)
+  }
+  raw[markerKey] = true
+}
+
+export function installMiniProgramPageContextResolver() {
+  if (mpPageContextResolverInstalled) {
+    return
+  }
+  mpPageContextResolverInstalled = true
+  registerPageContextResolver({
+    resolvePageContext(pageContext : GioPageContext | null) : GioPageContext | null {
+      return resolveMiniProgramPageContext(pageContext)
+    }
+  })
+  wrapMpNavigationTitleSetter((uni as unknown) as UTSJSONObject, 'setNavigationBarTitle')
+  const runtime = getMpRuntimeObject()
+  wrapMpNavigationTitleSetter(runtime['wx'], 'setNavigationBarTitle')
+}

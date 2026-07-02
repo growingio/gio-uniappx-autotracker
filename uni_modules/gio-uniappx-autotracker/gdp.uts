@@ -1,0 +1,192 @@
+// gdp.uts 是 SDK 的对外命令分发入口。
+// 该文件位于 utssdk 之外，属于 JS 编译层，只负责参数校验、命令分发和生命周期安装，
+// 不直接承接原生编译层的核心采集逻辑。
+// #ifdef MP-WEIXIN
+import {
+  clearLocation,
+  clearUserId,
+  getABTest,
+  identify,
+  initialize,
+  registerPlugins,
+  setOptions,
+  setLocation,
+  setUserAttributes,
+  setUserId,
+  track
+} from './utssdk/mp-weixin/index.uts'
+// #endif
+// #ifndef MP-WEIXIN
+import {
+  clearLocation,
+  clearUserId,
+  getABTest,
+  identify,
+  initialize,
+  registerPlugins,
+  setOptions,
+  setLocation,
+  setUserAttributes,
+  setUserId,
+  track
+} from '@/uni_modules/gio-uniappx-autotracker'
+// #endif
+import { installGioLifecycle } from './plugin.uts'
+import { consoleText } from './utssdk/common/utils/debug.uts'
+
+function isObjectArgument(value : any | null) : boolean {
+  return value != null && typeof value == 'object' && !Array.isArray(value)
+}
+
+function asJSONObject(value : any | null) : UTSJSONObject | null {
+  return isObjectArgument(value) ? value as UTSJSONObject : null
+}
+
+function asPluginItems(value : any | null) : Array<UTSJSONObject> | null {
+  if (!Array.isArray(value)) {
+    return null
+  }
+  return value as Array<UTSJSONObject>
+}
+
+function asCallback(
+  value : any | null
+) : ((result : any) => void) | null {
+  return typeof value == 'function'
+    ? value as (result : any) => void
+    : null
+}
+
+function isNumberArgument(value : any | null) : boolean {
+  return value != null && typeof value == 'number'
+}
+
+function seedScreenSize(rawOptions : UTSJSONObject) {
+  try {
+    const win = uni.getWindowInfo()
+    let width = win.screenWidth
+    let height = win.screenHeight
+    // #ifdef APP || MP-WEIXIN
+    const ratio = win.pixelRatio
+    if (ratio > 0) {
+      width = Math.round(width * ratio)
+      height = Math.round(height * ratio)
+    }
+    // #endif
+    rawOptions['screenWidth'] = width
+    rawOptions['screenHeight'] = height
+  } catch (_error) {
+    consoleText('gdp("init") 读取屏幕尺寸失败', 'warn')
+  }
+}
+
+function handleInit(options : any | null) : boolean {
+  const initOptions = asJSONObject(options)
+  if (initOptions == null) {
+    consoleText(
+      'gdp("init") 参数不合法，请传入包含 app 的初始化对象',
+      'error'
+    )
+    return false
+  }
+  
+  const app = initOptions['app']
+  // iOS中需要移除app传入native层
+  initOptions['app'] = null
+  if (app == null) {
+    consoleText('gdp("init") 缺少 app 参数', 'error')
+    return false
+  }
+  seedScreenSize(initOptions)
+  const initialized = initialize(initOptions)
+  if (!initialized) {
+    return false
+  }
+  return installGioLifecycle(app as VueApp)
+}
+
+// 重新导出微信小程序分享包装器，让外部始终通过模块根路径取能力，
+// 不需要直接 import 内部的 utssdk 目录。
+// #ifdef MP-WEIXIN
+export {
+  wrapAddToFavorites,
+  wrapShareAppMessage,
+  wrapShareTimeline
+} from './utssdk/mp-weixin/index.uts'
+// #endif
+
+export function gdp(
+  command : string,
+  arg0 : any | null = null,
+  arg1 : any | null = null,
+  arg2 : any | null = null
+) : any {
+  if (command == 'init') {
+    return handleInit(arg0)
+  }
+  if (command == 'track') {
+    if (typeof arg0 != 'string') {
+      consoleText('gdp("track") 第一个参数必须是事件名字符串', 'error')
+      return false
+    }
+    if (arg1 != null && !isObjectArgument(arg1)) {
+      consoleText('gdp("track") properties 必须是对象或 null', 'error')
+      return false
+    }
+    return track(arg0 as string, asJSONObject(arg1))
+  }
+  if (command == 'setUserId') {
+    if (typeof arg0 != 'string') {
+      consoleText('gdp("setUserId") 第一个参数必须是 userId 字符串', 'error')
+      return false
+    }
+    if (arg1 != null && typeof arg1 != 'string') {
+      consoleText('gdp("setUserId") 第二个参数必须是 userKey 字符串或 null', 'error')
+      return false
+    }
+    return setUserId(arg0 as string, arg1 != null ? `${arg1}` : null)
+  }
+  if (command == 'setOptions') {
+    if (!isObjectArgument(arg0)) {
+      consoleText('gdp("setOptions") 必须传入对象参数', 'error')
+      return false
+    }
+    return setOptions(arg0 as UTSJSONObject)
+  }
+  if (command == 'setLocation') {
+    if (!isNumberArgument(arg0) || !isNumberArgument(arg1)) {
+      consoleText('gdp("setLocation") 必须传入 latitude 和 longitude 数字参数', 'error')
+      return false
+    }
+    return setLocation(arg0 as number, arg1 as number)
+  }
+  if (command == 'clearLocation') {
+    return clearLocation()
+  }
+  if (command == 'setUserAttributes') {
+    if (arg0 != null && !isObjectArgument(arg0)) {
+      consoleText('gdp("setUserAttributes") 必须传入对象或 null', 'error')
+      return false
+    }
+    return setUserAttributes(asJSONObject(arg0))
+  }
+  if (command == 'identify') {
+    return identify(arg0!)
+  }
+  if (command == 'clearUserId') {
+    return clearUserId()
+  }
+  if (command == 'registerPlugins') {
+    const plugins = asPluginItems(arg0)
+    if (plugins == null) {
+      consoleText('gdp("registerPlugins") 必须传入插件数组', 'error')
+      return false
+    }
+    return registerPlugins(plugins)
+  }
+  if (command == 'getABTest') {
+    return getABTest(arg0!, asCallback(arg1))
+  }
+  consoleText(`不存在名为 ${command} 的方法调用!`, 'error')
+  return false
+}

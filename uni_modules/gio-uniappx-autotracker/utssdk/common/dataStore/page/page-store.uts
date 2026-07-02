@@ -1,0 +1,248 @@
+// page-store 维护当前页、上一页和路由签名等页面态。
+import { GioPageContext, GioPageSnapshot } from '../../../interface.uts'
+import {
+  buildRouteSignature,
+  getPagePath,
+  resolvePageRoute
+} from '../../route.uts'
+import { resolvePageContext } from '../../runtime/index.uts'
+import { now } from '../../utils/base.uts'
+
+export type GioPageEventRecord = {
+  path : string
+  query : string
+  title : string
+  referralPage : string
+}
+
+export class GioPageStore {
+  private currentPagePath : string = ''
+  private currentPageQuery : string = ''
+  private currentPageTitle : string = ''
+  private currentPageShowAt : number = 0
+  private referralPage : string = ''
+  private appId : string = ''
+  private entryReferralPage : string = ''
+  private lastPageEvent : GioPageEventRecord | null = null
+  private lastVisitEvent : GioPageEventRecord | null = null
+  private queryOptions : Map<string, string> = new Map()
+
+  configure(appId : string) {
+    this.appId = appId
+  }
+
+  setEntryReferralPage(referralPage : string | null) {
+    this.entryReferralPage = referralPage != null ? referralPage : ''
+  }
+
+  cacheQueryOptions(path : string, query : string) {
+    if (path.length > 0) {
+      this.queryOptions.set(path, query)
+    }
+  }
+
+  private getCachedQuery(path : string) : string | null {
+    if (this.queryOptions.has(path)) {
+      return this.queryOptions.get(path) as string
+    }
+    return null
+  }
+
+  private resolvePathFromTarget(page : GioPageSnapshot | null) : string {
+    return getPagePath(page)
+  }
+
+  private resolvePageTitle(context : GioPageContext) : string {
+    if (context.title != null && context.title.length > 0) {
+      return context.title
+    }
+    const resolved = resolvePageContext(context)
+    if (resolved != null && resolved.title != null && resolved.title.length > 0) {
+      return resolved.title
+    }
+    return ''
+  }
+
+  private withResolvedTitle(context : GioPageContext) : GioPageContext {
+    const title = this.resolvePageTitle(context)
+    if (title.length == 0) {
+      return context
+    }
+    return {
+      path: context.path,
+      query: context.query,
+      title: title,
+      referralPage: context.referralPage,
+      duration: context.duration
+    } as GioPageContext
+  }
+
+  buildCurrentPageContext(duration : number | null) : GioPageContext | null {
+    if (this.currentPagePath.length == 0) {
+      return null
+    }
+    return this.withResolvedTitle({
+      path: this.currentPagePath,
+      query: this.currentPageQuery.length > 0 ? this.currentPageQuery : null,
+      title: this.currentPageTitle.length > 0 ? this.currentPageTitle : null,
+      referralPage: this.resolveReferralPage(),
+      duration: duration
+    } as GioPageContext)
+  }
+
+  buildPageContextFromTarget(
+    page : GioPageSnapshot | null,
+    options : UTSJSONObject | null,
+    duration : number | null = null
+  ) : GioPageContext | null {
+    const path = this.resolvePathFromTarget(page)
+    const cachedQuery = path.length > 0 ? this.getCachedQuery(path) : null
+    const lastEventQuery = path.length > 0 ? this.getQueryFromLastEvent(path) : null
+    const routeInfo = resolvePageRoute(page, options, cachedQuery, lastEventQuery)
+    if (routeInfo.path.length == 0) {
+      return null
+    }
+    return this.withResolvedTitle({
+      path: routeInfo.path,
+      query: routeInfo.query.length > 0 ? routeInfo.query : null,
+      title: routeInfo.title.length > 0 ? routeInfo.title : null,
+      referralPage: this.resolveReferralPage(),
+      duration: duration
+    } as GioPageContext)
+  }
+
+  updateCurrentPage(page : GioPageSnapshot | null, options : UTSJSONObject | null) : GioPageContext | null {
+    const path = this.resolvePathFromTarget(page)
+    const cachedQuery = path.length > 0 ? this.getCachedQuery(path) : null
+    const lastEventQuery = path.length > 0 ? this.getQueryFromLastEvent(path) : null
+    const routeInfo = resolvePageRoute(page, options, cachedQuery, lastEventQuery)
+    // 这里显式收成 string，避免 Swift 把路由结果的非空字符串局部变量降成 `String?`，
+    // 影响后续 `.length` 判断和当前页字段赋值。
+    const nextPath : string = routeInfo.path
+    let nextQuery : string = routeInfo.query
+    let nextTitle : string = routeInfo.title
+    if (nextPath.length == 0 && this.currentPagePath.length == 0) {
+      return null
+    }
+    if (
+      nextQuery.length == 0 &&
+      nextPath.length > 0 &&
+      nextPath == this.currentPagePath &&
+      this.currentPageQuery.length > 0
+    ) {
+      nextQuery = this.currentPageQuery
+    }
+    const currentSignature = buildRouteSignature(
+      this.currentPagePath,
+      this.currentPageQuery
+    )
+    const nextSignature = routeInfo.signature
+    const routeChanged = nextPath.length > 0 && nextSignature != currentSignature
+    if (
+      nextPath.length > 0 &&
+      this.currentPagePath.length > 0 &&
+      routeChanged
+    ) {
+      this.referralPage = this.currentPagePath
+    }
+    if (nextPath.length > 0) {
+      this.currentPagePath = nextPath
+    }
+    this.currentPageQuery = nextQuery
+    if (nextTitle.length == 0 && nextPath.length > 0) {
+      nextTitle = this.resolvePageTitle({
+        path: nextPath,
+        query: nextQuery.length > 0 ? nextQuery : null,
+        title: null,
+        referralPage: this.resolveReferralPage(),
+        duration: null
+      } as GioPageContext)
+    }
+    if (routeChanged) {
+      this.currentPageTitle = nextTitle
+    } else if (nextTitle.length > 0) {
+      this.currentPageTitle = nextTitle
+    }
+    this.currentPageShowAt = now()
+    return this.buildCurrentPageContext(null)
+  }
+
+  resolveReferralPage() : string | null {
+    if (this.referralPage.length > 0) {
+      return this.referralPage
+    }
+    const lastPage = this.lastPageEvent
+    if (lastPage != null && lastPage.path.length > 0) {
+      return lastPage.path
+    }
+    if (this.entryReferralPage.length > 0) {
+      return this.entryReferralPage
+    }
+    if (this.appId.length > 0) {
+      return this.appId
+    }
+    return null
+  }
+
+  getQueryFromLastEvent(path : string) : string | null {
+    const lastPage = this.lastPageEvent
+    if (lastPage != null && lastPage.path == path && lastPage.query.length > 0) {
+      return lastPage.query
+    }
+    const lastVisit = this.lastVisitEvent
+    if (lastVisit != null && lastVisit.path == path && lastVisit.query.length > 0) {
+      return lastVisit.query
+    }
+    return null
+  }
+
+  recordLastPageEvent(path : string, query : string, title : string, referralPage : string) {
+    this.lastPageEvent = {
+      path: path,
+      query: query,
+      title: title,
+      referralPage: referralPage
+    } as GioPageEventRecord
+  }
+
+  recordLastVisitEvent(path : string, query : string, referralPage : string) {
+    this.lastVisitEvent = {
+      path: path,
+      query: query,
+      title: this.currentPageTitle,
+      referralPage: referralPage
+    } as GioPageEventRecord
+  }
+
+  buildLastVisitPageContext() : GioPageContext | null {
+    const lastVisit = this.lastVisitEvent
+    if (lastVisit == null || lastVisit.path.length == 0) {
+      return null
+    }
+    return {
+      path: lastVisit.path,
+      query: lastVisit.query.length > 0 ? lastVisit.query : null,
+      title: lastVisit.title.length > 0 ? lastVisit.title : null,
+      referralPage: lastVisit.referralPage.length > 0 ? lastVisit.referralPage : null,
+      duration: null
+    } as GioPageContext
+  }
+
+  hasCurrentPage() : boolean {
+    return this.currentPagePath.length > 0
+  }
+
+  getCurrentPagePath() : string {
+    return this.currentPagePath
+  }
+
+  getCurrentPageShowAt() : number {
+    return this.currentPageShowAt
+  }
+
+  resetCurrentPageShowAt(path : string) {
+    if (path.length > 0 && path == this.currentPagePath) {
+      this.currentPageShowAt = 0
+    }
+  }
+}

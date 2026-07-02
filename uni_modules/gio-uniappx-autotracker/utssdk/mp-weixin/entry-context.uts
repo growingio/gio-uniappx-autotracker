@@ -1,0 +1,336 @@
+// 微信小程序入口上下文解析。
+// 这里只处理 mp-weixin 独有的 scene、query、referrer 和入口来源拼装，
+// 供公共层 tracker 通过 resolver 回调消费，避免把平台细节放进 common。
+import {
+  GioEntryInfo
+} from '../interface.uts'
+import { jsonStringify } from '../common/utils/base.uts'
+import {
+  readObjectField,
+  readStringField
+} from './base.uts'
+
+function normalizeJSONObject(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const text = jsonStringify(source)
+  if (text.length == 0) {
+    return null
+  }
+  try {
+    return JSON.parseObject(text)
+  } catch (_error) {
+    return null
+  }
+}
+
+function readSceneFromQuery(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const shoppingListScene = readStringField(source, 'wxShoppingListScene')
+  if (shoppingListScene != null) {
+    return shoppingListScene
+  }
+  return ''
+}
+
+function readSceneFromOptions(source : any | null) : string {
+  if (source == null) {
+    return ''
+  }
+  const queryScene = readSceneFromQuery(readObjectField(source, 'query'))
+  if (queryScene.length > 0) {
+    return queryScene
+  }
+  const scene = readStringField(source, 'scene')
+  if (scene == null) {
+    return ''
+  }
+  return scene
+}
+
+function normalizeEntryPath(raw : string | null) : string {
+  if (raw == null || raw.length == 0) {
+    return ''
+  }
+  let value : string = raw as string
+  while (value.startsWith('/')) {
+    value = value.slice(1)
+  }
+  const queryIndex = value.indexOf('?')
+  if (queryIndex >= 0) {
+    value = value.slice(0, queryIndex)
+  }
+  return value
+}
+
+function normalizeEntryQuery(queryText : string) : string {
+  if (queryText.length == 0) {
+    return ''
+  }
+  let normalized = queryText
+  if (normalized.startsWith('?') || normalized.startsWith('&')) {
+    normalized = normalized.slice(1)
+  }
+  if (normalized.length == 0) {
+    return ''
+  }
+  const segments = normalized.split('&')
+  const parts = [] as Array<string>
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    let key = segment
+    let value = ''
+    const equalIndex = segment.indexOf('=')
+    if (equalIndex >= 0) {
+      key = segment.slice(0, equalIndex)
+      value = segment.slice(equalIndex + 1)
+    }
+    if (key.length == 0 || isDirtyEntryKey(key)) {
+      continue
+    }
+    if (isDirtyEntryValue(value)) {
+      continue
+    }
+    parts.push(`${key}=${value}`)
+  }
+  return parts.join('&')
+}
+
+function isDirtyEntryKey(key : string) : boolean {
+  return key == 'gdpCircleRoomCollectUrl' ||
+    key.indexOf('wxShoppingListScene') >= 0 ||
+    key.indexOf('$taroTimestamp') >= 0
+}
+
+function isDirtyEntryValue(value : string) : boolean {
+  return value.indexOf('gdpCircleRoomCollectUrl') >= 0 ||
+    value.indexOf('wxShoppingListScene') >= 0 ||
+    value.indexOf('$taroTimestamp') >= 0
+}
+
+function stringifyEntryQueryObject(source : any | null) : string {
+  const raw = normalizeJSONObject(source)
+  if (raw == null) {
+    return ''
+  }
+  const keys = UTSJSONObject.keys(raw)
+  const parts = [] as Array<string>
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    if (key.length == 0 || isDirtyEntryKey(key)) {
+      continue
+    }
+    const text = readStringField(raw, key)
+    const valueText = text != null ? text : ''
+    if (isDirtyEntryValue(valueText)) {
+      continue
+    }
+    parts.push(`${key}=${valueText}`)
+  }
+  return parts.join('&')
+}
+
+function stringifyEntryQueryField(source : any | null, key : string) : string {
+  const rawObject = readObjectField(source, key)
+  if (rawObject != null) {
+    return stringifyEntryQueryObject(rawObject)
+  }
+  const rawText = readStringField(source, key)
+  if (rawText != null) {
+    return normalizeEntryQuery(rawText)
+  }
+  return ''
+}
+
+function recordExistingEntryQueryKeys(
+  queryText : string,
+  target : UTSJSONObject
+) {
+  if (queryText.length == 0) {
+    return
+  }
+  const segments = queryText.split('&')
+  for (let i = 0; i < segments.length; i++) {
+    const segment = segments[i]
+    if (segment.length == 0) {
+      continue
+    }
+    const equalIndex = segment.indexOf('=')
+    const key = equalIndex >= 0 ? segment.slice(0, equalIndex) : segment
+    if (key.length > 0) {
+      target[key] = true
+    }
+  }
+}
+
+function mergeEntryQuery(baseQuery : string, extraData : any | null) : string {
+  const baseText = normalizeEntryQuery(baseQuery)
+  const rawExtraData = normalizeJSONObject(extraData)
+  if (rawExtraData == null) {
+    return baseText
+  }
+  const existingKeys = {} as UTSJSONObject
+  recordExistingEntryQueryKeys(baseText, existingKeys)
+  const parts = [] as Array<string>
+  const keys = UTSJSONObject.keys(rawExtraData)
+  for (let i = 0; i < keys.length; i++) {
+    const key = keys[i]
+    if (key.length == 0 || isDirtyEntryKey(key) || existingKeys[key] != null) {
+      continue
+    }
+    const value = readStringField(rawExtraData, key)
+    if (value == null) {
+      continue
+    }
+    const text = value
+    if (isDirtyEntryValue(text)) {
+      continue
+    }
+    parts.push(`${key}=${text}`)
+  }
+  const extraText = parts.join('&')
+  if (baseText.length > 0 && extraText.length > 0) {
+    return `${baseText}&${extraText}`
+  }
+  return baseText.length > 0 ? baseText : extraText
+}
+
+function readReferrerObject(source : any | null) : UTSJSONObject | null {
+  if (source == null) {
+    return null
+  }
+  const referrerInfo = readObjectField(source, 'referrerInfo')
+  if (referrerInfo != null) {
+    return normalizeJSONObject(referrerInfo)
+  }
+  const refererInfo = readObjectField(source, 'refererInfo')
+  if (refererInfo != null) {
+    return normalizeJSONObject(refererInfo)
+  }
+  return null
+}
+
+function readReferrerAppId(source : any | null) : string | null {
+  const referrer = readReferrerObject(source)
+  if (referrer == null) {
+    return null
+  }
+  const appId = readStringField(referrer, 'appId')
+  if (appId == null) {
+    return null
+  }
+  const text = appId
+  return text.length > 0 ? text : null
+}
+
+function resolveScene(primary : any | null, fallback : any | null) : string {
+  const primaryScene = readSceneFromOptions(primary)
+  if (primaryScene.length > 0) {
+    return primaryScene
+  }
+  return readSceneFromOptions(fallback)
+}
+
+function resolveReferrerObject(
+  primary : any | null,
+  fallback : any | null
+) : UTSJSONObject | null {
+  const primaryReferrer = readReferrerObject(primary)
+  if (primaryReferrer != null) {
+    return primaryReferrer
+  }
+  return readReferrerObject(fallback)
+}
+
+function resolveReferrerAppId(
+  primary : any | null,
+  fallback : any | null
+) : string | null {
+  const primaryAppId = readReferrerAppId(primary)
+  if (primaryAppId != null) {
+    return primaryAppId
+  }
+  return readReferrerAppId(fallback)
+}
+
+function resolveReferrerExtraData(
+  primary : any | null,
+  fallback : any | null
+) : any | null {
+  const referrer = resolveReferrerObject(primary, fallback)
+  if (referrer == null) {
+    return null
+  }
+  return readObjectField(referrer, 'extraData')
+}
+
+function buildReferralPage(
+  scene : string,
+  primary : any | null,
+  fallback : any | null
+) : string | null {
+  const referrerAppId = resolveReferrerAppId(primary, fallback)
+  if (referrerAppId != null) {
+    return referrerAppId
+  }
+  if (scene.length == 0) {
+    return null
+  }
+  return `scn:${scene}`
+}
+
+function getMiniProgramEnterOptions() : any | null {
+  // @ts-ignore: HBuilderX 当前 mp-weixin lint 未把 uni-getEnterOptionsSync 扩展合入 Uni。
+  return uni.getEnterOptionsSync()
+}
+
+export function resolveMiniProgramScene() : string {
+  const enterOptions = getMiniProgramEnterOptions()
+  const sceneFromEnterOptions = readSceneFromOptions(enterOptions)
+  if (sceneFromEnterOptions.length > 0) {
+    return sceneFromEnterOptions
+  }
+  return ''
+}
+
+export function resolveMiniProgramEntryInfo(
+  fallbackOptions : any | null = null
+) : GioEntryInfo | null {
+  const enterOptions = getMiniProgramEnterOptions()
+  const primary = fallbackOptions != null ? fallbackOptions : enterOptions
+  const secondary = fallbackOptions != null ? enterOptions : null
+  if (primary == null) {
+    return null
+  }
+
+  let path = normalizeEntryPath(
+    readStringField(primary, 'path')
+  )
+  if (path.length == 0 && secondary != null) {
+    path = normalizeEntryPath(
+      readStringField(secondary, 'path')
+    )
+  }
+
+  let query = stringifyEntryQueryField(primary, 'query')
+  if (query.length == 0 && secondary != null) {
+    query = stringifyEntryQueryField(secondary, 'query')
+  }
+
+  const referrerExtraData = resolveReferrerExtraData(primary, secondary)
+  query = mergeEntryQuery(query, referrerExtraData)
+
+  const scene = resolveScene(primary, secondary)
+  return {
+    path: path,
+    query: query,
+    referralPage: buildReferralPage(scene, primary, secondary),
+    scene: scene
+  } as GioEntryInfo
+}

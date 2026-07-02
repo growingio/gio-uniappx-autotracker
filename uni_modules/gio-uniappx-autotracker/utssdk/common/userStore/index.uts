@@ -1,0 +1,321 @@
+// userStore 是设备标识、登录身份和 session 状态的单一事实来源。
+import { GioContext, GioInitOptions, GioStorage } from '../../interface.uts'
+import {
+  GioEventCenter
+} from '../events.uts'
+import {
+  guid,
+  now
+} from '../utils/base.uts'
+import {
+  shouldPersistSessionId,
+  shouldRenewSessionOnTimeout
+} from '../runtime/index.uts'
+import { stringifyScalar, numberifyScalar } from '../utils/validate.uts'
+import { GioStorageContainer } from '../storage/index.uts'
+
+const UID_STORAGE_KEY = 'gdp_user_id_gioenc'
+const SESSION_ID_SUFFIX = '_gdp_session_id'
+const SESSION_LAST_ACTIVE_SUFFIX = '_gdp_session_last_active'
+const USER_ID_SUFFIX = '_gdp_cs1_gioenc'
+const USER_KEY_SUFFIX = '_gdp_user_key_gioenc'
+const GIO_ID_SUFFIX = '_gdp_gio_id'
+const EVENT_SEQUENCE_ID_SUFFIX = '_gdp_sequence_ids'
+const LEGACY_SESSION_EXPIRES_AT_SUFFIX = '_gdp_session_id_expire'
+
+export class GioUserStore {
+  private projectId : string = ''
+  private deviceId : string = ''
+  private storage : GioStorageContainer | null = null
+  private memorySessionId : string = ''
+  // 本次冷启动是否首次生成 deviceId（存储里原本没有）。对齐独立 SDK 的
+  // `!oldUId && newUId` —— 只有「全新设备」才允许后续把首访 session 记为 newDevice 快照；
+  // 老设备（deviceId 从存储读出）恒不算新设备。
+  private newDeviceFlag : boolean = false
+
+  hydrate(options : GioInitOptions, storage : GioStorageContainer) {
+    this.projectId = options.projectId
+    this.storage = storage
+    this.deviceId = this.readStoredDeviceId()
+
+    if (this.deviceId.length == 0) {
+      this.deviceId = guid()
+      this.getMainStorage().setItem(this.getDeviceIdKey(), this.deviceId, null)
+      this.newDeviceFlag = true
+    }
+    if (!options.idMapping) {
+      this.getMainStorage().removeItem(this.getUserKeyKey())
+    }
+  }
+
+  isNewDevice() : boolean {
+    return this.newDeviceFlag
+  }
+
+  private getMainStorage() : GioStorage {
+    return (this.storage as GioStorageContainer).getMainStorage()
+  }
+
+  private buildProjectStorageKey(suffix : string) : string {
+    return `${this.projectId}${suffix}`
+  }
+
+  private getSessionIdKey() : string {
+    return this.buildProjectStorageKey(SESSION_ID_SUFFIX)
+  }
+
+  private getLastActiveKey() : string {
+    return this.buildProjectStorageKey(SESSION_LAST_ACTIVE_SUFFIX)
+  }
+
+  private getDeviceIdKey() : string {
+    return UID_STORAGE_KEY
+  }
+
+  private getLegacySessionExpiresAtKey() : string {
+    return this.buildProjectStorageKey(LEGACY_SESSION_EXPIRES_AT_SUFFIX)
+  }
+
+  private getUserIdKey() : string {
+    return this.buildProjectStorageKey(USER_ID_SUFFIX)
+  }
+
+  private getUserKeyKey() : string {
+    return this.buildProjectStorageKey(USER_KEY_SUFFIX)
+  }
+
+  private getGioIdKey() : string {
+    return this.buildProjectStorageKey(GIO_ID_SUFFIX)
+  }
+
+  private getEventSequenceIdKey() : string {
+    return this.buildProjectStorageKey(EVENT_SEQUENCE_ID_SUFFIX)
+  }
+
+  private readStoredSessionId() : string {
+    const value = this.getMainStorage().getItem(this.getSessionIdKey())
+    return stringifyScalar(value)
+  }
+
+  private writeStoredSessionId(sessionId : string, expiredAt : number | null) {
+    this.getMainStorage().setItem(this.getSessionIdKey(), sessionId, expiredAt)
+  }
+
+  private readStoredDeviceId() : string {
+    const value = this.getMainStorage().getItem(this.getDeviceIdKey())
+    return stringifyScalar(value)
+  }
+
+  private readStoredLastActiveAt() : number {
+    const value = this.getMainStorage().getItem(this.getLastActiveKey())
+    if (value == null) {
+      return 0
+    }
+    return numberifyScalar(value)
+  }
+
+  private persistLastActiveAt(ts : number) {
+    this.getMainStorage().setItem(this.getLastActiveKey(), ts, null)
+  }
+
+  private readLegacySessionExpiresAt() : number {
+    const value = this.getMainStorage().getItem(this.getLegacySessionExpiresAtKey())
+    if (value == null) {
+      return 0
+    }
+    return numberifyScalar(value)
+  }
+
+  private readStoredUserId() : string {
+    const value = this.getMainStorage().getItem(this.getUserIdKey())
+    return stringifyScalar(value)
+  }
+
+  private readStoredUserKey() : string {
+    const value = this.getMainStorage().getItem(this.getUserKeyKey())
+    return stringifyScalar(value)
+  }
+
+  private readStoredGioId() : string {
+    const value = this.getMainStorage().getItem(this.getGioIdKey())
+    return stringifyScalar(value)
+  }
+
+  private readStoredEventSequenceId() : number {
+    const value = this.getMainStorage().getItem(this.getEventSequenceIdKey())
+    if (value == null) {
+      return 1
+    }
+    // 先字符串化再进 number 分支，避免 Swift 在分支内把模板字符串编成不稳定的 NSNumber 强转。
+    const text = `${value}`
+    if (typeof value == 'number') {
+      const numeric = parseFloat(text)
+      return numeric >= 1 && numeric < 1000000000 ? numeric : 1
+    }
+    const raw = value as UTSJSONObject
+    const globalKey = raw.getNumber('globalKey')
+    if (globalKey != null) {
+      const numeric = globalKey as number
+      return numeric >= 1 && numeric < 1000000000 ? numeric : 1
+    }
+    const numeric = parseFloat(text)
+    return numeric >= 1 && numeric < 1000000000 ? numeric : 1
+  }
+
+  private persistUser(userId : string, userKey : string) {
+    this.getMainStorage().setItem(this.getUserIdKey(), userId, null)
+    this.getMainStorage().setItem(this.getUserKeyKey(), userKey, null)
+  }
+
+  private persistGioId(gioId : string) {
+    this.getMainStorage().setItem(this.getGioIdKey(), gioId, null)
+  }
+
+  private emitSessionIdUpdate(newSessionId : string, oldSessionId : string) {
+    if (newSessionId == oldSessionId) {
+      return
+    }
+    GioEventCenter.emitSessionIdUpdate({
+      newSessionId: newSessionId,
+      oldSessionId: oldSessionId
+    })
+  }
+
+  private emitUserIdUpdate(newUserId : string, oldUserId : string) {
+    if (newUserId == oldUserId) {
+      return
+    }
+    GioEventCenter.emitUserIdUpdate({
+      newUserId: newUserId,
+      oldUserId: oldUserId
+    })
+  }
+
+  private emitUserKeyUpdate(newUserKey : string, oldUserKey : string) {
+    if (newUserKey == oldUserKey) {
+      return
+    }
+    GioEventCenter.emitUserKeyUpdate({
+      newUserKey: newUserKey,
+      oldUserKey: oldUserKey
+    })
+  }
+
+  private resolveSessionId() : string {
+    if (shouldPersistSessionId()) {
+      return this.readStoredSessionId()
+    }
+    return this.memorySessionId
+  }
+
+  ensureSession(timeoutMs : number) : string | null {
+    const ts = now()
+    const previousSessionId = this.resolveSessionId()
+    let sessionId = previousSessionId
+    const renewOnTimeout = shouldRenewSessionOnTimeout()
+    const lastActiveAt = renewOnTimeout ? this.readStoredLastActiveAt() : 0
+    const legacyExpiresAt = renewOnTimeout ? this.readLegacySessionExpiresAt() : 0
+    const timedOut = sessionId.length == 0 ||
+      (
+        renewOnTimeout &&
+        (
+          (lastActiveAt > 0 && ts - lastActiveAt > timeoutMs) ||
+          (legacyExpiresAt > 0 && legacyExpiresAt <= ts)
+        )
+      )
+    if (timedOut) {
+      sessionId = guid()
+    }
+    if (shouldPersistSessionId()) {
+      this.writeStoredSessionId(
+        sessionId,
+        renewOnTimeout ? ts + timeoutMs : null
+      )
+    } else {
+      this.memorySessionId = sessionId
+    }
+    if (renewOnTimeout) {
+      this.persistLastActiveAt(ts)
+      this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+    }
+    if (timedOut) {
+      this.emitSessionIdUpdate(sessionId, previousSessionId)
+      return previousSessionId
+    }
+    return null
+  }
+
+  touchSession(_timeoutMs : number) {
+    if (shouldRenewSessionOnTimeout()) {
+      this.persistLastActiveAt(now())
+    }
+  }
+
+  setUserId(userId : string) {
+    const previousUserId = this.readStoredUserId()
+    this.persistUser(userId, this.readStoredUserKey())
+    if (userId.length > 0) {
+      this.persistGioId(userId)
+    }
+    this.emitUserIdUpdate(userId, previousUserId)
+  }
+
+  setDeviceId(deviceId : string) {
+    this.deviceId = deviceId
+    this.getMainStorage().setItem(this.getDeviceIdKey(), deviceId, null)
+  }
+
+  clearUserId() {
+    this.setUserId('')
+  }
+
+  setUserKey(userKey : string) {
+    const previousUserKey = this.readStoredUserKey()
+    this.persistUser(this.readStoredUserId(), userKey)
+    this.emitUserKeyUpdate(userKey, previousUserKey)
+  }
+
+  renewSession(timeoutMs : number) {
+    const previousSessionId = this.resolveSessionId()
+    const sessionId = guid()
+    const ts = now()
+    const renewOnTimeout = shouldRenewSessionOnTimeout()
+    if (shouldPersistSessionId()) {
+      this.writeStoredSessionId(
+        sessionId,
+        renewOnTimeout ? ts + timeoutMs : null
+      )
+    } else {
+      this.memorySessionId = sessionId
+    }
+    if (renewOnTimeout) {
+      this.persistLastActiveAt(ts)
+    }
+    this.emitSessionIdUpdate(sessionId, previousSessionId)
+  }
+
+  getGioId() : string {
+    return this.readStoredGioId()
+  }
+
+  getNextEventSequenceId() : number {
+    const current = this.readStoredEventSequenceId()
+    const next = current + 1 >= 1000000000 ? 1 : current + 1
+    const wrapper = { globalKey: next } as UTSJSONObject
+    this.getMainStorage().setItem(this.getEventSequenceIdKey(), wrapper, null)
+    return current
+  }
+
+  getContext() : GioContext {
+    const deviceId = this.readStoredDeviceId()
+    const sessionId = this.resolveSessionId()
+    const userId = this.readStoredUserId()
+    const userKey = this.readStoredUserKey()
+    return {
+      deviceId: deviceId.length > 0 ? deviceId : this.deviceId,
+      sessionId: sessionId,
+      userId: userId.length > 0 ? userId : null,
+      userKey: userKey.length > 0 ? userKey : null
+    } as GioContext
+  }
+}

@@ -1,0 +1,239 @@
+<template>
+	<scroll-view class="page">
+		<view class="section">
+			<text class="section-title">设置身份</text>
+			<text class="field-label">userId</text>
+			<input class="input" v-model="userIdInput" placeholder="userId" />
+			<text class="field-label">userKey</text>
+			<input class="input" v-model="userKeyInput" placeholder="userKey" />
+			<view class="btn-row">
+				<button class="btn" @click="onSetUserId">setUserId(userId)</button>
+				<button class="btn" @click="onSetUserIdWithKey">setUserId(userId, userKey)</button>
+				<button class="btn danger" @click="onClearUserId">clearUserId</button>
+			</view>
+			<text class="hint">当前 demo 初始化配置 `idMapping: false`，通过 `gdp('setUserId', userId, userKey)` 传入 userKey 只会打印 warning，不会写入后续事件。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">identify (forceLogin 模式)</text>
+			<text class="hint">identify 仅在初始化配置 forceLogin: true 时可用，用于将匿名访客绑定到已知用户 ID。当前初始化配置 forceLogin: false，下方 `gdp('identify', ...)` 用例预期全部失败。</text>
+			<text class="hint">如需测试正确场景，请先在 main.uts 中将 forceLogin 改为 true。</text>
+
+			<view class="sub-section">
+				<text class="sub-title">正确场景</text>
+				<text class="field-label">assignmentId (string)</text>
+				<input class="input" v-model="identifyValidInput" placeholder="如 openId_abc123" />
+				<view class="btn-row">
+					<button class="btn subtle" @click="onIdentifyValid">identify(有效字符串)</button>
+					<button class="btn subtle" @click="onIdentifyNumber">identify(有效数字)</button>
+				</view>
+				<text class="expect">预期：forceLogin=true 时返回 true，释放积压事件并刷新上报</text>
+			</view>
+
+			<view class="sub-section">
+				<text class="sub-title">边界场景</text>
+				<view class="btn-row">
+					<button class="btn ghost" @click="onIdentifyEmpty">identify('')</button>
+					<button class="btn ghost" @click="onIdentifyDash">identify('-')</button>
+					<button class="btn ghost" @click="onIdentifyNullStr">identify('null')</button>
+					<button class="btn ghost" @click="onIdentifyUndefinedStr">identify('undefined')</button>
+					<button class="btn ghost" @click="onIdentifyZero">identify(0)</button>
+					<button class="btn ghost" @click="onIdentifyNegative">identify(-1)</button>
+					<button class="btn ghost" @click="onIdentifyRepeat">重复 identify</button>
+				</view>
+				<text class="expect">预期：空字符串、'-'、'null'、'undefined'、0、负数均返回 false；重复调用第二次返回 false（forceLogin 已被置为 false）</text>
+			</view>
+
+			<view class="sub-section">
+				<text class="sub-title">错误场景</text>
+				<view class="btn-row">
+					<button class="btn danger" @click="onIdentifyWhenDisabled">forceLogin=false 时 identify</button>
+				</view>
+				<text class="expect">预期：当前配置 forceLogin=false，identify 直接返回 false 并打印错误日志</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="section-title">用户属性 / setUserAttributes</text>
+			<text class="field-label">attributeKey</text>
+			<input class="input" v-model="attributeKeyInput" placeholder="attribute key" />
+			<text class="field-label">attributeValue</text>
+			<input class="input" v-model="attributeValueInput" placeholder="attribute value" />
+			<view class="btn-row">
+				<button class="btn subtle" @click="onSetUserAttributes">setUserAttributes({ key: value })</button>
+			</view>
+			<text class="hint">该调用会通过 `gdp('setUserAttributes', ...)` 单独发送一条 LOGIN_USER_ATTRIBUTES 类型事件。</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">位置信息 / setLocation / clearLocation</text>
+			<text class="field-label">latitude</text>
+			<input class="input" v-model="latitudeInput" placeholder="纬度，如 31.2304" />
+			<text class="field-label">longitude</text>
+			<input class="input" v-model="longitudeInput" placeholder="经度，如 121.4737" />
+			<view class="btn-row">
+				<button class="btn subtle" @click="onSetLocation">setLocation(latitude, longitude)</button>
+				<button class="btn danger" @click="onClearLocation">clearLocation()</button>
+			</view>
+			<text class="expect">非 web 端：设置后后续事件携带经纬度；clear 后不再携带。web 端调用返回 false。</text>
+		</view>
+
+		<view class="result">
+			<text class="label">最新动作：</text>
+			<text class="val">{{ lastAction }}</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
+const userIdInput = ref('demo_user_001')
+const userKeyInput = ref('mobile')
+const identifyValidInput = ref('demo_openid_001')
+const attributeKeyInput = ref('member_level')
+const attributeValueInput = ref('gold')
+const latitudeInput = ref('31.2304')
+const longitudeInput = ref('121.4737')
+const lastAction = ref('(none)')
+
+function note(msg: string) {
+	lastAction.value = msg
+}
+
+function onSetUserId() {
+	const ok = gdp('setUserId', userIdInput.value) as boolean
+	note('setUserId(' + userIdInput.value + ') → ' + ok)
+}
+
+function onSetUserIdWithKey() {
+	const ok = gdp('setUserId', userIdInput.value, userKeyInput.value) as boolean
+	note('setUserId(' + userIdInput.value + ', ' + userKeyInput.value + ') → ' + ok)
+}
+
+function onClearUserId() {
+	const ok = gdp('clearUserId') as boolean
+	note('clearUserId() → ' + ok)
+}
+
+function onIdentifyValid() {
+	const ok = gdp('identify', identifyValidInput.value) as boolean
+	note('identify(' + identifyValidInput.value + ') → ' + ok)
+}
+
+function onIdentifyNumber() {
+	const ok = gdp('identify', 88001234) as boolean
+	note('identify(88001234) → ' + ok)
+}
+
+function onIdentifyEmpty() {
+	const ok = gdp('identify', '') as boolean
+	note("identify('') → " + ok)
+}
+
+function onIdentifyDash() {
+	const ok = gdp('identify', '-') as boolean
+	note("identify('-') → " + ok)
+}
+
+function onIdentifyNullStr() {
+	const ok = gdp('identify', 'null') as boolean
+	note("identify('null') → " + ok)
+}
+
+function onIdentifyUndefinedStr() {
+	const ok = gdp('identify', 'undefined') as boolean
+	note("identify('undefined') → " + ok)
+}
+
+function onIdentifyZero() {
+	const ok = gdp('identify', 0) as boolean
+	note('identify(0) → ' + ok)
+}
+
+function onIdentifyNegative() {
+	const ok = gdp('identify', -1) as boolean
+	note('identify(-1) → ' + ok)
+}
+
+function onIdentifyRepeat() {
+	const first = gdp('identify', 'repeat_test_id') as boolean
+	const second = gdp('identify', 'repeat_test_id_2') as boolean
+	note('identify 第一次 → ' + first + '，第二次 → ' + second + '（预期第二次 false）')
+}
+
+function onIdentifyWhenDisabled() {
+	const ok = gdp('identify', 'should_fail') as boolean
+	note('forceLogin=false 时 identify → ' + ok + '（预期 false）')
+}
+
+function onSetUserAttributes() {
+	const key = attributeKeyInput.value
+	if (key.length == 0) {
+		note('attributeKey 不能为空')
+		return
+	}
+	const attributes = {} as UTSJSONObject
+	attributes[key] = attributeValueInput.value
+	gdp('setUserAttributes', attributes)
+	note('setUserAttributes({ ' + key + ': ' + attributeValueInput.value + ' })')
+}
+
+function parseCoordinate(value : string) : number | null {
+	const trimmed = value.trim()
+	if (trimmed.length == 0) {
+		return null
+	}
+	if (trimmed.match(/^[-+]?\d+(\.\d+)?$/) == null) {
+		return null
+	}
+	const coordinate = parseFloat(trimmed)
+	if (coordinate != coordinate) {
+		return null
+	}
+	return coordinate
+}
+
+function onSetLocation() {
+	const latitude = parseCoordinate(latitudeInput.value)
+	const longitude = parseCoordinate(longitudeInput.value)
+	if (latitude == null || longitude == null) {
+		note('latitude/longitude 需为有效数字')
+		return
+	}
+	const ok = gdp('setLocation', latitude, longitude) as boolean
+	note(
+		'setLocation(' +
+			latitude.toString() +
+			', ' +
+			longitude.toString() +
+			') → ' +
+			ok,
+	)
+}
+
+function onClearLocation() {
+	const ok = gdp('clearLocation') as boolean
+	note('clearLocation() → ' + ok)
+}
+</script>
+
+<style>
+.page { padding: 20rpx; flex: 1; }
+.section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.sub-section { margin-top: 16rpx; padding-top: 16rpx; border-top: 1rpx solid #f0f0f0; }
+.sub-title { font-size: 24rpx; font-weight: 500; color: #333; margin-bottom: 8rpx; }
+.input { border: 1rpx solid #ddd; padding: 14rpx; border-radius: 6rpx; margin-bottom: 12rpx; font-size: 26rpx; }
+.field-label { font-size: 22rpx; color: #667085; margin: 10rpx 2rpx 6rpx; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.btn { background: #1677ff; color: #fff; font-size: 24rpx; padding: 16rpx; border-radius: 8rpx; margin: 6rpx; }
+.btn.subtle { background: #13a67a; }
+.btn.ghost { background: #eef5ff; color: #1677ff; }
+.btn.danger { background: #ef4444; }
+.hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+.expect { font-size: 22rpx; color: #b8860b; padding: 4rpx 2rpx; }
+.result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; }
+.label { font-size: 24rpx; color: #999; }
+.val { font-size: 26rpx; color: #333; margin-top: 8rpx; }
+</style>

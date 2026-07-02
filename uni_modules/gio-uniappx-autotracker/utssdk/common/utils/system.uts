@@ -1,0 +1,73 @@
+// system.uts 放系统信息快照和标准系统上下文组装。
+
+export type GioSystemContext = {
+  appName : string
+  appState : string | null
+  bundleId : string
+  channel : string
+  isApp : boolean
+  deviceBrand : string
+  deviceModel : string
+  deviceType : string
+  language : string
+  networkState : string
+  operatingSystem : string
+  platform : string
+  platformVersion : string
+  screenHeight : number
+  screenWidth : number
+}
+
+export function getSystemInfoSnapshot() : UTSJSONObject | null {
+  // UTS 不能像 JS 一样按字符串动态访问 `uni` 上的方法，只能直接调用明确 API，
+  // 再把消费者需要的系统信息拼成快照对象。
+  try {
+    const snapshot = {} as UTSJSONObject
+
+    const device = uni.getDeviceInfo()
+    snapshot['deviceBrand'] = device.deviceBrand
+    snapshot['brand'] = device.brand
+    snapshot['deviceModel'] = device.deviceModel
+    snapshot['model'] = device.model
+    snapshot['osName'] = device.osName
+    snapshot['osVersion'] = device.osVersion
+    snapshot['platform'] = device.platform
+    snapshot['deviceType'] = device.deviceType
+
+    const appBase = uni.getAppBaseInfo()
+    snapshot['uniPlatform'] = appBase.uniPlatform
+    snapshot['version'] = appBase.version
+    snapshot['appLanguage'] = appBase.appLanguage
+    snapshot['language'] = appBase.language
+    snapshot['appName'] = appBase.appName
+    // #ifdef APP-IOS
+    snapshot['bundleId'] = appBase.bundleId
+    // #endif
+    // #ifdef APP-ANDROID
+    snapshot['bundleId'] = appBase.packageName
+    // #endif
+    // #ifdef APP-HARMONY
+    snapshot['bundleId'] = appBase.bundleName
+    // #endif
+
+    return snapshot
+  } catch (_error) {
+    return null
+  }
+}
+
+export function readDeviceOrientation() : string | null {
+  try {
+    const orientation = uni.getDeviceInfo().deviceOrientation
+    if (orientation == null) {
+      return null
+    }
+    const value = orientation as string
+    if (value.length == 0) {
+      return null
+    }
+    return value.toLowerCase() == 'landscape' ? 'LANDSCAPE' : 'PORTRAIT'
+  } catch (_error) {
+    return null
+  }
+}

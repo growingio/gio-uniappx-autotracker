@@ -1,0 +1,1086 @@
+// GioTracker 是 SDK 的总编排器。
+// 这里只负责初始化、生命周期调度、session 边界、事件分发和插件协作，
+// 不直接承担平台页面实例适配；平台专属上下文必须通过快照或 resolver 注入。
+import {
+  GioABTestCallback,
+  GioABTestHost,
+  GioABTestPluginOptions,
+  GioContext,
+  GioEntryInfo,
+  GioEntryResolver,
+  GioInitOptions,
+  GioPluginItem,
+  GioOriginalSourceStore,
+  GioPageContext,
+  GioPageSnapshot,
+  GioShareTrackingHost,
+  GioStorageProvider,
+  GioSystemContextResolver,
+  GioTrackEvent
+} from '../../interface.uts'
+import { GioConfig } from '../config.uts'
+import {
+  isBlank,
+  isValidIdentifyId,
+  isValidEventName,
+  normalizeTrackProperties,
+  stringifyScalar,
+  verifyId
+} from '../utils/validate.uts'
+import { now } from '../utils/base.uts'
+import { consoleText } from '../utils/debug.uts'
+import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
+import { GioDataStore } from '../dataStore/index.uts'
+import { GioUploader } from './uploader.uts'
+import { MAX_PERSISTED_EVENTS } from './event-persistence.uts'
+import { GioUserStore } from '../userStore/index.uts'
+import {
+  clearVisitSessionSnapshot,
+  readVisitSessionSnapshot,
+  recordVisitSessionSnapshot,
+  resolveInitCompleteMessage,
+  resolveInitStartMessage,
+  resolveMaxQueueSize,
+  resolveSessionTimeoutMs,
+  scheduleVisitAndPage,
+  shouldEmitPageWithoutShow,
+  shouldEmitPageOnShow,
+  shouldEmitVisitForSession,
+  shouldWaitForPageContext,
+  shouldTrackAppClosed,
+  supportsAppState,
+  supportsLocation,
+  syncConfigToGlobal
+} from '../runtime/index.uts'
+import { GioStorageContainer } from '../storage/index.uts'
+import { resolvePageRoute } from '../route.uts'
+
+type GioPageReadyCallback = () => void
+
+export class GioTracker implements GioABTestHost, GioShareTrackingHost {
+  static sharedInstance : GioTracker | null = null
+
+  static getInstance() : GioTracker {
+    if (GioTracker.sharedInstance == null) {
+      GioTracker.sharedInstance = new GioTracker()
+    }
+    return GioTracker.sharedInstance as GioTracker
+  }
+
+  private initialized : boolean = false
+  private options : GioInitOptions | null = null
+  private storage : GioStorageContainer = new GioStorageContainer()
+  private userStore : GioUserStore = new GioUserStore()
+  private uploader : GioUploader = new GioUploader()
+  private dataStore : GioDataStore = new GioDataStore()
+  private pendingVisit : boolean = false
+  private sessionUpdateReady : boolean = false
+  private abTestPlugin : GioABTestPlugin | null = null
+  private pendingFirstPageContexts : Array<GioPageContext | null> = []
+  private pendingPageReadyCallbacks : Array<GioPageReadyCallback> = []
+  private firstPageDispatchWaiting : boolean = false
+  private shareTrackingEnabled : boolean = false
+  private entryEnabled : boolean = false
+  private entryResolver : GioEntryResolver | null = null
+  private entryScene : string = ''
+  private currentPageShown : boolean = false
+  private lastPageEvent : GioTrackEvent | null = null
+  // 分享往返标记：平台侧分享包装器在「分享给朋友」时经 setShareOut(true) 置位
+  // 由平台分享插件置位。对齐独立 SDK appEffects.ts:59 —— 置位期间 onAppShow
+  // 不重写 originalSource，避免分享回流入口被当作首次来源；每次 page onShow 复位。
+  // 非分享入口平台不会置位，恒为 false，守门为空操作。
+  private shareOut : boolean = false
+  private lastAppHideAt : number = 0
+  private lastEntryScene : string = ''
+  private identified : boolean = false
+
+  private constructor() {}
+
+  private getInitStartMessage() : string {
+    return resolveInitStartMessage('Gio uni-app x SDK 初始化中...')
+  }
+
+  private getInitCompleteMessage() : string {
+    return resolveInitCompleteMessage('Gio uni-app x SDK 初始化完成！')
+  }
+
+  private boolText(value : boolean) : string {
+    return value ? 'true' : 'false'
+  }
+
+  private logInitDataCollect(options : GioInitOptions) {
+    if (options.dataCollect != true) {
+      consoleText('已关闭数据采集', 'info')
+    }
+  }
+
+  private logDataCollectUpdated(dataCollect : boolean) {
+    consoleText(`已修改数据采集: ${this.boolText(dataCollect)}`, 'info')
+  }
+
+  private logInitForceLogin(options : GioInitOptions) {
+    if (options.forceLogin == true) {
+      consoleText(
+        'forceLogin已开启，请调用 identify 方法设置 openId 以继续上报!',
+        'info'
+      )
+    }
+  }
+
+  initialize(options : GioInitOptions) : boolean {
+    consoleText(this.getInitStartMessage(), 'info')
+    if (this.initialized) {
+      consoleText('SDK初始化失败，重复初始化，请检查初始化参数!', 'error')
+      return false
+    }
+    if (
+      isBlank(options.projectId) ||
+      isBlank(options.dataSourceId) ||
+      isBlank(options.appId) ||
+      isBlank(options.serverUrl)
+    ) {
+      return false
+    }
+
+    GioConfig.setOptions(options)
+    const resolvedOptions = GioConfig.getOptions()
+    if (resolvedOptions == null) {
+      return false
+    }
+    this.options = resolvedOptions
+    this.sessionUpdateReady = false
+    this.shareTrackingEnabled = false
+    syncConfigToGlobal(this.options)
+    this.entryEnabled = this.isEntryResolverReady()
+    this.identified = false
+    this.storage.initialize(this.options)
+    this.userStore.hydrate(this.options, this.storage)
+    this.uploader.configure(
+      this.options,
+      (events : Array<GioTrackEvent>) => {
+        this.handleFlushSuccess(events)
+      }
+    )
+    this.dataStore.initialize(
+      this.options,
+      this.userStore,
+      this.storage,
+      {
+        emitVisit: (pageContext : GioPageContext | null) => {
+          this.emitVisitEvent(pageContext, true)
+        },
+        emitPage: (pageContext : GioPageContext | null) => {
+          this.emitPageEvent(pageContext)
+        },
+        shouldHandleSessionUpdate: () : boolean => {
+          return this.sessionUpdateReady
+        },
+        shouldEmitPage: (pageContext : GioPageContext | null) : boolean => {
+          if (pageContext == null) {
+            return false
+          }
+          return shouldEmitPageWithoutShow() || this.currentPageShown
+        }
+      }
+    )
+    this.refreshEntryScene()
+    this.initialized = true
+    this.initializeSessionState()
+    this.recordVisitSessionIfNewDevice()
+    this.sessionUpdateReady = true
+    this.logInitDataCollect(resolvedOptions)
+    consoleText(this.getInitCompleteMessage(), 'success')
+    this.logInitForceLogin(resolvedOptions)
+    return true
+  }
+
+  private ensureReady() : boolean {
+    return this.initialized && this.options != null
+  }
+
+  private isDebugEnabled() : boolean {
+    return this.options != null && this.options.debug == true
+  }
+
+  getOptions() : GioInitOptions | null {
+    return this.options
+  }
+
+  getStorage() : GioStorageProvider {
+    return this.storage
+  }
+
+  setEntryResolver(resolver : GioEntryResolver | null) {
+    this.entryResolver = resolver
+    this.entryEnabled = resolver != null
+    this.setSystemContextResolver(resolver)
+  }
+
+  setSystemContextResolver(resolver : GioSystemContextResolver | null) {
+    this.dataStore.setSystemContextResolver(resolver)
+  }
+
+  setOriginalSourceStore(store : GioOriginalSourceStore | null) {
+    this.dataStore.setOriginalSourceStore(store)
+  }
+
+  private getSessionTimeoutMs() : number {
+    return resolveSessionTimeoutMs(30 * 1000)
+  }
+
+  private getMaxQueueSize() : number {
+    return resolveMaxQueueSize(MAX_PERSISTED_EVENTS)
+  }
+
+  private isEntryResolverReady() : boolean {
+    return this.entryResolver != null
+  }
+
+  private resolveEntryScene() : string {
+    if (this.entryResolver == null) {
+      return ''
+    }
+    return this.entryResolver.resolveEntryScene()
+  }
+
+  private resolveEntryInfo(
+    fallbackOptions : any | null = null
+  ) : GioEntryInfo | null {
+    if (this.entryResolver == null) {
+      return null
+    }
+    return this.entryResolver.resolveEntryInfo(fallbackOptions)
+  }
+
+  private initializeSessionState() {
+    if (!this.ensureReady()) {
+      return
+    }
+    const previousSessionId = this.userStore.ensureSession(
+      this.getSessionTimeoutMs()
+    )
+    if (previousSessionId != null && previousSessionId.length == 0) {
+      this.pendingVisit = true
+    }
+    const options = this.options
+    if (
+      options != null &&
+      shouldEmitVisitForSession(options, this.userStore.getContext().sessionId)
+    ) {
+      this.pendingVisit = true
+    }
+  }
+
+  // 仅当本次是「全新设备」首访时，把当前（首访）session 记成快照。对齐独立 SDK：
+  // visitSids 只在 `!oldUId && newUId`（全新设备）时写入；老设备不写 → newDevice 恒 false。
+  // 必须在 initializeSessionState 之后调用，确保 session 已建立。
+  private recordVisitSessionIfNewDevice() {
+    if (!this.userStore.isNewDevice()) {
+      return
+    }
+    const context = this.userStore.getContext()
+    if (context.sessionId.length > 0) {
+      recordVisitSessionSnapshot(context.sessionId)
+    }
+  }
+
+  // JS 经原生桥传来的页面对象是 UTSJSONObject，不是原生 GioPageSnapshot 结构。
+  // 直接 `as GioPageSnapshot` 在 iOS 上会编成 Swift 强制转型并断言失败崩溃，
+  // 这里逐字段读出来重建快照。
+  private toPageSnapshot(target : UTSJSONObject | null) : GioPageSnapshot | null {
+    if (target == null || typeof target != 'object' || Array.isArray(target)) {
+      return null
+    }
+    const raw = target as UTSJSONObject
+    return {
+      route: raw.getString('route'),
+      title: raw.getString('title'),
+      options: raw.getJSON('options')
+    } as GioPageSnapshot
+  }
+
+  private isPageTarget(target : UTSJSONObject | null) : boolean {
+    return this.dataStore.buildPageContextFromTarget(
+      this.toPageSnapshot(target),
+      null
+    ) != null
+  }
+
+  private buildCurrentPageContext(duration : number | null) : GioPageContext | null {
+    return this.dataStore.buildCurrentPageContext(duration)
+  }
+
+  private buildEventPageContext(duration : number | null) : GioPageContext | null {
+    return this.dataStore.buildEventPageContext(duration)
+  }
+
+  private buildPageContextFromTarget(
+    page : UTSJSONObject | null,
+    options : UTSJSONObject | null,
+    duration : number | null = null
+  ) : GioPageContext | null {
+    return this.dataStore.buildPageContextFromTarget(
+      this.toPageSnapshot(page),
+      options as UTSJSONObject | null,
+      duration
+    )
+  }
+
+  private logLifecycle(
+    scope : string,
+    hook : string,
+    pageContext : GioPageContext | null
+  ) {
+    if (!this.isDebugEnabled()) {
+      return
+    }
+    const eventTime = Date.now()
+    if (scope == 'app') {
+      console.log(`App: ${hook} ${eventTime}`)
+      return
+    }
+    const path = pageContext != null ? pageContext.path : ''
+    console.log(`Page: ${path} # ${hook} ${eventTime}`)
+  }
+
+  private handleFlushSuccess(events : Array<GioTrackEvent>) {
+    this.dataStore.handleFlushSuccess(events)
+  }
+
+  private updateCurrentPage(page : UTSJSONObject | null, options : UTSJSONObject | null) : GioPageContext | null {
+    return this.dataStore.updateCurrentPage(
+      this.toPageSnapshot(page),
+      options as UTSJSONObject | null
+    )
+  }
+
+  private buildStartupPageContext(entryInfo : GioEntryInfo | null) : GioPageContext | null {
+    if (entryInfo == null || entryInfo.path.length == 0) {
+      return null
+    }
+    return {
+      path: entryInfo.path,
+      query: entryInfo.query.length > 0 ? entryInfo.query : null,
+      title: null,
+      referralPage: entryInfo.referralPage,
+      duration: null
+    } as GioPageContext
+  }
+
+  private syncEntryInfo(entryInfo : GioEntryInfo | null) {
+    if (entryInfo == null) {
+      return
+    }
+    if (entryInfo.scene.length > 0) {
+      this.entryScene = entryInfo.scene
+    }
+    this.dataStore.setStartupPageContext(this.buildStartupPageContext(entryInfo))
+  }
+
+  private shouldWaitForReadyPageContext(
+    pageContext : GioPageContext | null,
+    eventType : string
+  ) : boolean {
+    if (pageContext != null || eventType == 'APP_CLOSED') {
+      return false
+    }
+    const options = this.options
+    if (options == null || !shouldWaitForPageContext(options)) {
+      return false
+    }
+    return !this.dataStore.hasCurrentPage()
+  }
+
+  private enqueuePageReadyCallback(callback : GioPageReadyCallback) {
+    this.pendingPageReadyCallbacks.push(callback)
+  }
+
+  private flushPageReadyCallbacks(pageContext : GioPageContext | null) {
+    if (pageContext == null || !this.dataStore.hasCurrentPage()) {
+      return
+    }
+    const pendingCallbacks = this.pendingPageReadyCallbacks.slice()
+    this.pendingPageReadyCallbacks = []
+    for (let i = 0; i < pendingCallbacks.length; i++) {
+      const callback = pendingCallbacks[i]
+      callback()
+    }
+  }
+
+  private emitVisitEvent(pageContext : GioPageContext | null, flushAfter : boolean = false) {
+    if (this.shouldWaitForReadyPageContext(pageContext, 'VISIT')) {
+      this.enqueuePageReadyCallback(() => {
+        this.emitVisitEvent(this.buildCurrentPageContext(null), flushAfter)
+      })
+      return
+    }
+    this.dataStore.maybeStoreOriginalSource(pageContext)
+    this.pushInternalEvent('visit', 'VISIT', null, pageContext, flushAfter)
+  }
+
+  private maybeEmitVisit(pageContext : GioPageContext | null) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const previousSessionId = this.userStore.ensureSession(
+      this.getSessionTimeoutMs()
+    )
+    if (previousSessionId != null) {
+      if (previousSessionId.length == 0 && !this.sessionUpdateReady) {
+        this.pendingVisit = true
+      } else {
+        // 旧 session 续期时，session 监听器已经按当前页面显示态补发 VISIT / PAGE，
+        // 当前调用链不应再补同一页的 PAGE。
+        return false
+      }
+    }
+    if (this.pendingVisit) {
+      this.pendingVisit = false
+      this.emitVisitEvent(pageContext)
+    }
+    return true
+  }
+
+  private buildEvent(
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null
+  ) : GioTrackEvent {
+    return this.dataStore.buildEvent(
+      name,
+      eventType,
+      properties,
+      pageContext,
+      this.buildAppChannel()
+    )
+  }
+
+  private applyLastPageEventContext(event : GioTrackEvent) : GioTrackEvent {
+    if (event.eventType == 'PAGE') {
+      this.lastPageEvent = event
+      return event
+    }
+    if (event.eventType == 'VISIT') {
+      return event
+    }
+    const pageEvent = this.lastPageEvent
+    if (pageEvent == null) {
+      return event
+    }
+    event.path = pageEvent.path
+    event.query = pageEvent.query
+    event.title = pageEvent.title
+    event.referralPage = pageEvent.referralPage
+    return event
+  }
+
+  private buildAppChannel() : string {
+    if (!this.entryEnabled) {
+      return 'scn:NA'
+    }
+    let scene = this.entryScene
+    if (scene.length == 0) {
+      scene = this.resolveEntryScene()
+    }
+    if (scene.length == 0) {
+      return 'scn:NA'
+    }
+    return `scn:${scene}`
+  }
+
+  private refreshEntryScene() {
+    if (!this.entryEnabled) {
+      return
+    }
+    this.syncEntryInfo(this.resolveEntryInfo(null))
+  }
+
+  private shouldRenewSessionOnAppShow(
+    entryInfo : GioEntryInfo | null
+  ) : boolean {
+    if (this.lastAppHideAt <= 0) {
+      return false
+    }
+    if (now() - this.lastAppHideAt > this.getSessionTimeoutMs()) {
+      return true
+    }
+    if (!this.entryEnabled) {
+      return false
+    }
+    return entryInfo != null &&
+      entryInfo.scene.length > 0 &&
+      this.lastEntryScene.length > 0 &&
+      entryInfo.scene != this.lastEntryScene
+  }
+
+  private pushInternalEvent(
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null,
+    flushAfter : boolean = false
+  ) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const options = this.options
+    if (options == null || options.dataCollect != true) {
+      return
+    }
+    if (this.shouldWaitForReadyPageContext(pageContext, eventType)) {
+      this.enqueuePageReadyCallback(() => {
+        this.pushInternalEvent(
+          name,
+          eventType,
+          properties,
+          this.buildCurrentPageContext(null),
+          flushAfter
+        )
+      })
+      return
+    }
+    // 所有事件都必须等异步系统上下文 ready 后才能真正构建；
+    // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
+    this.dataStore.ensureSystemReady(() => {
+      const event = this.applyLastPageEventContext(
+        this.buildEvent(name, eventType, properties, pageContext)
+      )
+      this.recordEventContext(eventType, event)
+      this.uploader.enqueue(event, this.getMaxQueueSize())
+      if (flushAfter) {
+        if (eventType == 'APP_CLOSED') {
+          this.uploader.flush(null, null)
+        } else {
+          this.uploader.requestFlush()
+        }
+      }
+    })
+  }
+
+  private emitPageEvent(pageContext : GioPageContext | null) {
+    this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
+  }
+
+  private recordEventContext(eventType : string, event : GioTrackEvent) {
+    const path = event.path != null ? event.path as string : ''
+    const query = event.query != null ? event.query as string : ''
+    const title = event.title != null ? event.title as string : ''
+    const referralPage = event.referralPage != null ? event.referralPage as string : ''
+    this.dataStore.recordEvent(eventType, path, query, title, referralPage)
+  }
+
+  private dispatchVisitAndPage(pageContext : GioPageContext | null) {
+    scheduleVisitAndPage(() => {
+      if (!this.maybeEmitVisit(pageContext)) {
+        return
+      }
+      this.emitPageEvent(pageContext)
+    })
+  }
+
+  setOptions(raw : UTSJSONObject) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const dataCollectValue = raw.getBoolean('dataCollect')
+    if (dataCollectValue == null) {
+      consoleText(
+        'setOptions 参数不合法，请传入 { dataCollect: boolean }',
+        'error'
+      )
+      return false
+    }
+    const dataCollect = dataCollectValue as boolean
+    if (this.options == null) {
+      return false
+    }
+    if (this.options.dataCollect == dataCollect) {
+      return true
+    }
+    this.options.dataCollect = dataCollect
+    this.dataStore.setDataCollect(dataCollect)
+    this.logDataCollectUpdated(dataCollect)
+    if (dataCollect) {
+      this.userStore.renewSession(this.getSessionTimeoutMs())
+    }
+    syncConfigToGlobal(this.options)
+    return true
+  }
+
+  private dispatchFirstPageWhenReady(pageContext : GioPageContext | null) {
+    if (this.dataStore.isSystemReady()) {
+      this.dispatchVisitAndPage(pageContext)
+      return
+    }
+    this.pendingFirstPageContexts.push(pageContext)
+    if (this.firstPageDispatchWaiting) {
+      return
+    }
+    this.firstPageDispatchWaiting = true
+    this.dataStore.ensureSystemReady(() => {
+      this.firstPageDispatchWaiting = false
+      const pendingPageContexts = this.pendingFirstPageContexts.slice()
+      this.pendingFirstPageContexts = []
+      for (let i = 0; i < pendingPageContexts.length; i++) {
+        const pendingPageContext = pendingPageContexts[i]
+        this.dispatchVisitAndPage(pendingPageContext)
+      }
+    })
+  }
+
+  track(
+    eventName : string,
+    properties : UTSJSONObject | null = null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (!isValidEventName(eventName)) {
+      consoleText(
+        '事件名格式不正确，只能包含数字、字母和下划线，且不能以数字开头，字符总长度不能超过100!',
+        'error'
+      )
+      return false
+    }
+
+    const pageContext = this.buildEventPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      eventName,
+      'CUSTOM',
+      normalizeTrackProperties(properties),
+      pageContext,
+      true
+    )
+    return true
+  }
+
+  trackPluginEvent(
+    eventName : string,
+    properties : UTSJSONObject | null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const pageContext = this.buildEventPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      eventName,
+      'CUSTOM',
+      normalizeTrackProperties(properties),
+      pageContext,
+      true
+    )
+    return true
+  }
+
+  // ── GioShareTrackingHost：分享采集插件的平台无关 host 能力 ──
+  // 具体的事件名、字段集、shareOut 翻转策略由平台分享采集插件决定，
+  // 公共层只暴露插件启用状态和通用 host 能力。
+
+  isShareTrackingEnabled() : boolean {
+    return this.shareTrackingEnabled
+  }
+
+  getCurrentPageContext() : GioPageContext | null {
+    return this.buildEventPageContext(null)
+  }
+
+  setShareOut(value : boolean) {
+    this.shareOut = value
+  }
+
+  emitShareEvent(eventName : string, properties : UTSJSONObject | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const pageContext = this.buildEventPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      eventName,
+      'CUSTOM',
+      normalizeTrackProperties(properties),
+      pageContext,
+      true
+    )
+  }
+
+  private resolveABTestOptions(
+    rawOptions : UTSJSONObject | null
+  ) : GioABTestPluginOptions {
+    if (rawOptions == null) {
+      return {
+        abServerUrl: null,
+        requestInterval: null,
+        requestTimeout: null
+      } as GioABTestPluginOptions
+    }
+    const abServerUrlValue = rawOptions.getString('abServerUrl')
+    const requestIntervalValue = rawOptions.getNumber('requestInterval')
+    const requestTimeoutValue = rawOptions.getNumber('requestTimeout')
+    return {
+      abServerUrl: abServerUrlValue,
+      requestInterval: requestIntervalValue,
+      requestTimeout: requestTimeoutValue
+    } as GioABTestPluginOptions
+  }
+
+  registerPlugins(plugins : Array<GioPluginItem>) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    let installed = false
+    for (let i = 0; i < plugins.length; i++) {
+      const plugin = plugins[i]
+      if (plugin.name == 'gioABTest') {
+        this.abTestPlugin = new GioABTestPlugin(
+          this,
+          this.resolveABTestOptions(plugin.options)
+        )
+        installed = true
+      } else if (plugin.name == 'gioShareTracking') {
+        this.shareTrackingEnabled = true
+        installed = true
+      }
+    }
+    return installed
+  }
+
+  getABTest(
+    layerId : any,
+    callback : GioABTestCallback | null = null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (this.abTestPlugin == null) {
+      consoleText('获取ABTest数据错误! 请集成ABTest插件后重试!', 'error')
+      if (callback != null) {
+        callback({} as UTSJSONObject)
+      }
+      return false
+    }
+    this.abTestPlugin.getABTest(layerId, callback)
+    return true
+  }
+
+  setUserId(userId : string, userKey : string | null = null) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const options = this.options
+    if (options == null) {
+      return false
+    }
+    if (!verifyId(userId)) {
+      consoleText('setUserId 参数不合法', 'error')
+      return false
+    }
+    const normalizedUserId = userId.trim().slice(0, 1000)
+    let normalizedUserKey = userKey != null ? (userKey as string).slice(0, 1000) : ''
+    if (!options.idMapping && normalizedUserKey.length > 0) {
+      consoleText('您设置了 userKey ，请初始化开启 idMapping!', 'warn')
+      normalizedUserKey = ''
+    }
+    const previousGioId = this.userStore.getGioId()
+    this.userStore.setUserId(normalizedUserId)
+    this.userStore.setUserKey(normalizedUserKey)
+    if (previousGioId.length > 0 && previousGioId != normalizedUserId) {
+      this.userStore.renewSession(this.getSessionTimeoutMs())
+    }
+    return true
+  }
+
+  identify(assignmentId : any) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const options = this.options
+    if (options == null) {
+      return false
+    }
+    if (options.forceLogin != true) {
+      if (this.identified) {
+        consoleText('设置 identify 失败，请勿重复调用!', 'warn')
+      } else {
+        consoleText('设置 identify 失败，forceLogin未开启!', 'warn')
+      }
+      return false
+    }
+    if (!isValidIdentifyId(assignmentId)) {
+      consoleText('调用 identify 失败，参数不合法!', 'warn')
+      return false
+    }
+    const deviceId = stringifyScalar(assignmentId).slice(0, 1000)
+    this.userStore.setDeviceId(deviceId)
+    options.forceLogin = false
+    this.identified = true
+    this.uploader.setForceLogin(false)
+    this.uploader.releaseHoarding(deviceId, this.getMaxQueueSize())
+    this.uploader.flush(null, null)
+    return true
+  }
+
+  setUserAttributes(
+    userAttributes : UTSJSONObject | null
+  ) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    const normalized = normalizeTrackProperties(userAttributes)
+    if (normalized == null) {
+      consoleText('setUserAttributes 参数不合法，必须传入非空对象', 'error')
+      return false
+    }
+    let pageContext = this.buildEventPageContext(null)
+    if (pageContext == null || pageContext.path.length == 0) {
+      pageContext = this.dataStore.buildLastVisitPageContext()
+    }
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      'setUserAttributes',
+      'LOGIN_USER_ATTRIBUTES',
+      normalized,
+      pageContext,
+      true
+    )
+    return true
+  }
+
+  clearUserId() : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    this.userStore.clearUserId()
+    this.userStore.setUserKey('')
+    return true
+  }
+
+  private flushPendingEvents() {
+    this.dataStore.ensureSystemReady(() => {
+      this.uploader.flush(null, null)
+    })
+  }
+
+  onPageLoad(page : UTSJSONObject | null, options : UTSJSONObject | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.currentPageShown = false
+    this.cachePageQueryOptions(page, options)
+    const pageContext = this.updateCurrentPage(page, options)
+    this.flushPageReadyCallbacks(pageContext)
+    this.logLifecycle('page', 'onLoad', pageContext)
+  }
+
+  private cachePageQueryOptions(page : UTSJSONObject | null, options : UTSJSONObject | null) {
+    const routeInfo = resolvePageRoute(
+      this.toPageSnapshot(page),
+      options as UTSJSONObject | null
+    )
+    if (routeInfo.path.length > 0) {
+      this.dataStore.cacheQueryOptions(routeInfo.path, routeInfo.query)
+    }
+  }
+
+  onLaunch(options : UTSJSONObject | null = null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.logLifecycle('app', 'onLaunch', null)
+    if (!this.entryEnabled) {
+      return
+    }
+    this.syncEntryInfo(this.resolveEntryInfo(options))
+  }
+
+  onShow(target : UTSJSONObject | null, options : UTSJSONObject | null = null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    if (this.isPageTarget(target)) {
+      this.onPageShow(target)
+      return
+    }
+    this.onAppShow(options)
+  }
+
+  onHide(target : UTSJSONObject | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    if (this.isPageTarget(target)) {
+      this.onPageHide(target)
+      return
+    }
+    this.onAppHide()
+  }
+
+  onPageHide(page : UTSJSONObject | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.currentPageShown = false
+    const pageContext = this.buildPageContextFromTarget(page, null)
+    this.logLifecycle(
+      'page',
+      'onHide',
+      pageContext != null ? pageContext : this.buildCurrentPageContext(null)
+    )
+  }
+
+  onPageShow(page : UTSJSONObject | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.currentPageShown = true
+    // 对齐独立 SDK pageEffects.ts:154：每次 page onShow 复位 shareOut。
+    this.shareOut = false
+    const pageContext = this.updateCurrentPage(page, null)
+    this.flushPageReadyCallbacks(pageContext)
+    this.logLifecycle('page', 'onShow', pageContext)
+    if (!shouldEmitPageOnShow()) {
+      this.maybeEmitVisit(pageContext)
+      return
+    }
+    this.dispatchFirstPageWhenReady(pageContext)
+  }
+
+  onPageUnload(page : UTSJSONObject | null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.currentPageShown = false
+    const pageContext = this.buildPageContextFromTarget(page, null)
+    this.logLifecycle(
+      'page',
+      'onUnload',
+      pageContext != null ? pageContext : this.buildCurrentPageContext(null)
+    )
+    const pagePath : string = pageContext != null ? (pageContext.path as string) : ''
+    this.dataStore.resetCurrentPageShowAt(pagePath)
+  }
+
+  onAppShow(
+    options : UTSJSONObject | null = null,
+    appState : string | null = null
+  ) {
+    if (!this.ensureReady()) {
+      return
+    }
+    const resolvedAppState = this.resolveAppState(appState, true)
+    this.dataStore.updateAppState(
+      resolvedAppState
+    )
+    const entryInfo = this.entryEnabled
+      ? this.resolveEntryInfo(options)
+      : null
+    this.syncEntryInfo(entryInfo)
+    this.logLifecycle('app', 'onShow', this.buildCurrentPageContext(null))
+    if (this.shouldRenewSessionOnAppShow(entryInfo)) {
+      this.userStore.renewSession(this.getSessionTimeoutMs())
+    }
+    if (!this.dataStore.hasCurrentPage()) {
+      return
+    }
+    this.currentPageShown = true
+    // 对齐独立 SDK appEffects.ts:59：分享往返 (shareOut) 期间不重写 originalSource，
+    // 避免「分享给朋友」回流的入口信息覆盖首次来源。
+    if (!this.shareOut) {
+      this.dataStore.maybeStoreOriginalSource(this.buildCurrentPageContext(null))
+    }
+    this.maybeEmitVisit(this.buildCurrentPageContext(null))
+    this.flushPendingEvents()
+  }
+
+  onAppHide(appState : string | null = null) {
+    if (!this.ensureReady()) {
+      return
+    }
+    this.currentPageShown = false
+    let duration : number | null = null
+    const currentPageShowAt = this.dataStore.getCurrentPageShowAt()
+    if (currentPageShowAt > 0) {
+      duration = now() - currentPageShowAt
+    }
+    const pageContext = this.buildCurrentPageContext(duration)
+    this.logLifecycle(
+      'app',
+      'onHide',
+      pageContext
+    )
+    if (shouldTrackAppClosed()) {
+      this.lastAppHideAt = now()
+      this.lastEntryScene = this.entryScene
+      this.userStore.touchSession(this.getSessionTimeoutMs())
+      this.pushInternalEvent(
+        'close',
+        'APP_CLOSED',
+        null,
+        pageContext,
+        true
+      )
+    }
+    this.dataStore.updateAppState(this.resolveAppState(appState, false))
+  }
+
+  getContext() : GioContext | null {
+    if (!this.ensureReady()) {
+      return null
+    }
+    return this.userStore.getContext()
+  }
+
+  private resolveAppState(
+    appState : string | null,
+    isForeground : boolean
+  ) : string | null {
+    if (!supportsAppState()) {
+      return null
+    }
+    if (appState != null && appState.length > 0) {
+      return appState
+    }
+    return isForeground ? 'FOREGROUND' : 'BACKGROUND'
+  }
+
+  setLocation(latitude : number, longitude : number) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (!supportsLocation()) {
+      consoleText('setLocation 当前平台不支持', 'warn')
+      return false
+    }
+    if (!(latitude >= -90 && latitude <= 90)) {
+      consoleText('setLocation latitude 参数不合法', 'error')
+      return false
+    }
+    if (!(longitude >= -180 && longitude <= 180)) {
+      consoleText('setLocation longitude 参数不合法', 'error')
+      return false
+    }
+    return this.dataStore.setLocation(latitude, longitude)
+  }
+
+  clearLocation() : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (!supportsLocation()) {
+      consoleText('clearLocation 当前平台不支持', 'warn')
+      return false
+    }
+    return this.dataStore.clearLocation()
+  }
+  // ── GioABTestHost：首访 session 快照（实际存储分平台，见 runtime 注册表）──
+
+  readVisitSessionId() : string {
+    return readVisitSessionSnapshot()
+  }
+
+  clearVisitSession() : void {
+    clearVisitSessionSnapshot()
+  }
+}

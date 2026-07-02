@@ -1,0 +1,11 @@
+{
+  "name": "gio-uniappx-showcase",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Minimal feature showcase for gio-uniappx-autotracker SDK",
+  "scripts": {
+    "demo:open": "open -a HBuilderX .",
+    "sdk:check": "node scripts/release-sdk.mjs --check",
+    "sdk:release": "node scripts/release-sdk.mjs"
+  }
+}

@@ -1,0 +1,252 @@
+<template>
+	<scroll-view class="page">
+		<view class="section">
+			<text class="section-title">当前页面信息</text>
+			<view class="kv-row">
+				<text class="kv-key">path</text>
+				<text class="kv-val">{{ currentPath }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">query (raw)</text>
+				<text class="kv-val">{{ currentQuery }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">referralPage</text>
+				<text class="kv-val">{{ referralPage }}</text>
+			</view>
+			<view class="kv-row">
+				<text class="kv-key">onLoad params</text>
+				<text class="kv-val">{{ onLoadParams }}</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="section-title">基础跳转</text>
+			<view class="btn-row">
+				<button class="btn" @click="goSimple">单参数 ?id=1001</button>
+				<button class="btn" @click="goMultiParam">多参数 ?a=1&b=hello&c=true</button>
+				<button class="btn" @click="goNoParam">无参数</button>
+			</view>
+			<text class="expect">验证 query 解析：单参数、多参数、空参数</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">特殊参数</text>
+			<view class="btn-row">
+				<button class="btn subtle" @click="goEncoded">URL 编码参数 ?name=%E4%B8%AD%E6%96%87&url=https%3A%2F%2Fa.com</button>
+				<button class="btn subtle" @click="goSpecialChars">特殊字符 ?msg=hello+world&tag=a%26b</button>
+				<button class="btn subtle" @click="goEmptyValue">空值参数 ?empty=&nonempty=yes</button>
+				<button class="btn subtle" @click="goLongQuery">长参数 ?key1=v1&key2=v2&key3=v3&key4=v4&key5=v5</button>
+			</view>
+			<text class="expect">验证编码解码、特殊字符、空值、多参数拼接</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">hash 路由场景</text>
+			<view class="btn-row">
+				<button class="btn ghost" @click="goHashPath">hash 路径 ?from=hash</button>
+				<button class="btn ghost" @click="goHashWithQuery">hash 带参数 ?hashParam=yes</button>
+			</view>
+			<text class="expect">验证 hash 模式下 path 和 query 的解析</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">连续导航 / referralPage 验证</text>
+			<view class="btn-row">
+				<button class="btn" @click="goChainA">A 页 → B 页 → 回来</button>
+				<button class="btn" @click="goSelfWithStep">带 step 自跳转</button>
+				<button class="btn" @click="goReplace">replaceTo 当前页</button>
+			</view>
+			<text class="expect">验证 referralPage 是否为上一页完整路径；连续跳转后 referralPage 是否正确更新</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">跨页面类型跳转</text>
+			<view class="btn-row">
+				<button class="btn ghost" @click="goIndex">去首页 (switchTab)</button>
+				<button class="btn ghost" @click="goCustom">去自定义事件页 (switchTab)</button>
+				<button class="btn ghost" @click="goLifecycle">去生命周期页 (switchTab)</button>
+			</view>
+			<text class="expect">验证 tabBar 页面间切换时 referralPage 和 query</text>
+		</view>
+
+		<view class="section">
+			<text class="section-title">navigateBack</text>
+			<view class="btn-row">
+				<button class="btn danger" @click="goBack">navigateBack</button>
+			</view>
+			<text class="expect">验证返回后上一页的 PAGE 事件 referralPage 是否正确</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+
+const currentPath = ref('(loading)')
+const currentQuery = ref('(loading)')
+const referralPage = ref('(loading)')
+const onLoadParams = ref('(loading)')
+
+function readQueryValue(query: UTSJSONObject, key: string): string {
+	const value = query[key]
+	if (value == null) {
+		return '(null)'
+	}
+	return `${value}`
+}
+
+onLoad((query: UTSJSONObject | null) => {
+	const pages = getCurrentPages()
+	if (pages.length > 0) {
+		const route = pages[pages.length - 1].route
+		currentPath.value = route.length > 0 ? route : '(unknown)'
+	} else {
+		currentPath.value = '(no stack)'
+	}
+	if (query != null) {
+		const keys = UTSJSONObject.keys(query)
+		if (keys.length > 0) {
+			const parts: string[] = []
+			keys.forEach((k) => {
+				parts.push(k + '=' + readQueryValue(query, k))
+			})
+			currentQuery.value = parts.join('&')
+			onLoadParams.value = currentQuery.value
+		} else {
+			currentQuery.value = '(empty)'
+			onLoadParams.value = '(empty)'
+		}
+	} else {
+		currentQuery.value = '(null)'
+		onLoadParams.value = '(null)'
+	}
+})
+
+onShow(() => {
+	referralPage.value = '(check PAGE event in network panel)'
+})
+
+// --- 基础跳转 ---
+
+function goSimple() {
+	uni.navigateTo({
+		url: '/pages/route/route?id=1001',
+	})
+}
+
+function goMultiParam() {
+	uni.navigateTo({
+		url: '/pages/route/route?a=1&b=hello&c=true',
+	})
+}
+
+function goNoParam() {
+	uni.navigateTo({
+		url: '/pages/route/route',
+	})
+}
+
+// --- 特殊参数 ---
+
+function goEncoded() {
+	uni.navigateTo({
+		url: '/pages/route/route?name=%E4%B8%AD%E6%96%87&url=https%3A%2F%2Fa.com',
+	})
+}
+
+function goSpecialChars() {
+	uni.navigateTo({
+		url: '/pages/route/route?msg=hello+world&tag=a%26b',
+	})
+}
+
+function goEmptyValue() {
+	uni.navigateTo({
+		url: '/pages/route/route?empty=&nonempty=yes',
+	})
+}
+
+function goLongQuery() {
+	uni.navigateTo({
+		url: '/pages/route/route?key1=v1&key2=v2&key3=v3&key4=v4&key5=v5',
+	})
+}
+
+// --- hash 路由 ---
+
+function goHashPath() {
+	uni.navigateTo({
+		url: '/pages/route/route#/hash-page?from=hash',
+	})
+}
+
+function goHashWithQuery() {
+	uni.navigateTo({
+		url: '/pages/route/route?webParam=1#/hash-page?hashParam=yes',
+	})
+}
+
+// --- 连续导航 ---
+
+function goChainA() {
+	// 先跳一次带参数的自跳转，再 navigateBack 回来，形成 A→A→back 链路
+	uni.navigateTo({
+		url: '/pages/route/route?from=chain&step=A',
+	})
+}
+
+let selfStep = 0
+function goSelfWithStep() {
+	selfStep++
+	uni.navigateTo({
+		url: '/pages/route/route?from=self&step=' + selfStep,
+	})
+}
+
+function goReplace() {
+	uni.redirectTo({
+		url: '/pages/route/route?from=replace&ts=' + Date.now(),
+	})
+}
+
+// --- 跨页面类型 ---
+
+function goIndex() {
+	uni.switchTab({
+		url: '/pages/index/index',
+	})
+}
+
+function goCustom() {
+	uni.switchTab({
+		url: '/pages/custom-event/custom-event',
+	})
+}
+
+function goLifecycle() {
+	uni.switchTab({
+		url: '/pages/lifecycle/lifecycle',
+	})
+}
+
+function goBack() {
+	uni.navigateBack({})
+}
+</script>
+
+<style>
+.page { padding: 20rpx; flex: 1; }
+.section { background: #fff; padding: 20rpx; border-radius: 10rpx; margin-bottom: 16rpx; }
+.section-title { font-size: 28rpx; font-weight: 500; margin-bottom: 12rpx; }
+.hint { font-size: 22rpx; color: #888; padding: 4rpx 2rpx; }
+.expect { font-size: 22rpx; color: #b8860b; padding: 4rpx 2rpx; }
+.kv-row { flex-direction: row; justify-content: space-between; padding: 6rpx 0; }
+.kv-key { font-size: 24rpx; color: #999; }
+.kv-val { font-size: 24rpx; color: #333; flex: 1; text-align: right; }
+.btn-row { flex-direction: row; flex-wrap: wrap; }
+.btn { background: #1677ff; color: #fff; font-size: 24rpx; padding: 16rpx; border-radius: 8rpx; margin: 6rpx; }
+.btn.subtle { background: #13a67a; }
+.btn.ghost { background: #eef5ff; color: #1677ff; }
+.btn.danger { background: #ef4444; }
+</style>

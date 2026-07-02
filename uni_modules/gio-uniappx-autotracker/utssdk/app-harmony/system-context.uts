@@ -1,0 +1,48 @@
+// Harmony App 端系统字段解析器。
+import {
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../interface.uts'
+class AppHarmonySystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    systemInfo : UTSJSONObject | null,
+    osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    let deviceModelText = ''
+    if (systemInfo != null) {
+      const primary = systemInfo.getString('deviceModel')
+      if (primary != null) {
+        deviceModelText = primary as string
+      } else {
+        const fallback = systemInfo.getString('model')
+        if (fallback != null) {
+          deviceModelText = fallback as string
+        }
+      }
+    }
+    const platformVersionText = version.length > 0
+      ? (deviceModelText.length > 0 ? `${deviceModelText} ${version}` : version)
+      : osLabel
+    return {
+      appName: systemInfo != null ? systemInfo.getString('appName') : null,
+      bundleId: systemInfo != null ? systemInfo.getString('bundleId') : null,
+      channel: null,
+      deviceBrand: 'HUAWEI',
+      deviceModel: null,
+      deviceType: deviceType,
+      language: null,
+      networkState: null,
+      operatingSystem: osLabel,
+      platform: osLabel,
+      platformVersion: platformVersionText
+    } as GioSystemContextFields
+  }
+}
+
+export function createAppHarmonySystemContextResolver() : GioSystemContextResolver {
+  return new AppHarmonySystemContextResolver()
+}

@@ -1,0 +1,825 @@
+// web/runtime.uts 注册浏览器侧的存储、事件整形、页面上下文和发送实现。
+import {
+  GioInitOptions,
+  GioPageContext,
+  GioTrackEvent
+} from '../interface.uts'
+import { GioConfig } from '../common/config.uts'
+import {
+  registerConfigSyncer,
+  registerEventShaper,
+  registerEventSender,
+  registerPageContextWaitPolicy,
+  registerPageContextResolver,
+  registerPlatformStorageFactory,
+  registerRuntimeBehavior,
+  registerRuntimePolicy,
+  registerUploadPolicy,
+  registerVisitSessionStore
+} from '../common/runtime/index.uts'
+import {
+  buildCookieStorageValue,
+  buildWrappedStorageValue,
+  getActualStorageKey,
+  getDefaultStorageExpiredAt,
+  readDirectStorageValue,
+  readStructuredStorageValue
+} from '../common/storage/index.uts'
+import { normalizeQueryString } from '../common/route.uts'
+import { jsonStringify, utf8ByteLength } from '../common/utils/base.uts'
+
+const VISIT_SENT_SUFFIX = '_gdp_session_id_sent'
+const DEFAULT_STORAGE_TYPE = 'cookie'
+const LOCAL_STORAGE_TYPE = 'localStorage'
+const WEB_SESSION_TIMEOUT_MS = 30 * 60 * 1000
+const WEB_MAX_QUEUE_SIZE = 100
+
+const SPECIAL_TOP_DOMAIN_PREFIXES = [
+  '.ac.',
+  '.br.',
+  '.co.',
+  '.com.',
+  '.edu.',
+  '.gov.',
+  '.org.',
+  '.net.'
+] as Array<string>
+
+function getRuntimeDocument() : any | null {
+  try {
+    const runtimeGlobal = window as any
+    return runtimeGlobal.document != null ? runtimeGlobal.document : null
+  } catch (_error) {
+    return null
+  }
+}
+
+function getRuntimeLocation() : any | null {
+  try {
+    const runtimeGlobal = window as any
+    return runtimeGlobal.location != null ? runtimeGlobal.location : null
+  } catch (_error) {
+    return null
+  }
+}
+
+function readProtocolType() : string | null {
+  const runtimeLocation = getRuntimeLocation()
+  if (runtimeLocation == null || runtimeLocation.protocol == null) {
+    return null
+  }
+  const protocol = `${runtimeLocation.protocol}`
+  if (protocol.length == 0) {
+    return null
+  }
+  return protocol.endsWith(':')
+    ? protocol.slice(0, protocol.length - 1)
+    : protocol
+}
+
+function readRuntimeDomain() : string | null {
+  const runtimeLocation = getRuntimeLocation()
+  if (runtimeLocation == null) {
+    return null
+  }
+  if (runtimeLocation.host != null) {
+    const host = `${runtimeLocation.host}`
+    if (host.length > 0) {
+      return host
+    }
+  }
+  if (runtimeLocation.hostname != null) {
+    const hostname = `${runtimeLocation.hostname}`
+    return hostname.length > 0 ? hostname : null
+  }
+  return null
+}
+
+function getRuntimeLocalStorage() : any | null {
+  try {
+    const runtimeGlobal = window as any
+    return runtimeGlobal.localStorage != null ? runtimeGlobal.localStorage : null
+  } catch (_error) {
+    return null
+  }
+}
+
+function decodeCookieValue(value : string) : string {
+  try {
+    const decoded = decodeURIComponent(value)
+    return decoded != null ? decoded : value
+  } catch (_error) {
+    return value
+  }
+}
+
+function encodeCookieValue(value : string) : string {
+  try {
+    const encoded = encodeURIComponent(value)
+    return encoded != null ? encoded : value
+  } catch (_error) {
+    return value
+  }
+}
+
+function isIpHost(hostname : string) : boolean {
+  const segments = hostname.split('.')
+  if (segments.length != 4) {
+    return false
+  }
+  for (let i = 0; i < segments.length; i++) {
+    const part = segments[i]
+    if (part.length == 0 || isNaN(Number(part))) {
+      return false
+    }
+  }
+  return true
+}
+
+function isSpecialTopDomain(domain : string) : boolean {
+  for (let i = 0; i < SPECIAL_TOP_DOMAIN_PREFIXES.length; i++) {
+    if (domain.startsWith(SPECIAL_TOP_DOMAIN_PREFIXES[i])) {
+      return true
+    }
+  }
+  return false
+}
+
+function domainParse(hostname : string) : Array<string> {
+  const domains = [] as Array<string>
+  const segments = hostname.split('.')
+  if (segments.length < 2 || isIpHost(hostname)) {
+    return domains
+  }
+  const domain2 = `.${segments.slice(segments.length - 2).join('.')}`
+  if (!isSpecialTopDomain(domain2)) {
+    domains.push(domain2)
+  }
+  if (segments.length >= 3) {
+    const domain3 = `.${segments.slice(segments.length - 3).join('.')}`
+    if (!isSpecialTopDomain(domain3) && domains.indexOf(domain3) < 0) {
+      domains.push(domain3)
+    }
+  }
+  if (segments.length >= 4) {
+    const domain4 = `.${segments.slice(segments.length - 4).join('.')}`
+    if (!isSpecialTopDomain(domain4) && domains.indexOf(domain4) < 0) {
+      domains.push(domain4)
+    }
+  }
+  return domains
+}
+
+function readCookieMap() : UTSJSONObject {
+  const result = {} as UTSJSONObject
+  const runtimeDocument = getRuntimeDocument()
+  if (runtimeDocument == null || runtimeDocument.cookie == null) {
+    return result
+  }
+  const cookieText = `${runtimeDocument.cookie}`
+  if (cookieText.length == 0) {
+    return result
+  }
+  const pairs = cookieText.split(';')
+  for (let i = 0; i < pairs.length; i++) {
+    const item = pairs[i].trim()
+    if (item.length == 0) {
+      continue
+    }
+    const equalIndex = item.indexOf('=')
+    if (equalIndex < 0) {
+      result[item] = ''
+      continue
+    }
+    const key = item.slice(0, equalIndex)
+    const value = item.slice(equalIndex + 1)
+    result[key] = decodeCookieValue(value)
+  }
+  return result
+}
+
+function writeCookie(
+  key : string,
+  value : string,
+  expiredAt : number,
+  domain : string
+) {
+  const runtimeDocument = getRuntimeDocument()
+  if (runtimeDocument == null) {
+    return
+  }
+  let cookieText = `${key}=${encodeCookieValue(value)}; expires=${new Date(expiredAt).toUTCString()}; path=/`
+  if (domain.length > 0) {
+    cookieText += `; domain=${domain}`
+  }
+  runtimeDocument.cookie = cookieText
+}
+
+function removeCookie(key : string, domain : string) {
+  writeCookie(key, '', 1, domain)
+}
+
+function testCookie(domain : string) : boolean {
+  const runtimeLocation = getRuntimeLocation()
+  if (runtimeLocation == null) {
+    return false
+  }
+  const hostname = runtimeLocation.hostname != null
+    ? `${runtimeLocation.hostname}`
+    : ''
+  const protocol = runtimeLocation.protocol != null
+    ? `${runtimeLocation.protocol}`
+    : ''
+  if (
+    hostname.length == 0 ||
+    hostname == 'localhost' ||
+    hostname == '127.0.0.1' ||
+    (protocol != 'http:' && protocol != 'https:')
+  ) {
+    return false
+  }
+  const testKey = 'gioCookie'
+  writeCookie(testKey, 'yes', Date.now() + 60 * 1000, domain)
+  const cookieMap = readCookieMap()
+  const valid = cookieMap[testKey] != null && `${cookieMap[testKey]}` == 'yes'
+  removeCookie(testKey, domain)
+  return valid
+}
+
+function resolveCookieDomain(requestedDomain : string) : string {
+  if (requestedDomain.length > 0 && testCookie(requestedDomain)) {
+    return requestedDomain
+  }
+  const runtimeLocation = getRuntimeLocation()
+  if (runtimeLocation == null || runtimeLocation.hostname == null) {
+    return ''
+  }
+  const hostname = `${runtimeLocation.hostname}`
+  const candidates = domainParse(hostname)
+  candidates.push(hostname)
+  for (let i = 0; i < candidates.length; i++) {
+    if (testCookie(candidates[i])) {
+      return candidates[i]
+    }
+  }
+  return ''
+}
+
+function canUseLocalStorage() : boolean {
+  try {
+    const storage = getRuntimeLocalStorage()
+    if (storage == null) {
+      return false
+    }
+    storage.setItem('__gio_storage_test__', '__gio_storage_test__')
+    storage.removeItem('__gio_storage_test__')
+    return true
+  } catch (_error) {
+    return false
+  }
+}
+
+function readLocalItem(key : string) : string | null {
+  const storage = getRuntimeLocalStorage()
+  if (storage == null) {
+    return null
+  }
+  const value = storage.getItem(key)
+  return value != null ? `${value}` : null
+}
+
+function writeLocalItem(key : string, value : string) {
+  const storage = getRuntimeLocalStorage()
+  if (storage == null) {
+    return
+  }
+  storage.setItem(key, value)
+}
+
+function removeLocalItem(key : string) {
+  const storage = getRuntimeLocalStorage()
+  if (storage == null) {
+    return
+  }
+  storage.removeItem(key)
+}
+
+function getLocalKeys() : Array<string> {
+  const storage = getRuntimeLocalStorage()
+  if (storage == null) {
+    return [] as Array<string>
+  }
+  const keys = [] as Array<string>
+  const length = storage.length != null ? (storage.length as number) : 0
+  for (let i = 0; i < length; i++) {
+    const key = storage.key(i)
+    if (key != null) {
+      keys.push(`${key}`)
+    }
+  }
+  return keys
+}
+
+function getCookieKeys() : Array<string> {
+  return UTSJSONObject.keys(readCookieMap())
+}
+
+function createCookieStorage(domain : string) : any {
+  return {
+    getItem(key : string) : any {
+      const cookieValue = readCookieMap()[getActualStorageKey(key)]
+      if (cookieValue == null) {
+        return null
+      }
+      return readDirectStorageValue(key, `${cookieValue}`)
+    },
+    setItem(key : string, value : any, expiredAt : number | null = null) {
+      writeCookie(
+        getActualStorageKey(key),
+        buildCookieStorageValue(key, value),
+        expiredAt != null && expiredAt > 0
+          ? expiredAt
+          : getDefaultStorageExpiredAt(),
+        domain
+      )
+    },
+    removeItem(key : string) {
+      removeCookie(getActualStorageKey(key), domain)
+    },
+    hasItem(key : string) : boolean {
+      return this.getItem(key) != null
+    },
+    getKeys() : Array<string> {
+      return getCookieKeys()
+    }
+  }
+}
+
+function createLocalStorageAdapter() : any {
+  return {
+    getItem(key : string) : any {
+      return readStructuredStorageValue(
+        key,
+        readLocalItem(getActualStorageKey(key))
+      )
+    },
+    setItem(key : string, value : any, expiredAt : number | null = null) {
+      writeLocalItem(
+        getActualStorageKey(key),
+        buildWrappedStorageValue(key, value, expiredAt)
+      )
+    },
+    removeItem(key : string) {
+      removeLocalItem(getActualStorageKey(key))
+      if (getActualStorageKey(key) != key) {
+        removeLocalItem(key)
+      }
+    },
+    hasItem(key : string) : boolean {
+      return this.getItem(key) != null
+    },
+    getKeys() : Array<string> {
+      return getLocalKeys()
+    }
+  }
+}
+
+function mergeQueryString(baseQuery : string, appendedQuery : string) : string {
+  if (baseQuery.length == 0) {
+    return appendedQuery
+  }
+  if (appendedQuery.length == 0) {
+    return baseQuery
+  }
+  return `${baseQuery}&${appendedQuery}`
+}
+
+function readDocumentReferrer() : string {
+  try {
+    const runtimeDocument = getRuntimeDocument()
+    if (
+      runtimeDocument != null &&
+      runtimeDocument.referrer != null &&
+      `${runtimeDocument.referrer}`.length > 0
+    ) {
+      return `${runtimeDocument.referrer}`
+    }
+  } catch (_error) {}
+  return ''
+}
+
+let lastPageFullUrl : string = ''
+let lastTrackedPageHref : string = ''
+
+function readCurrentHref() : string {
+  try {
+    const runtimeLocation = getRuntimeLocation()
+    if (runtimeLocation != null && runtimeLocation.href != null) {
+      return `${runtimeLocation.href}`
+    }
+  } catch (_error) {}
+  return ''
+}
+
+function shouldEmitPageForCurrentHref() : boolean {
+  const currentHref = readCurrentHref()
+  if (currentHref.length == 0) {
+    return true
+  }
+  const shouldEmit = lastTrackedPageHref.length == 0 || lastTrackedPageHref != currentHref
+  if (shouldEmit) {
+    lastTrackedPageHref = currentHref
+  }
+  return shouldEmit
+}
+
+function resolveBrowserPageContext(
+  logicalPageContext : GioPageContext | null
+) : GioPageContext | null {
+  let path = ''
+  let locationPath = ''
+  let query = ''
+  let title = ''
+  const options = GioConfig.getOptions()
+  const useUnified = options != null ? options.useUnified : true
+  if (
+    useUnified &&
+    (logicalPageContext == null || logicalPageContext.path.length == 0)
+  ) {
+    return null
+  }
+  if (
+    useUnified &&
+    logicalPageContext != null
+  ) {
+    path = logicalPageContext.path
+  }
+  try {
+    const runtimeLocation = getRuntimeLocation()
+    const runtimeDocument = getRuntimeDocument()
+    if (runtimeLocation != null) {
+      const pathname = runtimeLocation.pathname != null
+        ? `${runtimeLocation.pathname}`
+        : ''
+      const search = runtimeLocation.search != null
+        ? `${runtimeLocation.search}`
+        : ''
+      const hash = runtimeLocation.hash != null
+        ? `${runtimeLocation.hash}`
+        : ''
+      if (useUnified) {
+        locationPath = pathname
+      } else {
+        path = pathname
+      }
+      query = normalizeQueryString(search)
+      if (hash.length > 0) {
+        const hashQueryIndex = hash.indexOf('?')
+        if (hashQueryIndex >= 0) {
+          if (useUnified) {
+            locationPath += hash.slice(0, hashQueryIndex)
+          } else {
+            path += hash.slice(0, hashQueryIndex)
+          }
+          query = mergeQueryString(
+            query,
+            normalizeQueryString(hash.slice(hashQueryIndex + 1))
+          )
+        } else {
+          if (useUnified) {
+            locationPath += hash
+          } else {
+            path += hash
+          }
+        }
+      }
+    }
+    if (
+      runtimeDocument != null &&
+      runtimeDocument.title != null
+    ) {
+      title = `${runtimeDocument.title}`
+    }
+  } catch (_error) {}
+  if (path.length == 0 && locationPath.length > 0) {
+    path = locationPath
+  }
+  if (path.length == 0 && logicalPageContext != null) {
+    path = logicalPageContext.path
+  }
+  if (path.length == 0) {
+    return null
+  }
+  if (
+    title.length == 0 &&
+    logicalPageContext != null &&
+    logicalPageContext.title != null &&
+    logicalPageContext.title.length > 0
+  ) {
+    title = logicalPageContext.title
+  }
+  const documentReferrer = readDocumentReferrer()
+  const currentHref = readCurrentHref()
+  const previousPageUrl = lastPageFullUrl
+  lastPageFullUrl = currentHref.length > 0 ? currentHref : lastPageFullUrl
+  return {
+    path: path,
+    query: query,
+    title: title,
+    referralPage: previousPageUrl.length > 0
+      ? previousPageUrl
+      : documentReferrer,
+    duration: logicalPageContext != null ? logicalPageContext.duration : null
+  } as GioPageContext
+}
+
+function readRawConfigField(key : string) : string | null {
+  try {
+    const raw = window['vdsConfig'] as UTSJSONObject | null
+    if (raw == null) {
+      return null
+    }
+    const text = raw.getString(key, '')
+    return text.length > 0 ? text : null
+  } catch (_error) {
+    return null
+  }
+}
+
+function normalizeWebStorageType(value : string | null) : string {
+  if (value == null || value.length == 0) {
+    return DEFAULT_STORAGE_TYPE
+  }
+  const normalized = value.toLowerCase()
+  if (normalized == 'localstorage') {
+    return LOCAL_STORAGE_TYPE
+  }
+  if (normalized == DEFAULT_STORAGE_TYPE) {
+    return DEFAULT_STORAGE_TYPE
+  }
+  return DEFAULT_STORAGE_TYPE
+}
+
+function createWebMainStorage(
+  options : GioInitOptions,
+  fallback : any | null
+) : any | null {
+  const requestedStorageType = normalizeWebStorageType(
+    readRawConfigField('storageType')
+  )
+  if (requestedStorageType == 'cookie') {
+    const rawDomain = readRawConfigField('cookieDomain')
+    const cookieDomain = resolveCookieDomain(
+      rawDomain != null ? rawDomain : ''
+    )
+    if (cookieDomain.length > 0) {
+      return createCookieStorage(cookieDomain)
+    }
+  }
+  if (canUseLocalStorage()) {
+    return createLocalStorageAdapter()
+  }
+  return fallback
+}
+
+function readVisitSentSessionId(options : GioInitOptions) : string {
+  const storage = createWebMainStorage(options, null)
+  if (storage == null) {
+    return ''
+  }
+  const value = storage.getItem(`${options.projectId}${VISIT_SENT_SUFFIX}`)
+  return value != null && typeof value == 'string' ? value as string : ''
+}
+
+registerPlatformStorageFactory({
+  createMainStorage(options : GioInitOptions, fallback : any) : any {
+    const storage = createWebMainStorage(options, fallback)
+    return storage != null ? storage : fallback
+  },
+  createOriginalSourceStorage(_options : GioInitOptions, fallback : any) : any {
+    if (canUseLocalStorage()) {
+      return createLocalStorageAdapter()
+    }
+    return fallback
+  },
+  createLocalStorage(_options : GioInitOptions, fallback : any) : any {
+    if (canUseLocalStorage()) {
+      return createLocalStorageAdapter()
+    }
+    return fallback
+  }
+})
+
+registerRuntimePolicy({
+  getInitStartMessage(_fallback : string) : string {
+    return _fallback
+  },
+  getInitCompleteMessage(_fallback : string) : string {
+    return _fallback
+  },
+  getSessionTimeoutMs(_fallback : number) : number {
+    return WEB_SESSION_TIMEOUT_MS
+  },
+  shouldRenewSessionOnTimeout() : boolean {
+    return true
+  },
+  getMaxQueueSize(_fallback : number) : number {
+    return WEB_MAX_QUEUE_SIZE
+  },
+  shouldPersistSessionId() : boolean {
+    return true
+  },
+  shouldPersistEvents() : boolean {
+    return false
+  },
+  shouldWaitForNetworkState() : boolean {
+    return false
+  },
+  shouldEmitPageWithoutShow() : boolean {
+    return true
+  },
+  supportsAppState() : boolean {
+    return false
+  },
+  supportsLocation() : boolean {
+    return false
+  },
+  getPageReferralFallback(_options : GioInitOptions) : string {
+    return ''
+  },
+  getUploadRequestTimeout(fallback : number) : number {
+    return fallback
+  },
+  getUploadMaxConcurrency(fallback : number) : number {
+    return fallback
+  }
+})
+
+registerPageContextWaitPolicy({
+  shouldWaitForPageContext(options : GioInitOptions) : boolean {
+    return options.useUnified == true
+  }
+})
+
+registerPageContextResolver({
+  resolvePageContext(pageContext : GioPageContext | null) : GioPageContext | null {
+    return resolveBrowserPageContext(pageContext)
+  }
+})
+
+// Web 端首访 session 快照必须持久化：页面刷新会清空内存、且 session 自身存于 localStorage，
+// 只有把快照也落 localStorage，才能复刻独立 web SDK「全新设备首个 session 内刷新仍 newDevice=true」。
+// 用裸 localStorage（与独立 SDK 的 abts 一致），判为非新设备时由插件经 host 触发 clear。
+const VISIT_SESSION_STORAGE_KEY = 'gdp_abt_visit_sid'
+
+registerVisitSessionStore({
+  record(sessionId : string) {
+    writeLocalItem(VISIT_SESSION_STORAGE_KEY, sessionId)
+  },
+  read() : string {
+    const value = readLocalItem(VISIT_SESSION_STORAGE_KEY)
+    return value != null ? value : ''
+  },
+  clear() {
+    removeLocalItem(VISIT_SESSION_STORAGE_KEY)
+  }
+})
+
+registerRuntimeBehavior({
+  scheduleVisitAndPage(dispatch : (() => void)) {
+    setTimeout(() => {
+      dispatch()
+    }, 0)
+  },
+  shouldTrackAppClosed() : boolean {
+    return false
+  },
+  shouldEmitPageOnShow() : boolean {
+    return shouldEmitPageForCurrentHref()
+  },
+  shouldEmitVisitForSession(options : GioInitOptions, sessionId : string) : boolean {
+    if (sessionId.length == 0) {
+      return false
+    }
+    return readVisitSentSessionId(options) != sessionId
+  }
+})
+
+registerConfigSyncer({
+  syncConfig(options : GioInitOptions) {
+    try {
+      const runtimeGlobal = window as any
+      const rawDomain = readRawConfigField('cookieDomain')
+      runtimeGlobal['vds'] = {
+        projectId: options.projectId,
+        dataSourceId: options.dataSourceId,
+        appId: options.appId,
+        serverUrl: options.serverUrl,
+        appVersion: options.appVersion,
+        dataCollect: options.dataCollect,
+        idMapping: options.idMapping,
+        cookieDomain: rawDomain != null ? rawDomain : '',
+        debug: options.debug,
+        forceLogin: options.forceLogin,
+        originalSource: options.originalSource,
+        useUnified: options.useUnified,
+        storageType: normalizeWebStorageType(readRawConfigField('storageType'))
+      } as UTSJSONObject
+    } catch (_error) {}
+  }
+})
+
+registerEventShaper({
+  shapeTrackEvent(event : GioTrackEvent) : GioTrackEvent {
+    event.appChannel = null
+    const runtimeDomain = readRuntimeDomain()
+    if (runtimeDomain != null) {
+      event.domain = runtimeDomain
+    }
+    event.protocolType = event.eventType == 'PAGE'
+      ? readProtocolType()
+      : null
+    if (event.eventType == 'PAGE') {
+      const currentHref = readCurrentHref()
+      if (currentHref.length > 0) {
+        lastTrackedPageHref = currentHref
+      }
+    }
+    return event
+  }
+})
+
+function isBeaconSupported() : boolean {
+  try {
+    const runtimeGlobal = window as any
+    return runtimeGlobal.navigator != null &&
+      typeof runtimeGlobal.navigator.sendBeacon == 'function'
+  } catch (_error) {
+    return false
+  }
+}
+
+const MAX_WEB_UPLOAD_BATCH_SIZE = 10
+const MAX_BEACON_PAYLOAD_BYTES = 60 * 1024
+
+function shouldUseBeacon(payload : string) : boolean {
+  return isBeaconSupported() && utf8ByteLength(payload) <= MAX_BEACON_PAYLOAD_BYTES
+}
+
+registerUploadPolicy({
+  shouldScheduleFlush() : boolean {
+    return true
+  },
+  getFlushDelay() : number {
+    return 0
+  },
+  getMaxBatchSize() : number {
+    return MAX_WEB_UPLOAD_BATCH_SIZE
+  },
+  getMaxBatchPayloadBytes() : number {
+    return MAX_BEACON_PAYLOAD_BYTES
+  }
+})
+
+registerEventSender({
+  sendEvent(
+    url : string,
+    data : Array<UTSJSONObject>,
+    onSuccess : (() => void) | null,
+    onFail : (() => void) | null
+  ) {
+    const payload = jsonStringify(data)
+    if (shouldUseBeacon(payload)) {
+      try {
+        const runtimeGlobal = window as any
+        const accepted = runtimeGlobal.navigator.sendBeacon(url, payload)
+        if (accepted) {
+          if (onSuccess != null) {
+            onSuccess()
+          }
+          return
+        }
+      } catch (_error) {}
+    }
+    const xhr = new XMLHttpRequest() as any
+    xhr.open('POST', url, true)
+    xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8')
+    xhr.onload = function() {
+      if (xhr.status == 204 || xhr.status == 200) {
+        if (onSuccess != null) {
+          onSuccess()
+        }
+      } else {
+        if (onFail != null) {
+          onFail()
+        }
+      }
+    }
+    xhr.onerror = function() {
+      if (onFail != null) {
+        onFail()
+      }
+    }
+    xhr.send(payload)
+  }
+})

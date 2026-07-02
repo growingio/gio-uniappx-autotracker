@@ -1,0 +1,43 @@
+// Android App 端系统字段解析器。
+import {
+  GioSystemContextFields,
+  GioSystemContextResolver
+} from '../interface.uts'
+function readAndroidChannel() : string | null {
+  try {
+    const appBase = uni.getAppBaseInfo()
+    const channel = appBase.channel
+    return channel != null && channel.length > 0 ? channel : null
+  } catch (_error) {
+    return null
+  }
+}
+
+class AppAndroidSystemContextResolver implements GioSystemContextResolver {
+  resolveSystemContext(
+    systemInfo : UTSJSONObject | null,
+    osName : string,
+    osLabel : string,
+    version : string,
+    deviceBrand : string,
+    deviceType : string
+  ) : GioSystemContextFields | null {
+    return {
+      appName: systemInfo != null ? systemInfo.getString('appName') : null,
+      bundleId: systemInfo != null ? systemInfo.getString('bundleId') : null,
+      channel: readAndroidChannel(),
+      deviceBrand: deviceBrand,
+      deviceModel: null,
+      deviceType: deviceType,
+      language: null,
+      networkState: null,
+      operatingSystem: osLabel,
+      platform: osLabel,
+      platformVersion: version.length > 0 ? version : osLabel
+    } as GioSystemContextFields
+  }
+}
+
+export function createAppAndroidSystemContextResolver() : GioSystemContextResolver {
+  return new AppAndroidSystemContextResolver()
+}

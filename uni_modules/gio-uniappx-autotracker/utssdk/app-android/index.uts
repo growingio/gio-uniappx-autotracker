@@ -1,0 +1,61 @@
+import Activity from 'android.app.Activity'
+import { GioTracker } from '../common/core/tracker.uts'
+import { createAppAndroidSystemContextResolver } from './system-context.uts'
+import { registerAppSessionPolicy } from '../platform-shared/app-session.uts'
+
+export * from '../index.uts'
+import { onShow, onHide } from '../index.uts'
+
+registerAppSessionPolicy()
+GioTracker.getInstance().setSystemContextResolver(
+  createAppAndroidSystemContextResolver()
+)
+
+// 确保只对真正 start 过的 Activity 做计数扣除，避免首次启动时
+// 最早几个 Activity 的 onStop 先于 onStart 被回调导致计数异常。
+const activityList : Array<Activity> = []
+let activityCount : number = 0
+let hasBeenToBackground : boolean = false
+
+class UTSActivityLifeCycleCallback extends UniActivityLifeCycleCallback {
+  constructor() {
+    super()
+  }
+
+  // 使用onPreStart替代onStart，activity的onStart在uniappx page的onStart之后执行，会导致onAppShow晚于onPageShow
+  override onPreStart(params : UniActivityParams) {
+    const activity = params.activity
+    if (activity != null) {
+      const idx = activityList.indexOf(activity)
+      if (idx == -1) {
+        activityList.push(activity)
+        activityCount++
+        if (hasBeenToBackground && activityCount == 1) {
+          hasBeenToBackground = false
+          onShow(null, null)
+        }
+      }
+    }
+  }
+
+  override onStop(params : UniActivityParams) {
+    const activity = params.activity
+    if (activity != null) {
+      const idx = activityList.indexOf(activity)
+      if (idx != -1) {
+        activityList.splice(idx as number, 1)
+        activityCount--
+      }
+	  // 由于注册时机的问题，首页无法回调onPreStart
+	  // standard模式下，A->B，执行完B的onStart才会执行A的onStop，可以兼容该场景，不考虑singleInstance等模式
+	  // 并且uniappx通常情况下仅单个activity，允许用户定义native activity
+	  if (activityCount == 0) {
+	    hasBeenToBackground = true
+	    onHide(null)
+	  }
+    }
+  }
+}
+
+const activityLifeCycleCallback = new UTSActivityLifeCycleCallback()
+UTSAndroid.onActivityCallback(activityLifeCycleCallback)

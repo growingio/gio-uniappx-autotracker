@@ -1,0 +1,401 @@
+// dataStore 负责统一管理系统上下文、页面状态、原始来源和事件构建。
+import {
+  GioInitOptions,
+  GioOriginalSource,
+  GioOriginalSourceStore,
+  GioPageContext,
+  GioPageSnapshot,
+  GioStorage,
+  GioSystemContextResolver,
+  GioTrackEvent
+} from '../../interface.uts'
+import {
+  GioEventCenter,
+  GioSessionIdUpdatePayload
+} from '../events.uts'
+import { DEFAULT_DATA_VALIDITY_DAYS } from '../config.uts'
+import {
+  resolvePageContext,
+  resolvePageReferralFallback,
+  shouldWaitForNetworkState
+} from '../runtime/index.uts'
+import { GioUserStore } from '../userStore/index.uts'
+import { GioSystemContextManager } from './context/system-context.uts'
+import { GioEventBuilder } from './eventBuilder/index.uts'
+import { GioPageStore } from './page/page-store.uts'
+import { GioStorageContainer } from '../storage/index.uts'
+
+const SENT_SIGN_SUFFIX = '_gdp_session_id_sent'
+
+export type GioSessionUpdateHandlers = {
+  emitVisit : (pageContext : GioPageContext | null) => void
+  emitPage : (pageContext : GioPageContext | null) => void
+  shouldHandleSessionUpdate : () => boolean
+  shouldEmitPage : (pageContext : GioPageContext | null) => boolean
+}
+
+export class GioDataStore {
+  private options : GioInitOptions | null = null
+  private projectId : string = ''
+  private userStore : GioUserStore | null = null
+  private storage : GioStorageContainer | null = null
+  private systemContext : GioSystemContextManager = new GioSystemContextManager()
+  private pageStore : GioPageStore = new GioPageStore()
+  private eventBuilder : GioEventBuilder = new GioEventBuilder()
+  private sessionUpdateHandlers : GioSessionUpdateHandlers | null = null
+  private originalSourceStore : GioOriginalSourceStore | null = null
+  private sessionListenerBound : boolean = false
+  private startupPageContext : GioPageContext | null = null
+  private locationLatitude : number | null = null
+  private locationLongitude : number | null = null
+
+  initialize(
+    options : GioInitOptions,
+    userStore : GioUserStore,
+    storage : GioStorageContainer,
+    sessionUpdateHandlers : GioSessionUpdateHandlers
+  ) {
+    this.options = options
+    this.projectId = options.projectId
+    this.userStore = userStore
+    this.storage = storage
+    this.sessionUpdateHandlers = sessionUpdateHandlers
+    this.eventBuilder.configure(userStore)
+    this.systemContext.initialize(
+      options.debug == true,
+      options.screenWidth,
+      options.screenHeight,
+      shouldWaitForNetworkState()
+    )
+    this.pageStore.configure(resolvePageReferralFallback(options))
+    this.resetOriginalSourceStateIfDisabled()
+    this.bindSessionUpdateListener()
+  }
+
+  private bindSessionUpdateListener() {
+    if (this.sessionListenerBound) {
+      return
+    }
+    this.sessionListenerBound = true
+    GioEventCenter.onSessionIdUpdate((payload : GioSessionIdUpdatePayload) => {
+      this.handleSessionIdUpdate(payload)
+    })
+  }
+
+  private handleSessionIdUpdate(payload : GioSessionIdUpdatePayload) {
+    const handlers = this.sessionUpdateHandlers
+    if (handlers == null || !handlers.shouldHandleSessionUpdate()) {
+      return
+    }
+    // 初始化阶段的空旧 session 已由 shouldHandleSessionUpdate() 屏蔽；
+    // 运行中持久化 session 过期/被删除时 oldSessionId 也会为空，此时仍要补发新
+    // session 的 VISIT/PAGE。
+    const currentPageContext = this.buildCurrentPageContext(null)
+    let visitPageContext = currentPageContext
+    if (visitPageContext == null) {
+      visitPageContext = this.buildLastVisitPageContext()
+    }
+    handlers.emitVisit(visitPageContext)
+    if (handlers.shouldEmitPage(currentPageContext)) {
+      handlers.emitPage(currentPageContext)
+    }
+  }
+
+  private getMainStorage() : GioStorage {
+    return (this.storage as GioStorageContainer).getMainStorage()
+  }
+
+  private getOriginalSourceStorage() : GioStorage {
+    return (this.storage as GioStorageContainer).getOriginalSourceStorage()
+  }
+
+  private getResolvedOptions() : GioInitOptions {
+    if (this.options != null) {
+      return this.options
+    }
+    return {
+      projectId: '',
+      dataSourceId: '',
+      appId: '',
+      serverUrl: '',
+      appVersion: null,
+      dataCollect: true,
+      debug: false,
+      forceLogin: false,
+      originalSource: true,
+      useUnified: true,
+      idMapping: false,
+      urlScheme: null,
+      screenWidth: 0,
+      screenHeight: 0,
+      dataValidityPeriod: DEFAULT_DATA_VALIDITY_DAYS
+    } as GioInitOptions
+  }
+
+  setDataCollect(dataCollect : boolean) {
+    if (this.options == null) {
+      return
+    }
+    this.options.dataCollect = dataCollect
+  }
+
+  updateAppState(appState : string | null) {
+    this.systemContext.setAppState(appState)
+  }
+
+  setSystemContextResolver(resolver : GioSystemContextResolver | null) {
+    this.systemContext.setSystemContextResolver(resolver)
+  }
+
+  setOriginalSourceStore(store : GioOriginalSourceStore | null) {
+    this.originalSourceStore = store
+  }
+
+  setLocation(latitude : number, longitude : number) : boolean {
+    if (
+      this.locationLatitude != null &&
+      this.locationLongitude != null &&
+      this.locationLatitude == latitude &&
+      this.locationLongitude == longitude
+    ) {
+      return true
+    }
+    this.locationLatitude = latitude
+    this.locationLongitude = longitude
+    return true
+  }
+
+  clearLocation() : boolean {
+    this.locationLatitude = null
+    this.locationLongitude = null
+    return true
+  }
+
+  isSystemReady() : boolean {
+    return this.systemContext.isReady()
+  }
+
+  ensureSystemReady(callback : (() => void) | null = null) {
+    this.systemContext.ensureReady(callback)
+  }
+
+  buildCurrentPageContext(duration : number | null) : GioPageContext | null {
+    return this.pageStore.buildCurrentPageContext(duration)
+  }
+
+  buildEventPageContext(duration : number | null) : GioPageContext | null {
+    const currentPageContext = this.buildCurrentPageContext(duration)
+    if (currentPageContext != null) {
+      return currentPageContext
+    }
+    return resolvePageContext(this.startupPageContext)
+  }
+
+  cacheQueryOptions(path : string, query : string) {
+    this.pageStore.cacheQueryOptions(path, query)
+  }
+
+  recordEvent(eventType : string, path : string, query : string, title : string, referralPage : string) {
+    if (eventType == 'PAGE') {
+      this.pageStore.recordLastPageEvent(path, query, title, referralPage)
+    } else if (eventType == 'VISIT') {
+      this.pageStore.recordLastVisitEvent(path, query, referralPage)
+    }
+  }
+
+  buildPageContextFromTarget(
+    page : GioPageSnapshot | null,
+    options : any | null,
+    duration : number | null = null
+  ) : GioPageContext | null {
+    return this.pageStore.buildPageContextFromTarget(
+      page,
+      options as UTSJSONObject | null,
+      duration
+    )
+  }
+
+  updateCurrentPage(page : GioPageSnapshot | null, options : any | null) : GioPageContext | null {
+    const pageContext = this.pageStore.updateCurrentPage(
+      page,
+      options as UTSJSONObject | null
+    )
+    this.maybeStoreOriginalSource(pageContext)
+    return pageContext
+  }
+
+  buildLastVisitPageContext() : GioPageContext | null {
+    return this.pageStore.buildLastVisitPageContext()
+  }
+
+  setStartupPageContext(pageContext : GioPageContext | null) {
+    this.startupPageContext = pageContext
+    if (!this.isOriginalSourceEnabled()) {
+      this.pageStore.setEntryReferralPage(null)
+      return
+    }
+    this.pageStore.setEntryReferralPage(
+      pageContext != null ? pageContext.referralPage : null
+    )
+    if (pageContext != null) {
+      this.storeOriginalSource(pageContext, true)
+    }
+  }
+
+  hasCurrentPage() : boolean {
+    return this.pageStore.hasCurrentPage()
+  }
+
+  getCurrentPagePath() : string {
+    return this.pageStore.getCurrentPagePath()
+  }
+
+  getCurrentPageShowAt() : number {
+    return this.pageStore.getCurrentPageShowAt()
+  }
+
+  resetCurrentPageShowAt(path : string) {
+    this.pageStore.resetCurrentPageShowAt(path)
+  }
+
+  maybeStoreOriginalSource(pageContext : GioPageContext | null) {
+    this.storeOriginalSource(pageContext, false)
+  }
+
+  private storeOriginalSource(
+    pageContext : GioPageContext | null,
+    forceOverwrite : boolean
+  ) {
+    if (!this.isOriginalSourceEnabled() || pageContext == null) {
+      return
+    }
+    const userStore = this.userStore as GioUserStore
+    const context = userStore.getContext()
+    const currentSessionId : string = context.sessionId
+    const sourceStore = this.originalSourceStore
+    if (sourceStore == null || currentSessionId.length == 0) {
+      return
+    }
+    if (!forceOverwrite && this.getVisitSentSessionId() == currentSessionId) {
+      return
+    }
+    sourceStore.store(
+      this.getResolvedOptions(),
+      this.getOriginalSourceStorage(),
+      pageContext,
+      this.resolvePreferredPageContext(pageContext),
+      forceOverwrite,
+      currentSessionId
+    )
+  }
+
+  buildEvent(
+    name : string,
+    eventType : string,
+    properties : UTSJSONObject | null,
+    pageContext : GioPageContext | null,
+    appChannel : string | null
+  ) : GioTrackEvent {
+    return this.eventBuilder.buildEvent(
+      this.getResolvedOptions(),
+      this.systemContext.getContext(),
+      name,
+      eventType,
+      properties,
+      pageContext,
+      appChannel,
+      eventType == 'VISIT' ? this.getCurrentOriginalSource() : null,
+      this.locationLatitude,
+      this.locationLongitude
+    )
+  }
+
+  handleFlushSuccess(events : Array<GioTrackEvent>) {
+    for (let i = 0; i < events.length; i++) {
+      const event = events[i]
+      // 这里只能走明确字段访问，不能写 `event['key']`。
+      // 下标访问会退成 Any?，Swift 上再拿它和字符串字面量比较就会出问题。
+      if (event.eventType != 'VISIT') {
+        continue
+      }
+      const sessionId = `${event.sessionId}`
+      if (sessionId.length == 0) {
+        continue
+      }
+      this.markVisitSent(sessionId)
+      const sourceStore = this.originalSourceStore
+      if (sourceStore != null) {
+        sourceStore.consume(
+          this.getResolvedOptions(),
+          this.getOriginalSourceStorage(),
+          event
+        )
+      }
+      this.startupPageContext = null
+    }
+  }
+
+  private isOriginalSourceEnabled() : boolean {
+    if (this.options == null || this.options.originalSource != true) {
+      return false
+    }
+    return true
+  }
+
+  private resetOriginalSourceStateIfDisabled() {
+    if (this.isOriginalSourceEnabled()) {
+      return
+    }
+    this.startupPageContext = null
+    this.pageStore.setEntryReferralPage(null)
+    const sourceStore = this.originalSourceStore
+    if (sourceStore == null) {
+      return
+    }
+    sourceStore.reset(
+      this.getResolvedOptions(),
+      this.getOriginalSourceStorage()
+    )
+  }
+
+  private buildProjectStorageKey(suffix : string) : string {
+    return `${this.projectId}${suffix}`
+  }
+
+  private getSentSignKey() : string {
+    return this.buildProjectStorageKey(SENT_SIGN_SUFFIX)
+  }
+
+  private getVisitSentSessionId() : string {
+    const value = this.getMainStorage().getItem(this.getSentSignKey())
+    return value != null && typeof value == 'string' ? value as string : ''
+  }
+
+  private markVisitSent(sessionId : string) {
+    this.getMainStorage().setItem(this.getSentSignKey(), sessionId, null)
+  }
+
+  private getCurrentOriginalSource() : GioOriginalSource | null {
+    if (!this.isOriginalSourceEnabled()) {
+      return null
+    }
+    const sourceStore = this.originalSourceStore
+    if (sourceStore == null) {
+      return null
+    }
+    return sourceStore.read(
+      this.getResolvedOptions(),
+      this.getOriginalSourceStorage()
+    )
+  }
+
+  private resolvePreferredPageContext(
+    pageContext : GioPageContext | null
+  ) : GioPageContext | null {
+    const startupPageContext = this.startupPageContext
+    if (startupPageContext != null) {
+      return resolvePageContext(startupPageContext)
+    }
+    return resolvePageContext(pageContext)
+  }
+}
