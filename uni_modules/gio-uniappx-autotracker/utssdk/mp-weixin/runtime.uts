@@ -38,6 +38,9 @@ registerRuntimePolicy({
   shouldWaitForNetworkState() : boolean {
     return true
   },
+  shouldWaitForPageContext(_options : GioInitOptions) : boolean {
+    return false
+  },
   shouldEmitPageWithoutShow() : boolean {
     return false
   },

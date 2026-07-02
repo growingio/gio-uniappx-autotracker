@@ -60,6 +60,7 @@ type GioRuntimePolicy = {
   shouldPersistSessionId : () => boolean
   shouldPersistEvents : () => boolean
   shouldWaitForNetworkState : () => boolean
+  shouldWaitForPageContext : (options : GioInitOptions) => boolean
   shouldEmitPageWithoutShow : () => boolean
   supportsAppState : () => boolean
   supportsLocation : () => boolean
@@ -221,6 +222,11 @@ export function shouldPersistEvents() : boolean {
 export function shouldWaitForNetworkState() : boolean {
   const policy = registeredRuntimePolicy
   return policy != null ? policy.shouldWaitForNetworkState() : true
+}
+
+export function shouldWaitForPageContext(options : GioInitOptions) : boolean {
+  const policy = registeredRuntimePolicy
+  return policy != null ? policy.shouldWaitForPageContext(options) : false
 }
 
 export function shouldEmitPageWithoutShow() : boolean {

@@ -46,6 +46,7 @@ import {
   shouldEmitPageWithoutShow,
   shouldEmitPageOnShow,
   shouldEmitVisitForSession,
+  shouldWaitForPageContext,
   shouldTrackAppClosed,
   supportsAppState,
   supportsLocation,
@@ -53,6 +54,8 @@ import {
 } from '../runtime/index.uts'
 import { GioStorageContainer } from '../storage/index.uts'
 import { resolvePageRoute } from '../route.uts'
+
+type GioPageReadyCallback = () => void
 
 export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   static sharedInstance : GioTracker | null = null
@@ -74,6 +77,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private sessionUpdateReady : boolean = false
   private abTestPlugin : GioABTestPlugin | null = null
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
+  private pendingPageReadyCallbacks : Array<GioPageReadyCallback> = []
   private firstPageDispatchWaiting : boolean = false
   private shareTrackingEnabled : boolean = false
   private entryEnabled : boolean = false
@@ -372,7 +376,43 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.dataStore.setStartupPageContext(this.buildStartupPageContext(entryInfo))
   }
 
+  private shouldWaitForReadyPageContext(
+    pageContext : GioPageContext | null,
+    eventType : string
+  ) : boolean {
+    if (pageContext != null || eventType == 'APP_CLOSED') {
+      return false
+    }
+    const options = this.options
+    if (options == null || !shouldWaitForPageContext(options)) {
+      return false
+    }
+    return !this.dataStore.hasCurrentPage()
+  }
+
+  private enqueuePageReadyCallback(callback : GioPageReadyCallback) {
+    this.pendingPageReadyCallbacks.push(callback)
+  }
+
+  private flushPageReadyCallbacks(pageContext : GioPageContext | null) {
+    if (pageContext == null || !this.dataStore.hasCurrentPage()) {
+      return
+    }
+    const pendingCallbacks = this.pendingPageReadyCallbacks.slice()
+    this.pendingPageReadyCallbacks = []
+    for (let i = 0; i < pendingCallbacks.length; i++) {
+      const callback = pendingCallbacks[i]
+      callback()
+    }
+  }
+
   private emitVisitEvent(pageContext : GioPageContext | null, flushAfter : boolean = false) {
+    if (this.shouldWaitForReadyPageContext(pageContext, 'VISIT')) {
+      this.enqueuePageReadyCallback(() => {
+        this.emitVisitEvent(this.buildCurrentPageContext(null), flushAfter)
+      })
+      return
+    }
     this.dataStore.maybeStoreOriginalSource(pageContext)
     this.pushInternalEvent('visit', 'VISIT', null, pageContext, flushAfter)
   }
@@ -466,6 +506,18 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     }
     const options = this.options
     if (options == null || options.dataCollect != true) {
+      return
+    }
+    if (this.shouldWaitForReadyPageContext(pageContext, eventType)) {
+      this.enqueuePageReadyCallback(() => {
+        this.pushInternalEvent(
+          name,
+          eventType,
+          properties,
+          this.buildCurrentPageContext(null),
+          flushAfter
+        )
+      })
       return
     }
     // 所有事件都必须等异步系统上下文 ready 后才能真正构建；
@@ -796,6 +848,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     this.currentPageShown = false
     this.cachePageQueryOptions(page, options)
     const pageContext = this.updateCurrentPage(page, options)
+    this.flushPageReadyCallbacks(pageContext)
     this.logLifecycle('page', 'onLoad', pageContext)
   }
 
@@ -863,6 +916,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     // 对齐独立 SDK pageEffects.ts:154：每次 page onShow 复位 shareOut。
     this.shareOut = false
     const pageContext = this.updateCurrentPage(page, null)
+    this.flushPageReadyCallbacks(pageContext)
     this.logLifecycle('page', 'onShow', pageContext)
     if (!shouldEmitPageOnShow()) {
       this.maybeEmitVisit(pageContext)

@@ -634,6 +634,9 @@ registerRuntimePolicy({
   shouldWaitForNetworkState() : boolean {
     return false
   },
+  shouldWaitForPageContext(options : GioInitOptions) : boolean {
+    return options.useUnified == true
+  },
   shouldEmitPageWithoutShow() : boolean {
     return true
   },
