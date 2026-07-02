@@ -1,0 +1,540 @@
+<template>
+	<scroll-view class="page">
+		<view class="section">
+			<text class="sectionTitle">点击事件</text>
+			<text class="hint">覆盖 click / tap / longpress、方法引用、显式 $event 和内联表达式。</text>
+			<button
+				id="auto_click_method"
+				class="btn"
+				:data-index="1"
+				data-title="方法引用按钮"
+				data-src="/pages/autotrack/autotrack?case=method"
+				@click="onMethodClick"
+			>方法引用 click</button>
+			<button
+				id="auto_tap_method"
+				class="btnGreen"
+				:data-index="2"
+				data-title="tap 按钮"
+				data-src="/pages/autotrack/autotrack?case=tap"
+				@tap="onTapClick"
+			>tap 事件</button>
+			<button
+				id="auto_longpress_method"
+				class="btnOrange"
+				:data-index="3"
+				data-title="longpress 按钮"
+				data-src="/pages/autotrack/autotrack?case=longpress"
+				@longpress="onLongPress"
+			>longpress 事件</button>
+			<button
+				id="auto_explicit_event"
+				class="btnGhost"
+				:data-index="4"
+				data-title="显式 event 按钮"
+				data-src="/pages/autotrack/autotrack?case=event"
+				@click="onExplicitEvent($event)"
+			>显式传 $event</button>
+			<button
+				id="auto_inline_expression"
+				class="btnGhost"
+				:data-index="5"
+				data-title="内联表达式按钮"
+				data-src="/pages/autotrack/autotrack?case=inline"
+				@click="note('inline expression click')"
+			>内联表达式</button>
+			<button
+				id="auto_inline_argument"
+				class="btnGhost"
+				:data-index="6"
+				data-title="内联参数按钮"
+				data-src="/pages/autotrack/autotrack?case=inline-arg"
+				@click="onInlineArgument('inline argument click')"
+			>内联参数调用</button>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">合法调用写法</text>
+			<text class="hint">覆盖带括号、不带括号、不同参数类型、多参数、$event 混参和连续语句。</text>
+			<view class="caseRow">
+				<button
+					id="auto_call_no_parentheses"
+					class="caseBtn"
+					:data-index="7"
+					data-title="不带括号的方法引用"
+					data-src="/pages/autotrack/autotrack?case=no-parentheses"
+					@click="onNoParentheses"
+				>不带括号</button>
+				<text class="codeLine">&#64;click="onNoParentheses"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_empty_parentheses"
+					class="caseBtn"
+					:data-index="8"
+					data-title="显式空括号"
+					data-src="/pages/autotrack/autotrack?case=empty-parentheses"
+					@click="onEmptyParentheses()"
+				>空括号</button>
+				<text class="codeLine">&#64;click="onEmptyParentheses()"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_string_argument"
+					class="caseBtnGreen"
+					:data-index="9"
+					data-title="字符串参数"
+					data-src="/pages/autotrack/autotrack?case=string-argument"
+					@click="onStringArgument('string_arg')"
+				>字符串参数</button>
+				<text class="codeLine">&#64;click="onStringArgument('string_arg')"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_number_argument"
+					class="caseBtnGreen"
+					:data-index="10"
+					data-title="数字参数"
+					data-src="/pages/autotrack/autotrack?case=number-argument"
+					@click="onNumberArgument(42)"
+				>数字参数</button>
+				<text class="codeLine">&#64;click="onNumberArgument(42)"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_boolean_argument"
+					class="caseBtnGreen"
+					:data-index="11"
+					data-title="布尔参数"
+					data-src="/pages/autotrack/autotrack?case=boolean-argument"
+					@click="onBooleanArgument(true)"
+				>布尔参数</button>
+				<text class="codeLine">&#64;click="onBooleanArgument(true)"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_null_argument"
+					class="caseBtnGreen"
+					:data-index="12"
+					data-title="null 参数"
+					data-src="/pages/autotrack/autotrack?case=null-argument"
+					@click="onNullArgument(null)"
+				>null 参数</button>
+				<text class="codeLine">&#64;click="onNullArgument(null)"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_multi_arguments"
+					class="caseBtnOrange"
+					:data-index="13"
+					data-title="多参数"
+					data-src="/pages/autotrack/autotrack?case=multi-arguments"
+					@click="onMultipleArguments('sku_001', 3, true)"
+				>多参数</button>
+				<text class="codeLine">&#64;click="onMultipleArguments('sku_001', 3, true)"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_event_and_argument"
+					class="caseBtnOrange"
+					:data-index="14"
+					data-title="$event 混合参数"
+					data-src="/pages/autotrack/autotrack?case=event-and-argument"
+					@click="onEventAndArgument($event, 'extra_arg')"
+				>$event + 参数</button>
+				<text class="codeLine">&#64;click="onEventAndArgument($event, 'extra_arg')"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_inline_sequence"
+					class="caseBtnGhost"
+					:data-index="15"
+					data-title="连续语句"
+					data-src="/pages/autotrack/autotrack?case=inline-sequence"
+					@click="note('inline first'); onInlineArgument('inline second')"
+				>连续语句</button>
+				<text class="codeLine">&#64;click="note('inline first'); onInlineArgument('inline second')"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_call_conditional"
+					class="caseBtnGhost"
+					:data-index="16"
+					data-title="条件表达式"
+					data-src="/pages/autotrack/autotrack?case=conditional"
+					@click="conditionEnabled ? onConditionalTrue() : onConditionalFalse()"
+				>条件表达式</button>
+				<text class="codeLine">&#64;click="conditionEnabled ? onConditionalTrue() : onConditionalFalse()"</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">element 字段</text>
+			<text class="hint">观察 xpath / index / textValue / hyperlink 是否按 dataset 进入 element。</text>
+			<view class="caseRow">
+				<button
+					id="auto_element_id_only"
+					class="caseBtn"
+					@click="onElementIdOnly"
+				>只有 id</button>
+				<text class="codeLine">id="auto_element_id_only" &#64;click="onElementIdOnly"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_dataset_full"
+					class="caseBtn"
+					:data-index="30"
+					data-title="完整 dataset"
+					data-src="https://example.com/full"
+					@click="onDatasetFull"
+				>完整 dataset</button>
+				<text class="codeLine">id + :data-index="30" + data-title + data-src + &#64;click</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_dataset_static_index"
+					class="caseBtn"
+					data-index="31"
+					data-title="静态 index"
+					@click="onDatasetStaticIndex"
+				>静态 index</button>
+				<text class="codeLine">data-index="31" data-title="静态 index" &#64;click="onDatasetStaticIndex"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_dataset_title_only"
+					class="caseBtnGreen"
+					data-title="只有 textValue"
+					@click="onDatasetTitleOnly"
+				>只有 title</button>
+				<text class="codeLine">data-title="只有 textValue" &#64;click="onDatasetTitleOnly"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_dataset_src_only"
+					class="caseBtnGreen"
+					data-src="https://example.com/src-only"
+					@click="onDatasetSrcOnly"
+				>只有 src</button>
+				<text class="codeLine">data-src="https://example.com/src-only" &#64;click="onDatasetSrcOnly"</text>
+			</view>
+			<view class="caseRow">
+				<button
+					class="caseBtnGhost"
+					data-title="无 id 节点"
+					:data-index="32"
+					@click="onElementNoId"
+				>无 id</button>
+				<text class="codeLine">无 id + data-title + :data-index="32"；xpath 应为 #onElementNoId</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_dataset_zero"
+					class="caseBtnOrange"
+					:data-index="0"
+					data-title="index 为 0"
+					data-src="https://example.com/zero"
+					@click="onDatasetZero"
+				>index=0</button>
+				<text class="codeLine">:data-index="0"；应不进入 element.index</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_dataset_max"
+					class="caseBtnOrange"
+					:data-index="2147483647"
+					data-title="index 最大边界"
+					data-src="https://example.com/max"
+					@click="onDatasetMaxIndex"
+				>index=max</button>
+				<text class="codeLine">:data-index="2147483647"；应不进入 element.index</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_dataset_invalid"
+					class="caseBtnOrange"
+					data-index="abc"
+					data-title="非法 index"
+					data-src="https://example.com/invalid"
+					@click="onDatasetInvalid"
+				>index=abc</button>
+				<text class="codeLine">data-index="abc"；应不进入 element.index</text>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">忽略与嵌套</text>
+			<text class="hint">growingIgnore 应阻止 VIEW_CLICK；嵌套点击用于观察 currentTarget 优先级。</text>
+			<button
+				id="auto_click_ignore"
+				class="btnDanger"
+				:data-growing-ignore="true"
+				data-title="忽略按钮"
+				@click="onIgnoredClick"
+			>data-growing-ignore=true</button>
+			<view
+				id="auto_parent_click"
+				class="nestBox"
+				:data-index="20"
+				data-title="父级 currentTarget"
+				data-src="/pages/autotrack/autotrack?case=nested"
+				@click="onParentClick"
+			>
+				<text class="nestTitle">点这里或子区域</text>
+				<view
+					id="auto_child_area"
+					class="nestChild"
+					:data-index="21"
+					data-title="子级 target"
+					data-src="/pages/autotrack/autotrack?case=child"
+				>
+					<text class="nestChildText">子区域 target</text>
+				</view>
+			</view>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">变更事件</text>
+			<text class="hint">只有 growingTrack=true 时，VIEW_CHANGE 才采集 textValue。</text>
+			<text class="fieldLabel">change + growingTrack</text>
+			<input
+				id="auto_change_input"
+				class="input"
+				v-model="changeValue"
+				:data-growing-track="true"
+				data-title="change 输入框"
+				@change="onInputChange"
+			/>
+			<text class="fieldLabel">blur + growingTrack</text>
+			<input
+				id="auto_blur_input"
+				class="input"
+				v-model="blurValue"
+				:data-growing-track="true"
+				data-title="blur 输入框"
+				@blur="onInputBlur"
+			/>
+			<text class="fieldLabel">confirm + growingTrack</text>
+			<input
+				id="auto_confirm_input"
+				class="input"
+				v-model="confirmValue"
+				:data-growing-track="true"
+				data-title="confirm 输入框"
+				confirm-type="search"
+				@confirm="onInputConfirm"
+			/>
+			<text class="fieldLabel">无 growingTrack</text>
+			<input
+				id="auto_change_no_track"
+				class="input"
+				v-model="noTrackValue"
+				data-title="不采集值的输入框"
+				@change="onInputNoTrack"
+			/>
+			<text class="fieldLabel">attr.value fallback</text>
+			<input
+				id="auto_attr_fallback"
+				class="input"
+				value="attr_fallback_value"
+				:data-growing-track="true"
+				data-title="attr fallback 输入框"
+				@blur="onAttrFallbackBlur"
+			/>
+			<text class="fieldLabel">change + growingIgnore</text>
+			<input
+				id="auto_change_ignore"
+				class="input"
+				v-model="ignoredValue"
+				:data-growing-track="true"
+				:data-growing-ignore="true"
+				data-title="忽略变更输入框"
+				@change="onIgnoredChange"
+			/>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">tabBar</text>
+			<text class="hint">点击底部 tabBar 的“无埋点”页签时，应通过 onTabItemTap 上报 VIEW_CLICK，xpath 为 #onTabItemTap。</text>
+		</view>
+
+		<view class="result">
+			<text class="label">最新页面动作：</text>
+			<text class="value">{{ lastAction }}</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+
+const changeValue = ref('change_value')
+const blurValue = ref('blur_value')
+const confirmValue = ref('confirm_value')
+const noTrackValue = ref('no_track_value')
+const ignoredValue = ref('ignored_value')
+const lastAction = ref('(none)')
+const conditionEnabled = ref(true)
+
+function note(message : string) {
+	lastAction.value = message
+}
+
+function onMethodClick() {
+	note('method click')
+}
+
+function onTapClick() {
+	note('tap click')
+}
+
+function onLongPress() {
+	note('longpress')
+}
+
+function onExplicitEvent(_event : any | null) {
+	note('explicit event click')
+}
+
+function onInlineArgument(message : string) {
+	note(message)
+}
+
+function onElementIdOnly() {
+	note('element id only')
+}
+
+function onNoParentheses() {
+	note('no parentheses method reference')
+}
+
+function onEmptyParentheses() {
+	note('empty parentheses call')
+}
+
+function onStringArgument(value : string) {
+	note('string argument: ' + value)
+}
+
+function onNumberArgument(value : number) {
+	note('number argument: ' + value.toString())
+}
+
+function onBooleanArgument(value : boolean) {
+	note('boolean argument: ' + (value ? 'true' : 'false'))
+}
+
+function onNullArgument(value : string | null) {
+	note(value == null ? 'null argument' : value)
+}
+
+function onMultipleArguments(sku : string, count : number, checked : boolean) {
+	note('multi arguments: ' + sku + ' / ' + count.toString() + ' / ' + (checked ? 'true' : 'false'))
+}
+
+function onEventAndArgument(_event : any | null, value : string) {
+	note('$event with argument: ' + value)
+}
+
+function onConditionalTrue() {
+	conditionEnabled.value = false
+	note('conditional true branch')
+}
+
+function onConditionalFalse() {
+	conditionEnabled.value = true
+	note('conditional false branch')
+}
+
+function onDatasetFull() {
+	note('dataset full')
+}
+
+function onDatasetStaticIndex() {
+	note('dataset static index')
+}
+
+function onDatasetTitleOnly() {
+	note('dataset title only')
+}
+
+function onDatasetSrcOnly() {
+	note('dataset src only')
+}
+
+function onElementNoId() {
+	note('element without id')
+}
+
+function onDatasetZero() {
+	note('dataset index zero')
+}
+
+function onDatasetMaxIndex() {
+	note('dataset index max')
+}
+
+function onDatasetInvalid() {
+	note('dataset index invalid')
+}
+
+function onIgnoredClick() {
+	note('ignored click handler executed')
+}
+
+function onParentClick() {
+	note('nested parent click')
+}
+
+function onInputChange() {
+	note('input change: ' + changeValue.value)
+}
+
+function onInputBlur() {
+	note('input blur: ' + blurValue.value)
+}
+
+function onInputConfirm() {
+	note('input confirm: ' + confirmValue.value)
+}
+
+function onInputNoTrack() {
+	note('change without growingTrack: ' + noTrackValue.value)
+}
+
+function onAttrFallbackBlur() {
+	note('attr fallback blur')
+}
+
+function onIgnoredChange() {
+	note('ignored change handler executed: ' + ignoredValue.value)
+}
+</script>
+
+<style>
+.page { padding: 20rpx; flex: 1; }
+.section { background: #fff; padding: 20rpx; margin-bottom: 20rpx; border-radius: 10rpx; }
+.sectionTitle { font-size: 30rpx; font-weight: bold; color: #20242a; margin-bottom: 8rpx; }
+.hint { font-size: 22rpx; color: #667085; padding: 4rpx 0 12rpx; }
+.fieldLabel { font-size: 22rpx; color: #475467; margin: 10rpx 2rpx 6rpx; }
+.btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
+.btnGreen { background: #13a67a; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
+.btnOrange { background: #fa8c16; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
+.btnWarn { background: #fff7e6; color: #b26200; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; border: 1rpx solid #ffd591; }
+.btnDanger { background: #ef4444; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
+.btnGhost { background: #eef5ff; color: #1677ff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; border: 1rpx solid #9ec5ff; }
+.caseRow { flex-direction: row; align-items: stretch; margin-bottom: 12rpx; }
+.caseBtn { width: 220rpx; background: #1677ff; color: #fff; font-size: 24rpx; padding: 14rpx 8rpx; border-radius: 8rpx; margin-right: 12rpx; }
+.caseBtnGreen { width: 220rpx; background: #13a67a; color: #fff; font-size: 24rpx; padding: 14rpx 8rpx; border-radius: 8rpx; margin-right: 12rpx; }
+.caseBtnOrange { width: 220rpx; background: #fa8c16; color: #fff; font-size: 24rpx; padding: 14rpx 8rpx; border-radius: 8rpx; margin-right: 12rpx; }
+.caseBtnGhost { width: 220rpx; background: #eef5ff; color: #1677ff; font-size: 24rpx; padding: 14rpx 8rpx; border-radius: 8rpx; margin-right: 12rpx; border: 1rpx solid #9ec5ff; }
+.codeLine { flex: 1; color: #344054; background: #f8fafc; border: 1rpx solid #e4e7ec; border-radius: 8rpx; padding: 14rpx; font-size: 24rpx; }
+.input { border: 1rpx solid #d0d5dd; padding: 14rpx; border-radius: 6rpx; margin-bottom: 12rpx; font-size: 26rpx; }
+.nestBox { padding: 20rpx; border: 1rpx solid #9ec5ff; border-radius: 10rpx; background: #eef5ff; }
+.nestTitle { font-size: 26rpx; color: #1677ff; margin-bottom: 12rpx; }
+.nestChild { margin-top: 12rpx; padding: 18rpx; border-radius: 8rpx; background: #fff; border: 1rpx solid #d0d5dd; }
+.nestChildText { font-size: 24rpx; color: #475467; }
+.result { padding: 20rpx; background: #fffbe6; border-radius: 10rpx; margin-bottom: 20rpx; }
+.label { font-size: 24rpx; color: #999; }
+.value { font-size: 26rpx; color: #333; margin-top: 8rpx; }
+</style>

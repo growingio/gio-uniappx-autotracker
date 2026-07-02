@@ -15,7 +15,7 @@
 		</view>
 
 		<view class="section">
-			<text class="section-title">功能演示（6 个子页）</text>
+			<text class="section-title">功能演示（7 个子页）</text>
 			<view class="card-list">
 				<view class="card" @click="go('custom-event')">
 					<text class="card-title">① 自定义事件 / track</text>
@@ -29,16 +29,20 @@
 					<text class="card-title">③ 生命周期 / VISIT / PAGE / APP_CLOSED</text>
 					<text class="card-desc">通过切页、切后台来验证关键事件触发时机。</text>
 				</view>
+				<view class="card" @click="go('autotrack')">
+					<text class="card-title">④ 无埋点 / VIEW_CLICK / VIEW_CHANGE</text>
+					<text class="card-desc">覆盖 click、change、dataset、growingTrack、growingIgnore、tabBar 等触发面。</text>
+				</view>
 				<view class="card" @click="go('route')">
-					<text class="card-title">④ 路由 / referralPage / query</text>
+					<text class="card-title">⑤ 路由 / referralPage / query</text>
 					<text class="card-desc">带 query 跳转，帮助验证 page 级上下文字段。</text>
 				</view>
 				<view class="card" @click="go('abtest')">
-					<text class="card-title">⑤ ABTest / registerPlugins / getABTest</text>
+					<text class="card-title">⑥ ABTest / registerPlugins / getABTest</text>
 					<text class="card-desc">当前插件层只考虑 gioABTest，先按小程序逻辑对齐。</text>
 				</view>
 				<view class="card" @click="go('datacollect')">
-					<text class="card-title">⑥ 数据采集开关 / setOptions</text>
+					<text class="card-title">⑦ 数据采集开关 / setOptions</text>
 					<text class="card-desc">动态切换 dataCollect，控制 SDK 是否采集数据。关闭后事件不上报，开启后恢复。</text>
 				</view>
 				<!-- #ifdef MP-WEIXIN -->
@@ -80,7 +84,7 @@ export default {
 				name == 'index' ||
 				name == 'custom-event' ||
 				name == 'user' ||
-				name == 'lifecycle'
+				name == 'autotrack'
 			)
 		},
 		go(name: string) {

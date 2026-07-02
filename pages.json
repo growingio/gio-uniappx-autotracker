@@ -25,6 +25,12 @@
 			}
 		},
 		{
+			"path": "pages/autotrack/autotrack",
+			"style": {
+				"navigationBarTitleText": "无埋点 / VIEW_CLICK / VIEW_CHANGE"
+			}
+		},
+		{
 			"path": "pages/route/route",
 			"style": {
 				"navigationBarTitleText": "路由 / referralPage"
@@ -78,8 +84,8 @@
 				"text": "用户"
 			},
 			{
-				"pagePath": "pages/lifecycle/lifecycle",
-				"text": "生命周期"
+				"pagePath": "pages/autotrack/autotrack",
+				"text": "无埋点"
 			}
 		]
 	}
