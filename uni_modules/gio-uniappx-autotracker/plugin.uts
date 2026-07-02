@@ -296,11 +296,13 @@ const lifecycle = defineMixin({
       buildPageOptionsSnapshot(options)
     )
   },
+  // #ifdef WEB || MP-WEIXIN || (APP-HARMONY && !VUE3-VAPOR)
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onTabItemTap(item : any | null) {
     dispatchAutoTrackTabItemSnapshot(item)
   },
+  // #endif
   // #ifdef MP-WEIXIN
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore

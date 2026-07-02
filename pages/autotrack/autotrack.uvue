@@ -447,7 +447,7 @@
 
 		<view class="section">
 			<text class="sectionTitle">tabBar</text>
-			<text class="hint">点击底部 tabBar 的“无埋点”页签时，应通过 onTabItemTap 上报 VIEW_CLICK，xpath 为 #onTabItemTap。</text>
+			<text class="hint">Web、微信小程序、HarmonyOS VDOM 点击底部 tabBar 的“无埋点”页签时，应通过 onTabItemTap 上报 VIEW_CLICK，xpath 为 #onTabItemTap；Android、iOS、HarmonyOS Vapor 不挂载该 hook。</text>
 		</view>
 
 		<view class="result">
