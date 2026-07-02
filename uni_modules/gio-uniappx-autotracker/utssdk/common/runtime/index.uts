@@ -17,6 +17,10 @@ type GioPageContextResolver = {
   resolvePageContext : (pageContext : GioPageContext | null) => GioPageContext | null
 }
 
+type GioCommonDataNormalizer = {
+  normalizePath : (path : string, useUnified : boolean) => string
+}
+
 type GioRuntimeBehavior = {
   scheduleVisitAndPage : (dispatch : (() => void)) => void
   shouldTrackAppClosed : () => boolean
@@ -92,6 +96,7 @@ type GioNetworkStateProvider = {
 
 let registeredStorageFactory : GioPlatformStorageFactory | null = null
 let registeredPageContextResolver : GioPageContextResolver | null = null
+let registeredCommonDataNormalizer : GioCommonDataNormalizer | null = null
 let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
 let registeredEventShaper : GioEventShaper | null = null
 let registeredEventSender : GioEventSender | null = null
@@ -114,6 +119,12 @@ export function registerPageContextResolver (
   resolver : GioPageContextResolver | null
 ) {
   registeredPageContextResolver = resolver
+}
+
+export function registerCommonDataNormalizer (
+  normalizer : GioCommonDataNormalizer | null
+) {
+  registeredCommonDataNormalizer = normalizer
 }
 
 export function registerRuntimeBehavior (
@@ -390,6 +401,14 @@ export function resolvePageContext (
     return pageContext
   }
   return resolver.resolvePageContext(pageContext)
+}
+
+export function normalizeCommonPath(path : string, useUnified : boolean) : string {
+  const normalizer = registeredCommonDataNormalizer
+  if (normalizer == null) {
+    return path
+  }
+  return normalizer.normalizePath(path, useUnified)
 }
 
 export function scheduleVisitAndPage (dispatch : (() => void)) {

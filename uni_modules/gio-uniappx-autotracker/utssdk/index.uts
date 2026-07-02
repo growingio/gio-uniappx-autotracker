@@ -6,6 +6,7 @@ import { GioTracker } from './common/core/tracker.uts'
 // #ifdef APP-IOS
 // iOS 专属 resolver 的注册只能放在函数体内：UTS-iOS（Swift）不允许文件顶层出现表达式语句。
 import { createAppIosSystemContextResolver } from './app-ios/system-context.uts'
+import { registerAppCommonDataNormalizer } from './platform-shared/app-common-data.uts'
 import { registerAppSessionPolicy } from './platform-shared/app-session.uts'
 // #endif
 
@@ -14,6 +15,7 @@ const tracker = GioTracker.getInstance()
 export function initialize (options : UTSJSONObject) : boolean {
   // #ifdef APP-IOS
   registerAppSessionPolicy()
+  registerAppCommonDataNormalizer()
   tracker.setSystemContextResolver(createAppIosSystemContextResolver())
   // #endif
   return tracker.initialize(normalizeInitOptions(options))

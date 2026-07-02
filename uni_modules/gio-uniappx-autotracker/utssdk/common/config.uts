@@ -28,6 +28,7 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     debug: raw.getBoolean('debug', false),
     forceLogin: raw.getBoolean('forceLogin', false),
     originalSource: raw.getBoolean('originalSource', true),
+    useUnified: raw.getBoolean('useUnified', true),
     idMapping: raw.getBoolean('idMapping', false),
     urlScheme: raw.getString('urlScheme'),
     screenWidth: raw.getNumber('screenWidth', 0),

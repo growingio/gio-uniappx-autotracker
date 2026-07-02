@@ -123,6 +123,7 @@ export class GioDataStore {
       debug: false,
       forceLogin: false,
       originalSource: true,
+      useUnified: true,
       idMapping: false,
       urlScheme: null,
       screenWidth: 0,

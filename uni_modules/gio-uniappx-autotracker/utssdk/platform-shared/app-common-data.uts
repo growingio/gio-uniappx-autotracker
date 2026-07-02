@@ -1,0 +1,13 @@
+// App 平台的通用字段差异化规则集中在这里，避免散进 common 路由解析。
+import { registerCommonDataNormalizer } from '../common/runtime/index.uts'
+
+export function registerAppCommonDataNormalizer() {
+  registerCommonDataNormalizer({
+    normalizePath(path : string, useUnified : boolean) : string {
+      if (useUnified || path.length == 0 || path.startsWith('/')) {
+        return path
+      }
+      return `/${path}`
+    }
+  })
+}

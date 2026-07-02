@@ -4,6 +4,7 @@ import {
   GioPageContext,
   GioTrackEvent
 } from '../interface.uts'
+import { GioConfig } from '../common/config.uts'
 import {
   registerConfigSyncer,
   registerEventShaper,
@@ -435,8 +436,18 @@ function resolveBrowserPageContext(
   logicalPageContext : GioPageContext | null
 ) : GioPageContext | null {
   let path = ''
+  let locationPath = ''
   let query = ''
   let title = ''
+  const options = GioConfig.getOptions()
+  const useUnified = options != null ? options.useUnified : true
+  if (
+    useUnified &&
+    logicalPageContext != null &&
+    logicalPageContext.path.length > 0
+  ) {
+    path = logicalPageContext.path
+  }
   try {
     const runtimeLocation = getRuntimeLocation()
     const runtimeDocument = getRuntimeDocument()
@@ -450,18 +461,30 @@ function resolveBrowserPageContext(
       const hash = runtimeLocation.hash != null
         ? `${runtimeLocation.hash}`
         : ''
-      path = pathname
+      if (useUnified) {
+        locationPath = pathname
+      } else {
+        path = pathname
+      }
       query = normalizeQueryString(search)
       if (hash.length > 0) {
         const hashQueryIndex = hash.indexOf('?')
         if (hashQueryIndex >= 0) {
-          path += hash.slice(0, hashQueryIndex)
+          if (useUnified) {
+            locationPath += hash.slice(0, hashQueryIndex)
+          } else {
+            path += hash.slice(0, hashQueryIndex)
+          }
           query = mergeQueryString(
             query,
             normalizeQueryString(hash.slice(hashQueryIndex + 1))
           )
         } else {
-          path += hash
+          if (useUnified) {
+            locationPath += hash
+          } else {
+            path += hash
+          }
         }
       }
     }
@@ -472,6 +495,9 @@ function resolveBrowserPageContext(
       title = `${runtimeDocument.title}`
     }
   } catch (_error) {}
+  if (path.length == 0 && locationPath.length > 0) {
+    path = locationPath
+  }
   if (path.length == 0 && logicalPageContext != null) {
     path = logicalPageContext.path
   }
@@ -684,6 +710,7 @@ registerConfigSyncer({
         debug: options.debug,
         forceLogin: options.forceLogin,
         originalSource: options.originalSource,
+        useUnified: options.useUnified,
         storageType: normalizeWebStorageType(readRawConfigField('storageType'))
       } as UTSJSONObject
     } catch (_error) {}

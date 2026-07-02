@@ -10,6 +10,7 @@ export type GioInitOptions = {
   debug : boolean
   forceLogin : boolean
   originalSource : boolean
+  useUnified : boolean
   idMapping : boolean
   urlScheme : string | null
   screenWidth : number
@@ -28,6 +29,7 @@ export type GioGdpInitOptions = {
   debug : boolean
   forceLogin : boolean
   originalSource : boolean
+  useUnified : boolean
   idMapping : boolean
   urlScheme : string | null
   dataValidityPeriod : number | null

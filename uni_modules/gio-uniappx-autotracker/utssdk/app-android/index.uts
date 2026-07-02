@@ -1,12 +1,14 @@
 import Activity from 'android.app.Activity'
 import { GioTracker } from '../common/core/tracker.uts'
 import { createAppAndroidSystemContextResolver } from './system-context.uts'
+import { registerAppCommonDataNormalizer } from '../platform-shared/app-common-data.uts'
 import { registerAppSessionPolicy } from '../platform-shared/app-session.uts'
 
 export * from '../index.uts'
 import { onShow, onHide } from '../index.uts'
 
 registerAppSessionPolicy()
+registerAppCommonDataNormalizer()
 GioTracker.getInstance().setSystemContextResolver(
   createAppAndroidSystemContextResolver()
 )
