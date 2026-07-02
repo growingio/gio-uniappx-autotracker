@@ -13,15 +13,17 @@ function transform(code, id = '/src/pages/index/index.uvue') {
   const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts"></script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick\(\$event, 'onSimpleTrack'\)/)
+  assert.doesNotMatch(output, /methods\s*:\s*{[\s\S]*gioHandleAutoClick/)
   assert.match(output, /onSimpleTrack\(\)/)
   assert.doesNotMatch(output, /\(\$event\)\s*=>/)
   assert.doesNotMatch(output, /onSimpleTrack\(\$event\)/)
 }
 
 {
-  const code = '<template><button @click="foo(); bar()"></button></template><script lang="uts"></script>'
+  const code = '<template><button @click="foo(); bar()"></button></template><script lang="uts">export default {}</script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick\(\$event, 'foo'\)/)
+  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick,\s*gioHandleAutoChange,/)
   assert.match(output, /foo\(\); bar\(\)/)
   assert.doesNotMatch(output, /return foo\(\);/)
   assert.doesNotMatch(output, /\(\$event\)\s*=>/)
@@ -31,6 +33,7 @@ function transform(code, id = '/src/pages/index/index.uvue') {
   const code = '<template><input @change="onChange($event)" /></template><script lang="uts"></script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoChange\(\$event, 'onChange'\)/)
+  assert.match(output, /export default\s*{\s*methods\s*:\s*{\s*gioHandleAutoClick,\s*gioHandleAutoChange,/)
   assert.match(output, /onChange\(\$event\)/)
 }
 
@@ -42,10 +45,18 @@ function transform(code, id = '/src/pages/index/index.uvue') {
 }
 
 {
+  const code = `<template><view @click="go('autotrack')"></view></template><script lang="uts">export default { methods: { go(name: string) {} } }</script>`
+  const output = transform(code)
+  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick,\s*gioHandleAutoChange,\s*go\(name: string\)/)
+  assert.match(output, /gioHandleAutoClick\(\$event, 'go'\); go\('autotrack'\)/)
+}
+
+{
   const code = '<template><view @click="onTap"></view></template>'
   const output = transform(code)
   assert.match(output, /<script lang="uts">/)
   assert.match(output, /gioHandleAutoClick/)
+  assert.match(output, /export default\s*{\s*methods\s*:\s*{\s*gioHandleAutoClick,\s*gioHandleAutoChange,/)
 }
 
 {

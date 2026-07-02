@@ -53,6 +53,90 @@ function findBlock(code, tagName) {
   }
 }
 
+function findScriptBlock(code) {
+  const openRe = /<script\b[^>]*>/i
+  const open = openRe.exec(code)
+  if (open == null) {
+    return null
+  }
+  const start = open.index + open[0].length
+  const closeRe = /<\/script>/i
+  const rest = code.slice(start)
+  const close = closeRe.exec(rest)
+  if (close == null) {
+    return null
+  }
+  return {
+    openStart: open.index,
+    openTag: open[0],
+    contentStart: start,
+    contentEnd: start + close.index,
+    closeEnd: start + close.index + close[0].length,
+  }
+}
+
+function isSetupScript(script) {
+  return script != null && /\bsetup\b/i.test(script.openTag)
+}
+
+function findMatchingBrace(code, openIndex, limit) {
+  let depth = 0
+  let quote = null
+  let escaped = false
+  let lineComment = false
+  let blockComment = false
+  for (let i = openIndex; i < limit; i++) {
+    const current = code[i]
+    const next = i + 1 < limit ? code[i + 1] : ''
+    if (lineComment) {
+      if (current === '\n') {
+        lineComment = false
+      }
+      continue
+    }
+    if (blockComment) {
+      if (current === '*' && next === '/') {
+        blockComment = false
+        i++
+      }
+      continue
+    }
+    if (quote != null) {
+      if (escaped) {
+        escaped = false
+      } else if (current === '\\') {
+        escaped = true
+      } else if (current === quote) {
+        quote = null
+      }
+      continue
+    }
+    if (current === '/' && next === '/') {
+      lineComment = true
+      i++
+      continue
+    }
+    if (current === '/' && next === '*') {
+      blockComment = true
+      i++
+      continue
+    }
+    if (current === '"' || current === "'" || current === '`') {
+      quote = current
+      continue
+    }
+    if (current === '{') {
+      depth++
+    } else if (current === '}') {
+      depth--
+      if (depth === 0) {
+        return i
+      }
+    }
+  }
+  return -1
+}
+
 function findScriptInsertionOffset(code) {
   const scriptRe = /<script\b[^>]*>/i
   const script = scriptRe.exec(code)
@@ -80,6 +164,14 @@ function quoteString(value, attrQuote) {
     return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
   }
   return JSON.stringify(value)
+}
+
+function buildBridgeMethodsObject(indent = '  ') {
+  return `${indent}methods: {\n${indent}  gioHandleAutoClick,\n${indent}  gioHandleAutoChange,\n${indent}},\n`
+}
+
+function buildBridgeMethodsEntries(indent = '    ') {
+  return `\n${indent}gioHandleAutoClick,\n${indent}gioHandleAutoChange,`
 }
 
 function buildWrappedExpression(kind, expression, eventName, attrQuote) {
@@ -134,7 +226,7 @@ function buildImportReplacement(code) {
     return {
       start: offset,
       end: offset,
-      value: `\n<script lang="uts">\n${IMPORT_CODE}</script>\n`,
+      value: `\n<script lang="uts">\n${IMPORT_CODE}\nexport default {\n${buildBridgeMethodsObject('  ')}}\n</script>\n`,
     }
   }
   const offset = findScriptInsertionOffset(code)
@@ -142,6 +234,49 @@ function buildImportReplacement(code) {
     start: offset,
     end: offset,
     value: `\n${IMPORT_CODE}`,
+  }
+}
+
+function buildOptionsBridgeExposureReplacement(code) {
+  const script = findScriptBlock(code)
+  if (script == null || isSetupScript(script)) {
+    return null
+  }
+  const content = code.slice(script.contentStart, script.contentEnd)
+  if (/methods\s*:\s*{[\s\S]*gioHandleAutoClick/.test(content)) {
+    return null
+  }
+  const exportOffsetInContent = content.indexOf('export default')
+  if (exportOffsetInContent < 0) {
+    return {
+      start: script.contentEnd,
+      end: script.contentEnd,
+      value: `\nexport default {\n${buildBridgeMethodsObject('  ')}}\n`,
+    }
+  }
+  const exportStart = script.contentStart + exportOffsetInContent
+  const objectStart = code.indexOf('{', exportStart)
+  if (objectStart < 0 || objectStart >= script.contentEnd) {
+    return null
+  }
+  const objectEnd = findMatchingBrace(code, objectStart, script.contentEnd)
+  if (objectEnd < 0) {
+    return null
+  }
+  const objectContent = code.slice(objectStart + 1, objectEnd)
+  const methods = /methods\s*:\s*{/.exec(objectContent)
+  if (methods != null) {
+    const start = objectStart + 1 + methods.index + methods[0].length
+    return {
+      start,
+      end: start,
+      value: buildBridgeMethodsEntries('    '),
+    }
+  }
+  return {
+    start: objectStart + 1,
+    end: objectStart + 1,
+    value: `\n${buildBridgeMethodsObject('  ')}`,
   }
 }
 
@@ -169,6 +304,10 @@ export function gioUniappxAutoTrack() {
       const importReplacement = buildImportReplacement(code)
       if (importReplacement != null) {
         replacements.push(importReplacement)
+      }
+      const bridgeExposureReplacement = buildOptionsBridgeExposureReplacement(code)
+      if (bridgeExposureReplacement != null) {
+        replacements.push(bridgeExposureReplacement)
       }
       return {
         code: applyReplacements(code, replacements),
