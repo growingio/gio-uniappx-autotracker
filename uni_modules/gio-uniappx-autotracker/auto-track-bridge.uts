@@ -1,33 +1,65 @@
-import { copyJSONObject, readDynamicField } from './bridge-utils.uts'
+import { readDynamicField } from './bridge-utils.uts'
+
+function readStringValue(value : any | null) : string | null {
+  if (value == null || typeof value != 'string') {
+    return null
+  }
+  return value as string
+}
+
+function readNumberValue(value : any | null) : number | null {
+  if (value == null || typeof value != 'number') {
+    return null
+  }
+  return value as number
+}
+
+function readBooleanValue(value : any | null) : boolean | null {
+  if (value == null || typeof value != 'boolean') {
+    return null
+  }
+  return value as boolean
+}
+
+function readStringField(source : any | null, key : string) : string | null {
+  return readStringValue(readDynamicField(source, key))
+}
+
+function readNumberField(source : any | null, key : string) : number | null {
+  return readNumberValue(readDynamicField(source, key))
+}
+
+function readBooleanField(source : any | null, key : string) : boolean | null {
+  return readBooleanValue(readDynamicField(source, key))
+}
 
 function copyDataset(source : any | null) : UTSJSONObject | null {
-  const raw = copyJSONObject(source)
-  if (raw == null) {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
   const copied = {} as UTSJSONObject
-  const indexText = raw.getString('index')
+  const indexText = readStringField(source, 'index')
   if (indexText != null) {
     copied['index'] = indexText
   } else {
-    const indexNumber = raw.getNumber('index')
+    const indexNumber = readNumberField(source, 'index')
     if (indexNumber != null) {
       copied['index'] = indexNumber
     }
   }
-  const src = raw.getString('src')
+  const src = readStringField(source, 'src')
   if (src != null) {
     copied['src'] = src
   }
-  const title = raw.getString('title')
+  const title = readStringField(source, 'title')
   if (title != null) {
     copied['title'] = title
   }
-  const growingTrack = raw.getBoolean('growingTrack')
+  const growingTrack = readBooleanField(source, 'growingTrack')
   if (growingTrack != null) {
     copied['growingTrack'] = growingTrack
   }
-  const growingIgnore = raw.getBoolean('growingIgnore')
+  const growingIgnore = readBooleanField(source, 'growingIgnore')
   if (growingIgnore != null) {
     copied['growingIgnore'] = growingIgnore
   }
@@ -35,20 +67,19 @@ function copyDataset(source : any | null) : UTSJSONObject | null {
 }
 
 function copyScalarValue(source : any | null) : UTSJSONObject | null {
-  const raw = copyJSONObject(source)
-  if (raw == null) {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
   const copied = {} as UTSJSONObject
-  const valueText = raw.getString('value')
+  const valueText = readStringField(source, 'value')
   if (valueText != null) {
     copied['value'] = valueText
   } else {
-    const valueNumber = raw.getNumber('value')
+    const valueNumber = readNumberField(source, 'value')
     if (valueNumber != null) {
       copied['value'] = valueNumber
     } else {
-      const valueBoolean = raw.getBoolean('value')
+      const valueBoolean = readBooleanField(source, 'value')
       if (valueBoolean != null) {
         copied['value'] = valueBoolean
       }
@@ -61,12 +92,8 @@ function copyEventTargetSnapshot(source : any | null) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
-  const raw = copyJSONObject(source)
-  if (raw == null) {
-    return null
-  }
   const copied = {} as UTSJSONObject
-  const id = raw.getString('id')
+  const id = readStringField(source, 'id')
   if (id != null) {
     copied['id'] = id
   }
@@ -82,12 +109,11 @@ function copyEventTargetSnapshot(source : any | null) : UTSJSONObject | null {
 }
 
 function copyEventDetailSnapshot(source : any | null) : UTSJSONObject | null {
-  const raw = copyJSONObject(source)
-  if (raw == null) {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
   const copied = {} as UTSJSONObject
-  const sourceText = raw.getString('source')
+  const sourceText = readStringField(source, 'source')
   if (sourceText != null) {
     copied['source'] = sourceText
   }
@@ -112,16 +138,15 @@ function copyEventDetailSnapshot(source : any | null) : UTSJSONObject | null {
 }
 
 function copyTabItemTargetSnapshot(source : any | null) : UTSJSONObject | null {
-  const raw = copyJSONObject(source)
-  if (raw == null) {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
   const dataset = {} as UTSJSONObject
-  const indexNumber = raw.getNumber('index')
+  const indexNumber = readNumberField(source, 'index')
   if (indexNumber != null) {
     dataset['index'] = (indexNumber as number) + 1
   } else {
-    const indexText = raw.getString('index')
+    const indexText = readStringField(source, 'index')
     if (indexText != null && indexText.length > 0) {
       const indexValue = parseInt(indexText, 10)
       if (!isNaN(indexValue)) {
@@ -129,15 +154,15 @@ function copyTabItemTargetSnapshot(source : any | null) : UTSJSONObject | null {
       }
     }
   }
-  const text = raw.getString('text')
+  const text = readStringField(source, 'text')
   if (text != null) {
     dataset['title'] = text
   }
-  const pagePath = raw.getString('pagePath')
+  const pagePath = readStringField(source, 'pagePath')
   if (pagePath != null) {
     dataset['src'] = pagePath
   } else {
-    const path = raw.getString('path')
+    const path = readStringField(source, 'path')
     if (path != null) {
       dataset['src'] = path
     }
@@ -162,16 +187,13 @@ export function buildAutoTrackEventSnapshot(
   snapshot['action'] = action
   snapshot['eventName'] = eventName
   if (event != null && typeof event == 'object' && !Array.isArray(event)) {
-    const raw = copyJSONObject(event)
-    if (raw != null) {
-      const type = raw.getString('type')
-      if (type != null) {
-        snapshot['type'] = type
-      }
-      const timeStamp = raw.getNumber('timeStamp')
-      if (timeStamp != null) {
-        snapshot['timeStamp'] = timeStamp
-      }
+    const type = readStringField(event, 'type')
+    if (type != null) {
+      snapshot['type'] = type
+    }
+    const timeStamp = readNumberField(event, 'timeStamp')
+    if (timeStamp != null) {
+      snapshot['timeStamp'] = timeStamp
     }
     const currentTarget = copyEventTargetSnapshot(readDynamicField(event, 'currentTarget'))
     if (currentTarget != null) {
