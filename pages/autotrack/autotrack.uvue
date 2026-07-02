@@ -295,31 +295,29 @@
 
 		<view class="section">
 			<text class="sectionTitle">变更事件</text>
-			<text class="hint">VIEW_CHANGE 只使用 xpath；growingTrack=true 时额外采集 textValue，不采集 index / title / hyperlink。</text>
+			<text class="hint">独立 SDK 只把 blur / change / confirm 归为 VIEW_CHANGE；输入框直输的 input 不采集。</text>
 			<view class="caseRow">
 				<input
-					id="auto_change_input"
+					id="auto_direct_input"
 					class="changeInput"
 					v-model="changeValue"
-					:data-index="40"
-					:data-growing-track="true"
-					data-title="change 输入框"
-					data-src="/pages/autotrack/autotrack?case=change"
-					@change="onInputChange"
+					data-growing-track="true"
+					data-title="直接输入 input"
+					@input="onDirectInput"
 				/>
-				<text class="codeLine">发送：是；&#64;change="onInputChange"；带 xpath / textValue，不带 index / hyperlink</text>
+				<text class="codeLine">发送：否；&#64;input 不在独立 SDK change listeners 里</text>
 			</view>
 			<view class="caseRow">
-				<input
-					id="auto_change_no_parentheses"
-					class="changeInput"
-					v-model="changeNoParenthesesValue"
-					:data-index="41"
-					data-growing-track="true"
-					data-title="不带括号 change"
-					@change="onChangeNoParentheses"
-				/>
-				<text class="codeLine">发送：是；静态 data-growing-track="true"；带 xpath / textValue，不带 index</text>
+				<view class="changeControl">
+					<switch
+						id="auto_change_switch"
+						:checked="switchChecked"
+						data-growing-track="true"
+						data-title="switch change"
+						@change="onSwitchChange"
+					/>
+				</view>
+				<text class="codeLine">发送：是；switch &#64;change + 静态 data-growing-track；带 xpath / textValue</text>
 			</view>
 			<view class="caseRow">
 				<input
@@ -349,87 +347,100 @@
 				<text class="codeLine">发送：是；&#64;confirm="onInputConfirm('confirm_arg')"；带 xpath / textValue，不带 index</text>
 			</view>
 			<view class="caseRow">
-				<input
-					id="auto_change_event_argument"
-					class="changeInput"
-					v-model="eventArgumentValue"
-					:data-index="44"
-					:data-growing-track="true"
-					data-title="$event 混合 change"
-					@change="onChangeEventAndArgument($event, 'change_extra')"
-				/>
-				<text class="codeLine">发送：是；&#64;change="$event + 参数"；带 xpath / textValue，不带 index</text>
+				<view class="changeControl">
+					<switch
+						id="auto_change_event_argument"
+						:checked="eventArgumentChecked"
+						:data-growing-track="true"
+						data-title="$event 混合 change"
+						@change="onChangeEventAndArgument($event, 'change_extra')"
+					/>
+				</view>
+				<text class="codeLine">发送：是；switch &#64;change="$event + 参数"；带 xpath / textValue</text>
 			</view>
 			<view class="caseRow">
-				<input
-					id="auto_change_inline_sequence"
-					class="changeInput"
-					v-model="inlineChangeValue"
-					:data-index="45"
-					:data-growing-track="true"
-					data-title="连续语句 change"
-					@change="note('change inline first'); onChangeInlineSecond()"
-				/>
+				<view class="changeControl">
+					<switch
+						id="auto_change_inline_sequence"
+						:checked="inlineChangeChecked"
+						:data-growing-track="true"
+						data-title="连续语句 change"
+						@change="note('change inline first'); onChangeInlineSecond()"
+					/>
+				</view>
 				<text class="codeLine">发送：是；连续语句；eventName 取 note，xpath 为 #note；带 textValue</text>
 			</view>
 			<view class="caseRow">
-				<input
-					id="auto_change_no_track"
-					class="changeInput"
-					v-model="noTrackValue"
-					:data-index="46"
-					data-title="不采集值的输入框"
-					data-src="/pages/autotrack/autotrack?case=no-track"
-					@change="onInputNoTrack"
+				<slider
+					id="auto_change_slider"
+					class="changeSlider"
+					:value="sliderValue"
+					:min="0"
+					:max="100"
+					:step="1"
+					:data-growing-track="true"
+					data-title="slider change"
+					@change="onSliderChange"
 				/>
-				<text class="codeLine">发送：是；无 growingTrack；只带 xpath，不带 textValue / index</text>
+				<text class="codeLine">发送：是；slider &#64;change；带 xpath / textValue=滑动值</text>
+			</view>
+			<view class="caseRow">
+				<view class="changeControl">
+					<switch
+						id="auto_change_no_track"
+						:checked="noTrackChecked"
+						data-title="不采集值的 switch"
+						@change="onChangeNoTrack"
+					/>
+				</view>
+				<text class="codeLine">发送：是；无 growingTrack；只带 xpath，不带 textValue</text>
 			</view>
 			<view class="caseRow">
 				<input
 					id="auto_attr_fallback"
 					class="changeInput"
 					value="attr_fallback_value"
-					:data-index="47"
 					:data-growing-track="true"
 					data-title="attr fallback 输入框"
 					@blur="onAttrFallbackBlur"
 				/>
-				<text class="codeLine">发送：是；attr.value fallback；带 xpath / textValue=attr_fallback_value，不带 index</text>
+				<text class="codeLine">发送：是；detail.value 没值时 fallback target.attr.value</text>
 			</view>
 			<view class="caseRow">
-				<input
-					class="changeInput"
-					v-model="changeNoIdValue"
-					:data-index="48"
-					:data-growing-track="true"
-					data-title="无 id change"
-					@change="onChangeNoId"
-				/>
-				<text class="codeLine">发送：是；无 id；xpath 应为 #onChangeNoId；带 textValue，不带 index</text>
+				<view class="changeControl">
+					<switch
+						:checked="changeNoIdChecked"
+						:data-growing-track="true"
+						data-title="无 id change"
+						@change="onChangeNoId"
+					/>
+				</view>
+				<text class="codeLine">发送：是；无 id；xpath 应为 #onChangeNoId；带 textValue</text>
 			</view>
 			<view class="caseRow">
-				<input
-					id="auto_change_invalid_index"
-					class="changeInput"
-					v-model="invalidChangeValue"
-					data-index="abc"
-					:data-growing-track="true"
-					data-title="非法 index change"
-					@change="onChangeInvalidIndex"
-				/>
-				<text class="codeLine">发送：是；change 不读取 index；不提示非法 index，只带 xpath / textValue</text>
+				<view class="changeControl">
+					<switch
+						id="auto_change_invalid_index"
+						:checked="invalidChangeChecked"
+						data-index="abc"
+						:data-growing-track="true"
+						data-title="非法 index change"
+						@change="onChangeInvalidIndex"
+					/>
+				</view>
+				<text class="codeLine">发送：是；change 不读取 index；不提示非法 index</text>
 			</view>
 			<view class="caseRow">
-				<input
-					id="auto_change_ignore"
-					class="changeInput"
-					v-model="ignoredValue"
-					:data-index="49"
-					:data-growing-track="true"
-					:data-growing-ignore="true"
-					data-title="忽略变更输入框"
-					@change="onIgnoredChange"
-				/>
+				<view class="changeControl">
+					<switch
+						id="auto_change_ignore"
+						:checked="ignoredChecked"
+						:data-growing-track="true"
+						:data-growing-ignore="true"
+						data-title="忽略变更 switch"
+						@change="onIgnoredChange"
+					/>
+				</view>
 				<text class="codeLine">发送：否；growingIgnore=true；不产生 VIEW_CHANGE</text>
 			</view>
 		</view>
@@ -450,15 +461,16 @@
 import { ref } from 'vue'
 
 const changeValue = ref('change_value')
-const changeNoParenthesesValue = ref('change_no_parentheses')
 const blurValue = ref('blur_value')
 const confirmValue = ref('confirm_value')
-const eventArgumentValue = ref('event_argument_value')
-const inlineChangeValue = ref('inline_change_value')
-const noTrackValue = ref('no_track_value')
-const changeNoIdValue = ref('change_no_id_value')
-const invalidChangeValue = ref('invalid_change_value')
-const ignoredValue = ref('ignored_value')
+const switchChecked = ref(false)
+const eventArgumentChecked = ref(false)
+const inlineChangeChecked = ref(false)
+const sliderValue = ref(20)
+const noTrackChecked = ref(false)
+const changeNoIdChecked = ref(false)
+const invalidChangeChecked = ref(false)
+const ignoredChecked = ref(false)
 const lastAction = ref('(none)')
 const conditionEnabled = ref(true)
 
@@ -572,12 +584,8 @@ function onParentClick() {
 	note('nested parent click')
 }
 
-function onInputChange() {
-	note('input change: ' + changeValue.value)
-}
-
-function onChangeNoParentheses() {
-	note('change no parentheses: ' + changeNoParenthesesValue.value)
+function onDirectInput() {
+	note('direct input only: ' + changeValue.value)
 }
 
 function onInputBlur(_event : any | null) {
@@ -588,16 +596,28 @@ function onInputConfirm(value : string) {
 	note('input confirm: ' + confirmValue.value + ' / ' + value)
 }
 
+function onSwitchChange() {
+	switchChecked.value = !switchChecked.value
+	note('switch change: ' + (switchChecked.value ? 'true' : 'false'))
+}
+
 function onChangeEventAndArgument(_event : any | null, value : string) {
-	note('change event argument: ' + eventArgumentValue.value + ' / ' + value)
+	eventArgumentChecked.value = !eventArgumentChecked.value
+	note('switch event argument: ' + (eventArgumentChecked.value ? 'true' : 'false') + ' / ' + value)
 }
 
 function onChangeInlineSecond() {
-	note('change inline second: ' + inlineChangeValue.value)
+	inlineChangeChecked.value = !inlineChangeChecked.value
+	note('change inline second: ' + (inlineChangeChecked.value ? 'true' : 'false'))
 }
 
-function onInputNoTrack() {
-	note('change without growingTrack: ' + noTrackValue.value)
+function onSliderChange(_event : any | null) {
+	note('slider change')
+}
+
+function onChangeNoTrack() {
+	noTrackChecked.value = !noTrackChecked.value
+	note('change without growingTrack: ' + (noTrackChecked.value ? 'true' : 'false'))
 }
 
 function onAttrFallbackBlur() {
@@ -605,15 +625,18 @@ function onAttrFallbackBlur() {
 }
 
 function onChangeNoId() {
-	note('change without id: ' + changeNoIdValue.value)
+	changeNoIdChecked.value = !changeNoIdChecked.value
+	note('change without id: ' + (changeNoIdChecked.value ? 'true' : 'false'))
 }
 
 function onChangeInvalidIndex() {
-	note('change invalid index: ' + invalidChangeValue.value)
+	invalidChangeChecked.value = !invalidChangeChecked.value
+	note('change invalid index: ' + (invalidChangeChecked.value ? 'true' : 'false'))
 }
 
 function onIgnoredChange() {
-	note('ignored change handler executed: ' + ignoredValue.value)
+	ignoredChecked.value = !ignoredChecked.value
+	note('ignored change handler executed: ' + (ignoredChecked.value ? 'true' : 'false'))
 }
 </script>
 
@@ -637,6 +660,8 @@ function onIgnoredChange() {
 .codeLine { flex: 1; color: #344054; background: #f8fafc; border: 1rpx solid #e4e7ec; border-radius: 8rpx; padding: 14rpx; font-size: 24rpx; }
 .input { border: 1rpx solid #d0d5dd; padding: 14rpx; border-radius: 6rpx; margin-bottom: 12rpx; font-size: 26rpx; }
 .changeInput { width: 300rpx; border: 1rpx solid #d0d5dd; padding: 14rpx; border-radius: 6rpx; margin-right: 12rpx; font-size: 24rpx; }
+.changeControl { width: 300rpx; margin-right: 12rpx; justify-content: center; }
+.changeSlider { width: 300rpx; margin-right: 12rpx; }
 .nestBox { padding: 20rpx; border: 1rpx solid #9ec5ff; border-radius: 10rpx; background: #eef5ff; }
 .nestTitle { font-size: 26rpx; color: #1677ff; margin-bottom: 12rpx; }
 .nestChild { margin-top: 12rpx; padding: 18rpx; border-radius: 8rpx; background: #fff; border: 1rpx solid #d0d5dd; }
