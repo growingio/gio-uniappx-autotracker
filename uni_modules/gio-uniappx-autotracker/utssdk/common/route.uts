@@ -1,7 +1,5 @@
 // route.uts 负责把页面快照解析成统一的 path / query / title / signature。
 import { GioPageSnapshot } from '../interface.uts'
-import { GioConfig } from './config.uts'
-import { normalizeCommonPath } from './runtime/index.uts'
 import { readScalarString } from './utils/validate.uts'
 
 export type GioResolvedRoute = {
@@ -110,10 +108,7 @@ export function getPagePath(page : GioPageSnapshot | null) : string {
   if (route.length == 0) {
     return ''
   }
-  const normalizedPath = normalizeRoutePath(route)
-  const options = GioConfig.getOptions()
-  const useUnified = options != null ? options.useUnified : true
-  return normalizeCommonPath(normalizedPath, useUnified)
+  return normalizeRoutePath(route)
 }
 
 // 页面 query 解析：优先生命周期参数，再退到页面快照上的 options。

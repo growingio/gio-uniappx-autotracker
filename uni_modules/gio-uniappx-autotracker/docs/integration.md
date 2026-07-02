@@ -53,7 +53,6 @@ export function createApp() {
     debug: false,
     forceLogin: false,
     originalSource: true,
-    useUnified: true,
     idMapping: false,
     urlScheme: null,
     dataValidityPeriod: 7
@@ -79,7 +78,7 @@ export function createApp() {
 | `debug` | `boolean` | 否 | `false` | 调试日志开关。 |
 | `forceLogin` | `boolean` | 否 | `false` | 是否启用登录前暂停上报。启用后需调用 `identify`。 |
 | `originalSource` | `boolean` | 否 | `true` | 是否记录首次访问来源。 |
-| `useUnified` | `boolean` | 否 | `true` | 是否使用统一的通用数据规则。当前影响 `path` 字段。 |
+| `useUnified` | `boolean` | 否 | `true` | Web 端是否使用统一的通用数据规则。当前只影响 Web 端 `path` 字段。 |
 | `idMapping` | `boolean` | 否 | `false` | 是否启用 `userKey` 身份映射。 |
 | `urlScheme` | `string \| null` | 否 | `null` | App 端 URL Scheme 标识，会写入事件字段。 |
 | `dataValidityPeriod` | `number \| null` | 否 | `7` | 本地数据有效期，单位为天，最小 `3`，最大 `30`。 |
@@ -221,7 +220,7 @@ gdp('init', {
 
 ### useUnified
 
-`useUnified` 控制 SDK 是否使用统一的通用数据规则。当前只影响事件里的 `path` 字段。
+`useUnified` 控制 Web 端是否使用统一的通用数据规则。当前只影响 Web 端事件里的 `path` 字段。
 
 ```uts
 gdp('init', {
@@ -233,9 +232,9 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web。
 
-生效行为：默认值为 `true`。设置为 `true` 时，Web 端优先使用 `UniPage.route` 生成的页面路径，与 App 和微信小程序的页面路径规则保持统一。设置为 `false` 时，Web 端优先使用浏览器 `location`；App 端会在现有页面路径前补 `/`；微信小程序端继续使用页面 `route`。
+生效行为：默认值为 `true`。设置为 `true` 时，Web 端优先使用 `UniPage.route` 生成的页面路径，与 App 和微信小程序的页面路径规则保持统一。设置为 `false` 时，Web 端优先使用浏览器 `location`。Android App、iOS App、Harmony App 和微信小程序不读取该配置，始终使用页面 `route` 的既有规则。
 
 ### idMapping
 

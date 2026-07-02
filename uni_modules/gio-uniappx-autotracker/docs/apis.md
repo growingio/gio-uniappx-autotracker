@@ -43,7 +43,6 @@ gdp('init', {
   dataSourceId: 'YOUR_DATA_SOURCE_ID',
   appId: 'YOUR_APP_ID',
   serverUrl: 'https://napi.growingio.com',
-  useUnified: true,
   dataCollect: true
 })
 ```
