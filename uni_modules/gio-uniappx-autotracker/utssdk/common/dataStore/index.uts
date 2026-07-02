@@ -191,6 +191,10 @@ export class GioDataStore {
     return resolvePageContext(this.startupPageContext)
   }
 
+  buildLastPageEventContext(duration : number | null) : GioPageContext | null {
+    return this.pageStore.buildLastPageEventContext(duration)
+  }
+
   cacheQueryOptions(path : string, query : string) {
     this.pageStore.cacheQueryOptions(path, query)
   }

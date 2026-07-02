@@ -37,6 +37,9 @@ export class GioEventBuilder {
         duration: pageContext != null ? pageContext.duration : null
       } as GioPageContext
     }
+    if (eventType != 'VISIT' && eventType != 'PAGE') {
+      return pageContext
+    }
     return resolveRuntimePageContext(pageContext)
   }
 
@@ -98,15 +101,11 @@ export class GioEventBuilder {
     } else if (!isApp) {
       appChannelText = appChannel
     }
-    const referralPageText : string | null = (isApp && eventType != 'PAGE')
-      ? null
-      : referralPage
+    const referralPageText : string | null = referralPage
     const orientationText : string | null = (isApp && eventType == 'PAGE')
       ? readDeviceOrientation()
       : null
-    const titleText : string | null = (isApp && eventType != 'PAGE')
-      ? null
-      : (title != null ? (title as string) : '')
+    const titleText : string | null = title != null ? (title as string) : ''
     return shapeTrackEvent({
       appChannel: appChannelText,
       appName: systemContext.appName,

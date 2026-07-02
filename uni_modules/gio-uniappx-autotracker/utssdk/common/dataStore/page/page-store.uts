@@ -228,6 +228,28 @@ export class GioPageStore {
     } as GioPageContext
   }
 
+  buildLastPageEventContext(duration : number | null) : GioPageContext | null {
+    const lastPage = this.lastPageEvent
+    if (lastPage == null || lastPage.path.length == 0) {
+      return null
+    }
+    const currentSignature = buildRouteSignature(
+      this.currentPagePath,
+      this.currentPageQuery
+    )
+    const lastSignature = buildRouteSignature(lastPage.path, lastPage.query)
+    if (currentSignature.length > 0 && currentSignature != lastSignature) {
+      return null
+    }
+    return {
+      path: lastPage.path,
+      query: lastPage.query.length > 0 ? lastPage.query : null,
+      title: lastPage.title.length > 0 ? lastPage.title : null,
+      referralPage: lastPage.referralPage.length > 0 ? lastPage.referralPage : null,
+      duration: duration
+    } as GioPageContext
+  }
+
   hasCurrentPage() : boolean {
     return this.currentPagePath.length > 0
   }
