@@ -778,7 +778,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
   }
 
   private installRegisteredPlugin(plugin : GioPluginItem) : boolean {
-    const pluginName = plugin.name
+    const pluginName : string = plugin.name
     if (this.isRegisteredPluginInstalled(pluginName)) {
       consoleText(`重复加载插件 ${pluginName} 或插件重名，已跳过加载!`, 'warn')
       return false
