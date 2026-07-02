@@ -295,7 +295,7 @@
 
 		<view class="section">
 			<text class="sectionTitle">变更事件</text>
-			<text class="hint">独立 SDK 只把 blur / change / confirm 归为 VIEW_CHANGE；输入框直输的 input 不采集。</text>
+			<text class="hint">先看输入类事件，再看真正触发 change 的组件；独立 SDK 只把 blur / change / confirm 归为 VIEW_CHANGE。</text>
 			<view class="caseRow">
 				<input
 					id="auto_direct_input"
@@ -306,18 +306,6 @@
 					@input="onDirectInput"
 				/>
 				<text class="codeLine">发送：否；&#64;input 不在独立 SDK change listeners 里</text>
-			</view>
-			<view class="caseRow">
-				<view class="changeControl">
-					<switch
-						id="auto_change_switch"
-						:checked="switchChecked"
-						data-growing-track="true"
-						data-title="switch change"
-						@change="onSwitchChange"
-					/>
-				</view>
-				<text class="codeLine">发送：是；switch &#64;change + 静态 data-growing-track；带 xpath / textValue</text>
 			</view>
 			<view class="caseRow">
 				<input
@@ -345,6 +333,29 @@
 					@confirm="onInputConfirm('confirm_arg')"
 				/>
 				<text class="codeLine">发送：是；&#64;confirm="onInputConfirm('confirm_arg')"；带 xpath / textValue，不带 index</text>
+			</view>
+			<view class="caseRow">
+				<input
+					id="auto_attr_fallback"
+					class="changeInput"
+					value="attr_fallback_value"
+					:data-growing-track="true"
+					data-title="attr fallback 输入框"
+					@blur="onAttrFallbackBlur"
+				/>
+				<text class="codeLine">发送：是；detail.value 没值时 fallback target.attr.value</text>
+			</view>
+			<view class="caseRow">
+				<view class="changeControl">
+					<switch
+						id="auto_change_switch"
+						:checked="switchChecked"
+						data-growing-track="true"
+						data-title="switch change"
+						@change="onSwitchChange"
+					/>
+				</view>
+				<text class="codeLine">发送：是；switch &#64;change + 静态 data-growing-track；带 xpath / textValue</text>
 			</view>
 			<view class="caseRow">
 				<view class="changeControl">
@@ -394,17 +405,6 @@
 					/>
 				</view>
 				<text class="codeLine">发送：是；无 growingTrack；只带 xpath，不带 textValue</text>
-			</view>
-			<view class="caseRow">
-				<input
-					id="auto_attr_fallback"
-					class="changeInput"
-					value="attr_fallback_value"
-					:data-growing-track="true"
-					data-title="attr fallback 输入框"
-					@blur="onAttrFallbackBlur"
-				/>
-				<text class="codeLine">发送：是；detail.value 没值时 fallback target.attr.value</text>
 			</view>
 			<view class="caseRow">
 				<view class="changeControl">
