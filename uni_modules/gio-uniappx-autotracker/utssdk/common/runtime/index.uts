@@ -21,7 +21,7 @@ type GioPageContextWaitPolicy = {
   shouldWaitForPageContext : (options : GioInitOptions) => boolean
 }
 
-type GioCommonDataNormalizer = {
+export type GioCommonDataNormalizer = {
   normalizePath : (path : string, useUnified : boolean) => string
 }
 
