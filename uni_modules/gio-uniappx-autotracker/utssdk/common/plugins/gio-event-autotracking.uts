@@ -49,12 +49,31 @@ export class GioEventAutoTrackingPlugin {
     return target.getJSON('dataset')
   }
 
+  private readDatasetMarker(dataset : UTSJSONObject | null, key : string) : boolean {
+    if (dataset == null) {
+      return false
+    }
+    const booleanValue = dataset.getBoolean(key)
+    if (booleanValue != null) {
+      return booleanValue as boolean
+    }
+    const stringValue = dataset.getString(key)
+    if (stringValue != null) {
+      return stringValue.length > 0
+    }
+    const numberValue = dataset.getNumber(key)
+    if (numberValue != null) {
+      return (numberValue as number) != 0
+    }
+    return false
+  }
+
   private hasGrowingTrack(dataset : UTSJSONObject | null) : boolean {
-    return dataset != null && dataset.getBoolean('growingTrack', false) == true
+    return this.readDatasetMarker(dataset, 'growingTrack')
   }
 
   private isIgnored(dataset : UTSJSONObject | null) : boolean {
-    return dataset != null && dataset.getBoolean('growingIgnore', false) == true
+    return this.readDatasetMarker(dataset, 'growingIgnore')
   }
 
   private isAutoplay(snapshot : UTSJSONObject) : boolean {
@@ -125,7 +144,7 @@ export class GioEventAutoTrackingPlugin {
     return indexValue
   }
 
-  private readTruthyValue(source : UTSJSONObject | null) : string | null {
+  private readTruthyDetailValue(source : UTSJSONObject | null) : string | null {
     if (source == null) {
       return null
     }
@@ -145,14 +164,33 @@ export class GioEventAutoTrackingPlugin {
     return null
   }
 
+  private readNilAwareValue(source : UTSJSONObject | null) : string | null {
+    if (source == null) {
+      return null
+    }
+    const textValue = source.getString('value')
+    if (textValue != null) {
+      return textValue
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null) {
+      return `${numberValue as number}`
+    }
+    const booleanValue = source.getBoolean('value')
+    if (booleanValue != null) {
+      return (booleanValue as boolean) ? 'true' : 'false'
+    }
+    return null
+  }
+
   private readTruthyChangeValue(snapshot : UTSJSONObject) : string | null {
-    const detailValue = this.readTruthyValue(this.readSnapshotObject(snapshot, 'detail'))
+    const detailValue = this.readTruthyDetailValue(this.readSnapshotObject(snapshot, 'detail'))
     if (detailValue != null) {
       return detailValue
     }
     const target = this.readOriginalTarget(snapshot)
     const attr = target != null ? target.getJSON('attr') : null
-    return this.readTruthyValue(attr)
+    return this.readNilAwareValue(attr)
   }
 
   private buildClickElement(snapshot : UTSJSONObject) : UTSJSONObject | null {

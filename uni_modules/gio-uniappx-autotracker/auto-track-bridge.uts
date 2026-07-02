@@ -33,6 +33,18 @@ function readBooleanField(source : any | null, key : string) : boolean | null {
   return readBooleanValue(readDynamicField(source, key))
 }
 
+function copyDatasetFlag(source : any | null, target : UTSJSONObject, key : string) {
+  const booleanValue = readBooleanField(source, key)
+  if (booleanValue != null) {
+    target[key] = booleanValue
+    return
+  }
+  const stringValue = readStringField(source, key)
+  if (stringValue != null) {
+    target[key] = stringValue
+  }
+}
+
 function copyDataset(source : any | null) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
@@ -55,14 +67,8 @@ function copyDataset(source : any | null) : UTSJSONObject | null {
   if (title != null) {
     copied['title'] = title
   }
-  const growingTrack = readBooleanField(source, 'growingTrack')
-  if (growingTrack != null) {
-    copied['growingTrack'] = growingTrack
-  }
-  const growingIgnore = readBooleanField(source, 'growingIgnore')
-  if (growingIgnore != null) {
-    copied['growingIgnore'] = growingIgnore
-  }
+  copyDatasetFlag(source, copied, 'growingTrack')
+  copyDatasetFlag(source, copied, 'growingIgnore')
   return UTSJSONObject.keys(copied).length > 0 ? copied : null
 }
 

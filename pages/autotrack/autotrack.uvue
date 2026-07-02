@@ -315,11 +315,11 @@
 					class="changeInput"
 					v-model="changeNoParenthesesValue"
 					:data-index="41"
-					:data-growing-track="true"
+					data-growing-track="true"
 					data-title="不带括号 change"
 					@change="onChangeNoParentheses"
 				/>
-				<text class="codeLine">发送：是；&#64;change="onChangeNoParentheses"；带 xpath / textValue，不带 index</text>
+				<text class="codeLine">发送：是；静态 data-growing-track="true"；带 xpath / textValue，不带 index</text>
 			</view>
 			<view class="caseRow">
 				<input
