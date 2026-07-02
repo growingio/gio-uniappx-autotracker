@@ -88,9 +88,9 @@ function buildWrappedExpression(kind, expression, eventName, attrQuote) {
   const bridge = kind === 'change' ? 'gioHandleAutoChange' : 'gioHandleAutoClick'
   const trackCall = `${bridge}($event, ${quoteString(handlerName, attrQuote)})`
   if (METHOD_PATH_RE.test(source)) {
-    return `($event) => { ${trackCall}; return ${source}() }`
+    return `${trackCall}; ${source}()`
   }
-  return `($event) => { ${trackCall}; ${source} }`
+  return `${trackCall}; ${source}`
 }
 
 function collectTemplateReplacements(code) {

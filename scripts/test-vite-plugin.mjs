@@ -13,8 +13,9 @@ function transform(code, id = '/src/pages/index/index.uvue') {
   const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts"></script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick\(\$event, 'onSimpleTrack'\)/)
-  assert.match(output, /return onSimpleTrack\(\)/)
-  assert.doesNotMatch(output, /return onSimpleTrack\(\$event\)/)
+  assert.match(output, /onSimpleTrack\(\)/)
+  assert.doesNotMatch(output, /\(\$event\)\s*=>/)
+  assert.doesNotMatch(output, /onSimpleTrack\(\$event\)/)
 }
 
 {
@@ -23,6 +24,7 @@ function transform(code, id = '/src/pages/index/index.uvue') {
   assert.match(output, /gioHandleAutoClick\(\$event, 'foo'\)/)
   assert.match(output, /foo\(\); bar\(\)/)
   assert.doesNotMatch(output, /return foo\(\);/)
+  assert.doesNotMatch(output, /\(\$event\)\s*=>/)
 }
 
 {
