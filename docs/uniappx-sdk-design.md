@@ -140,13 +140,13 @@ gio-uniappx-autotracker/
 
 web 端额外支持两个初始化项：
 
+- `useUnified`：默认 `true`，当前只影响 Web 端事件里的 `path` 字段；非 Web 端不读取该配置
 - `storageType`：浏览器存储策略，合法值为 `cookie` / `localStorage`，大小写不敏感；默认和非法值均使用 `cookie`
 - `cookieDomain`：cookie 域名，仅在 `storageType = cookie` 时生效
 
 跨端配置项补充：
 
 - `originalSource`：默认 `true`
-- `useUnified`：默认 `true`，当前用于统一各端通用数据里的 `path` 规则
 - `dataCollect`：默认 `true`，也可通过 `setOptions({ dataCollect })` 动态切换
 
 UTS 约束说明：
@@ -623,7 +623,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 业务事件可通过 `gdp('track', eventName, properties)` 上报
 - `userId` 和 `userKey` 可在运行时更新
 - `dataCollect` 可通过 `setOptions({ dataCollect })` 动态切换
-- 初始化配置 `useUnified` 默认开启，当前用于统一各端事件 `path` 字段规则
+- Web 端初始化配置 `useUnified` 默认开启，当前只影响 Web 端事件 `path` 字段规则
 - 非 web 端可通过 `setLocation(latitude, longitude)` 给后续事件补充经纬度，也可通过 `clearLocation()` 清空经纬度
 - 待发送事件会按 SDK 内部发送策略自动上报
 

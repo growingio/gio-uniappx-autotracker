@@ -66,7 +66,9 @@ export function createApp() {
 
 ## 3. 配置一览
 
-| 参数 | 类型 | 必填 | 默认值 | 说明 |
+“是否必须传入”表示业务初始化时是否需要主动填写该字段。可选字段不传时，SDK 会在归一化阶段使用默认值或 `null`。
+
+| 参数 | 类型 | 是否必须传入 | 默认值 | 说明 |
 | --- | --- | --- | --- | --- |
 | `app` | `VueApp` | 是 | 无 | 当前 Vue app 实例。SDK 使用它安装生命周期 mixin。 |
 | `projectId` | `string` | 是 | 无 | GrowingIO 项目 ID。 |
@@ -78,19 +80,18 @@ export function createApp() {
 | `debug` | `boolean` | 否 | `false` | 调试日志开关。 |
 | `forceLogin` | `boolean` | 否 | `false` | 是否启用登录前暂停上报。启用后需调用 `identify`。 |
 | `originalSource` | `boolean` | 否 | `true` | 是否记录首次访问来源。 |
-| `useUnified` | `boolean` | 否 | `true` | Web 端是否使用统一的通用数据规则。当前只影响 Web 端 `path` 字段。 |
 | `idMapping` | `boolean` | 否 | `false` | 是否启用 `userKey` 身份映射。 |
 | `urlScheme` | `string \| null` | 否 | `null` | App 端 URL Scheme 标识，会写入事件字段。 |
 | `dataValidityPeriod` | `number \| null` | 否 | `7` | 本地数据有效期，单位为天，最小 `3`，最大 `30`。 |
 
-必填项校验：
+业务必须传入且不能为空的字段：
 
+- `app`
 - `projectId`
 - `dataSourceId`
 - `appId`
-- `serverUrl`
 
-`app` 为空时，JS 桥接层返回 `false`，并且不安装生命周期。
+`app` 为空时，JS 桥接层返回 `false`，并且不安装生命周期。`projectId`、`dataSourceId` 或 `appId` 归一化后为空时，SDK 初始化返回 `false`。`serverUrl` 可以不传，SDK 会使用默认值 `https://napi.growingio.com`。
 
 ## 4. 配置项说明
 
@@ -218,24 +219,6 @@ gdp('init', {
 
 字段规则：该配置只控制首次来源快照机制是否启用，不保证 `path`、`query`、`title`、`referralPage` 四个字段都非空；字段值来自 SDK 在对应平台已解析出的页面上下文。该快照不按 `sessionId` 绑定或判断。
 
-### useUnified
-
-`useUnified` 控制 Web 端是否使用统一的通用数据规则。当前只影响 Web 端事件里的 `path` 字段。
-
-```uts
-gdp('init', {
-  app: app,
-  projectId: 'YOUR_PROJECT_ID',
-  dataSourceId: 'YOUR_DATA_SOURCE_ID',
-  appId: 'YOUR_APP_ID',
-  useUnified: true
-})
-```
-
-适用平台：Web。
-
-生效行为：默认值为 `true`。设置为 `true` 时，Web 端优先使用 `UniPage.route` 生成的页面路径，与 App 和微信小程序的页面路径规则保持统一。设置为 `false` 时，Web 端优先使用浏览器 `location`。Android App、iOS App、Harmony App 和微信小程序不读取该配置，始终使用页面 `route` 的既有规则。
-
 ### idMapping
 
 如果业务需要同时传入 `userId` 和 `userKey`，初始化时必须开启 `idMapping`：
@@ -300,12 +283,13 @@ gdp('init', {
 
 ## 5. Web 专属扩展
 
-Web 端可在 `gdp('init', options)` 中额外传入存储策略字段。App 端和微信小程序端不读取这些字段。
+Web 端可在 `gdp('init', options)` 中额外传入页面路径和存储策略字段。App 端和微信小程序端不读取这些字段。
 
-| 参数 | 类型 | 默认值 | 说明 |
-| --- | --- | --- | --- |
-| `storageType` | `'cookie' \| 'localStorage'` | `'cookie'` | Web 主存储类型。Cookie 不可用时会回退到 `localStorage`。 |
-| `cookieDomain` | `string` | 自动探测 | Web Cookie 写入域。 |
+| 参数 | 类型 | 是否必须传入 | 默认值 | 说明 |
+| --- | --- | --- | --- | --- |
+| `useUnified` | `boolean` | 否 | `true` | Web 端是否使用统一的通用数据规则。当前只影响 Web 端 `path` 字段。 |
+| `storageType` | `'cookie' \| 'localStorage'` | 否 | `'cookie'` | Web 主存储类型。Cookie 不可用时会回退到 `localStorage`。 |
+| `cookieDomain` | `string` | 否 | 自动探测 | Web Cookie 写入域。 |
 
 Web 专属字段应和其他初始化参数合并到同一次 `gdp('init', initOptions)` 调用中，不要为了设置 Web 字段再次调用 `init`：
 
@@ -319,6 +303,7 @@ const initOptions = {
 } as UTSJSONObject
 
 // #ifdef WEB
+initOptions['useUnified'] = true
 initOptions['storageType'] = 'localStorage'
 initOptions['cookieDomain'] = '.example.com'
 // #endif
@@ -329,6 +314,22 @@ gdp('init', initOptions)
 适用平台：Web。
 
 不适用平台：Android App、iOS App、微信小程序。
+
+### useUnified
+
+`useUnified` 控制 Web 端是否使用统一的通用数据规则。当前只影响 Web 端事件里的 `path` 字段。
+
+```uts
+// #ifdef WEB
+initOptions['useUnified'] = true
+// #endif
+```
+
+适用平台：Web。
+
+不适用平台：Android App、iOS App、微信小程序。
+
+生效行为：默认值为 `true`。设置为 `true` 时，Web 端优先使用 `UniPage.route` 生成的页面路径，与 App 和微信小程序的页面路径规则保持统一。设置为 `false` 时，Web 端优先使用浏览器 `location`。Android App、iOS App 和微信小程序不读取该配置，始终使用页面 `route` 的既有规则。
 
 ### storageType
 
@@ -383,7 +384,8 @@ gdp('track', 'integration_test', {
 ## 7. 基础接入检查
 
 - `gdp('init', ...)` 在 `createSSRApp(App)` 后、`return { app }` 前调用。
-- `app`、`projectId`、`dataSourceId`、`appId`、`serverUrl` 不为空。
+- `app`、`projectId`、`dataSourceId`、`appId` 已传入且不为空。
+- 私有化环境已显式配置正确的 `serverUrl`；未配置时 SDK 使用默认采集地址。
 - 自定义属性使用 `UTSJSONObject`，不要传数组、函数或嵌套对象作为属性值。
 - 开启 `forceLogin` 后，必须调用 `gdp('identify', assignmentId)` 才能释放暂停的上报队列。
 - 需要 ABTest 或微信分享采集时，初始化成功后调用 `gdp('registerPlugins', plugins)`。
