@@ -764,6 +764,53 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
     } as GioABTestPluginOptions
   }
 
+  private isRegisteredPluginInstalled(pluginName : string) : boolean {
+    if (pluginName == 'gioABTest') {
+      return this.abTestPlugin != null
+    }
+    if (pluginName == 'gioShareTracking') {
+      return this.shareTrackingEnabled
+    }
+    if (pluginName == 'gioEventAutoTracking') {
+      return this.eventAutoTrackingPlugin != null
+    }
+    return false
+  }
+
+  private installRegisteredPlugin(plugin : GioPluginItem) : boolean {
+    const pluginName = plugin.name
+    if (this.isRegisteredPluginInstalled(pluginName)) {
+      consoleText(`重复加载插件 ${pluginName} 或插件重名，已跳过加载!`, 'warn')
+      return false
+    }
+
+    try {
+      if (pluginName == 'gioABTest') {
+        this.abTestPlugin = new GioABTestPlugin(
+          this,
+          this.resolveABTestOptions(plugin.options)
+        )
+        consoleText(`加载插件 ${pluginName}`, 'info')
+        return true
+      }
+      if (pluginName == 'gioShareTracking') {
+        this.shareTrackingEnabled = true
+        consoleText(`加载插件 ${pluginName}`, 'info')
+        return true
+      }
+      if (pluginName == 'gioEventAutoTracking') {
+        this.eventAutoTrackingPlugin = new GioEventAutoTrackingPlugin(this)
+        consoleText(`加载插件 ${pluginName}`, 'info')
+        return true
+      }
+      consoleText(`插件加载失败!不存在名为 ${pluginName} 的插件!`, 'error')
+      return false
+    } catch (error) {
+      consoleText(`插件【${pluginName}】加载异常 ${stringifyScalar(error)}`, 'error')
+      return false
+    }
+  }
+
   registerPlugins(plugins : Array<GioPluginItem>) : boolean {
     if (!this.ensureReady()) {
       return false
@@ -771,17 +818,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
     let installed = false
     for (let i = 0; i < plugins.length; i++) {
       const plugin = plugins[i]
-      if (plugin.name == 'gioABTest') {
-        this.abTestPlugin = new GioABTestPlugin(
-          this,
-          this.resolveABTestOptions(plugin.options)
-        )
-        installed = true
-      } else if (plugin.name == 'gioShareTracking') {
-        this.shareTrackingEnabled = true
-        installed = true
-      } else if (plugin.name == 'gioEventAutoTracking') {
-        this.eventAutoTrackingPlugin = new GioEventAutoTrackingPlugin(this)
+      if (this.installRegisteredPlugin(plugin)) {
         installed = true
       }
     }
