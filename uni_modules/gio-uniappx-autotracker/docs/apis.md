@@ -43,6 +43,7 @@ gdp('init', {
   dataSourceId: 'YOUR_DATA_SOURCE_ID',
   appId: 'YOUR_APP_ID',
   serverUrl: 'https://napi.growingio.com',
+  useUnified: true,
   dataCollect: true
 })
 ```
@@ -251,7 +252,7 @@ gdp('setOptions', {
 | --- | --- | --- | --- |
 | `dataCollect` | `boolean` | 是 | 动态开启或关闭数据采集。 |
 
-不可配置项：`setOptions` 不支持修改 `projectId`、`dataSourceId`、`serverUrl`、`debug`、`forceLogin`、`idMapping` 等初始化配置。
+不可配置项：`setOptions` 不支持修改 `projectId`、`dataSourceId`、`serverUrl`、`debug`、`forceLogin`、`useUnified`、`idMapping` 等初始化配置。
 
 适用平台：Web、Android App、iOS App、微信小程序。
 

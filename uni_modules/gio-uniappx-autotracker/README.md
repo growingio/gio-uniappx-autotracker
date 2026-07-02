@@ -44,6 +44,7 @@ export function createApp() {
     dataCollect: true,
     debug: false,
     forceLogin: false,
+    useUnified: true,
     idMapping: false
   })
 

@@ -53,6 +53,7 @@ export function createApp() {
     debug: false,
     forceLogin: false,
     originalSource: true,
+    useUnified: true,
     idMapping: false,
     urlScheme: null,
     dataValidityPeriod: 7
@@ -78,6 +79,7 @@ export function createApp() {
 | `debug` | `boolean` | 否 | `false` | 调试日志开关。 |
 | `forceLogin` | `boolean` | 否 | `false` | 是否启用登录前暂停上报。启用后需调用 `identify`。 |
 | `originalSource` | `boolean` | 否 | `true` | 是否记录首次访问来源。 |
+| `useUnified` | `boolean` | 否 | `true` | 是否使用统一的通用数据规则。当前影响 `path` 字段。 |
 | `idMapping` | `boolean` | 否 | `false` | 是否启用 `userKey` 身份映射。 |
 | `urlScheme` | `string \| null` | 否 | `null` | App 端 URL Scheme 标识，会写入事件字段。 |
 | `dataValidityPeriod` | `number \| null` | 否 | `7` | 本地数据有效期，单位为天，最小 `3`，最大 `30`。 |
@@ -216,6 +218,24 @@ gdp('init', {
 生效行为：默认值为 `true`。设置为 `true` 后，SDK 启用首次来源快照，并在 `VISIT` 事件中优先使用首次来源快照里的 `path`、`query`、`title` 和 `referralPage`。设置为 `false` 后，SDK 不启用首次来源快照，`VISIT` 使用事件触发时的页面上下文。
 
 字段规则：该配置只控制首次来源快照机制是否启用，不保证 `path`、`query`、`title`、`referralPage` 四个字段都非空；字段值来自 SDK 在对应平台已解析出的页面上下文。该快照不按 `sessionId` 绑定或判断。
+
+### useUnified
+
+`useUnified` 控制 SDK 是否使用统一的通用数据规则。当前只影响事件里的 `path` 字段。
+
+```uts
+gdp('init', {
+  app: app,
+  projectId: 'YOUR_PROJECT_ID',
+  dataSourceId: 'YOUR_DATA_SOURCE_ID',
+  appId: 'YOUR_APP_ID',
+  useUnified: true
+})
+```
+
+适用平台：Web、Android App、iOS App、微信小程序。
+
+生效行为：默认值为 `true`。设置为 `true` 时，Web 端优先使用 `UniPage.route` 生成的页面路径，与 App 和微信小程序的页面路径规则保持统一。设置为 `false` 时，Web 端优先使用浏览器 `location`；App 端会在现有页面路径前补 `/`；微信小程序端继续使用页面 `route`。
 
 ### idMapping
 
