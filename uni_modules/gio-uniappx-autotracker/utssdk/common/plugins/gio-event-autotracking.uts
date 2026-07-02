@@ -1,4 +1,5 @@
 import { GioEventAutoTrackingHost } from '../../interface.uts'
+import { consoleText } from '../utils/debug.uts'
 import { stringifyScalar } from '../utils/validate.uts'
 
 const CLICK_EVENT_TYPE = 'VIEW_CLICK'
@@ -91,6 +92,10 @@ export class GioEventAutoTrackingPlugin {
     return `${id}#${eventName}`
   }
 
+  private warnInvalidIndex(indexText : string) {
+    consoleText(`${indexText}，index标记应为 大于 0 且小于 2147483647 的整数！`, 'warn')
+  }
+
   private readIndex(dataset : UTSJSONObject | null) : number | null {
     if (dataset == null) {
       return null
@@ -110,9 +115,11 @@ export class GioEventAutoTrackingPlugin {
     }
     const indexValue = parseInt(indexText, 10)
     if (isNaN(indexValue) || `${indexValue}` != indexText) {
+      this.warnInvalidIndex(indexText)
       return null
     }
     if (indexValue <= MIN_INDEX || indexValue >= MAX_INDEX) {
+      this.warnInvalidIndex(indexText)
       return null
     }
     return indexValue
