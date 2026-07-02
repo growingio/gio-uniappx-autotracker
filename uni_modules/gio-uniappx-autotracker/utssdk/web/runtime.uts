@@ -9,6 +9,7 @@ import {
   registerConfigSyncer,
   registerEventShaper,
   registerEventSender,
+  registerPageContextWaitPolicy,
   registerPageContextResolver,
   registerPlatformStorageFactory,
   registerRuntimeBehavior,
@@ -634,9 +635,6 @@ registerRuntimePolicy({
   shouldWaitForNetworkState() : boolean {
     return false
   },
-  shouldWaitForPageContext(options : GioInitOptions) : boolean {
-    return options.useUnified == true
-  },
   shouldEmitPageWithoutShow() : boolean {
     return true
   },
@@ -654,6 +652,12 @@ registerRuntimePolicy({
   },
   getUploadMaxConcurrency(fallback : number) : number {
     return fallback
+  }
+})
+
+registerPageContextWaitPolicy({
+  shouldWaitForPageContext(options : GioInitOptions) : boolean {
+    return options.useUnified == true
   }
 })
 

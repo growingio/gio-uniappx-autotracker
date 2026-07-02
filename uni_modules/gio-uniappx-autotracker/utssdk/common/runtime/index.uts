@@ -17,6 +17,10 @@ type GioPageContextResolver = {
   resolvePageContext : (pageContext : GioPageContext | null) => GioPageContext | null
 }
 
+type GioPageContextWaitPolicy = {
+  shouldWaitForPageContext : (options : GioInitOptions) => boolean
+}
+
 type GioCommonDataNormalizer = {
   normalizePath : (path : string, useUnified : boolean) => string
 }
@@ -60,7 +64,6 @@ type GioRuntimePolicy = {
   shouldPersistSessionId : () => boolean
   shouldPersistEvents : () => boolean
   shouldWaitForNetworkState : () => boolean
-  shouldWaitForPageContext : (options : GioInitOptions) => boolean
   shouldEmitPageWithoutShow : () => boolean
   supportsAppState : () => boolean
   supportsLocation : () => boolean
@@ -97,6 +100,7 @@ type GioNetworkStateProvider = {
 
 let registeredStorageFactory : GioPlatformStorageFactory | null = null
 let registeredPageContextResolver : GioPageContextResolver | null = null
+let registeredPageContextWaitPolicy : GioPageContextWaitPolicy | null = null
 let registeredCommonDataNormalizer : GioCommonDataNormalizer | null = null
 let registeredRuntimeBehavior : GioRuntimeBehavior | null = null
 let registeredEventShaper : GioEventShaper | null = null
@@ -120,6 +124,12 @@ export function registerPageContextResolver (
   resolver : GioPageContextResolver | null
 ) {
   registeredPageContextResolver = resolver
+}
+
+export function registerPageContextWaitPolicy (
+  policy : GioPageContextWaitPolicy | null
+) {
+  registeredPageContextWaitPolicy = policy
 }
 
 export function registerCommonDataNormalizer (
@@ -225,7 +235,7 @@ export function shouldWaitForNetworkState() : boolean {
 }
 
 export function shouldWaitForPageContext(options : GioInitOptions) : boolean {
-  const policy = registeredRuntimePolicy
+  const policy = registeredPageContextWaitPolicy
   return policy != null ? policy.shouldWaitForPageContext(options) : false
 }
 
