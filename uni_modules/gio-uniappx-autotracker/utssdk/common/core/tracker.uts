@@ -84,6 +84,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private entryResolver : GioEntryResolver | null = null
   private entryScene : string = ''
   private currentPageShown : boolean = false
+  private lastPageEvent : GioTrackEvent | null = null
   // 分享往返标记：平台侧分享包装器在「分享给朋友」时经 setShareOut(true) 置位
   // 由平台分享插件置位。对齐独立 SDK appEffects.ts:59 —— 置位期间 onAppShow
   // 不重写 originalSource，避免分享回流入口被当作首次来源；每次 page onShow 复位。
@@ -313,22 +314,6 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     return this.dataStore.buildEventPageContext(duration)
   }
 
-  private buildReusablePageContext(duration : number | null) : GioPageContext | null {
-    const lastPageContext = this.dataStore.buildLastPageEventContext(duration)
-    return lastPageContext != null ? lastPageContext : this.buildEventPageContext(duration)
-  }
-
-  private resolveEventPageContext(
-    eventType : string,
-    pageContext : GioPageContext | null
-  ) : GioPageContext | null {
-    if (eventType == 'VISIT' || eventType == 'PAGE') {
-      return pageContext
-    }
-    const lastPageContext = this.dataStore.buildLastPageEventContext(null)
-    return lastPageContext != null ? lastPageContext : pageContext
-  }
-
   private buildPageContextFromTarget(
     page : UTSJSONObject | null,
     options : UTSJSONObject | null,
@@ -471,6 +456,25 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     )
   }
 
+  private applyLastPageEventContext(event : GioTrackEvent) : GioTrackEvent {
+    if (event.eventType == 'PAGE') {
+      this.lastPageEvent = event
+      return event
+    }
+    if (event.eventType == 'VISIT') {
+      return event
+    }
+    const pageEvent = this.lastPageEvent
+    if (pageEvent == null) {
+      return event
+    }
+    event.path = pageEvent.path
+    event.query = pageEvent.query
+    event.title = pageEvent.title
+    event.referralPage = pageEvent.referralPage
+    return event
+  }
+
   private buildAppChannel() : string {
     if (!this.entryEnabled) {
       return 'scn:NA'
@@ -539,8 +543,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     // 所有事件都必须等异步系统上下文 ready 后才能真正构建；
     // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
     this.dataStore.ensureSystemReady(() => {
-      const resolvedPageContext = this.resolveEventPageContext(eventType, pageContext)
-      const event = this.buildEvent(name, eventType, properties, resolvedPageContext)
+      const event = this.applyLastPageEventContext(
+        this.buildEvent(name, eventType, properties, pageContext)
+      )
       this.recordEventContext(eventType, event)
       this.uploader.enqueue(event, this.getMaxQueueSize())
       if (flushAfter) {
@@ -639,7 +644,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       return false
     }
 
-    const pageContext = this.buildReusablePageContext(null)
+    const pageContext = this.buildEventPageContext(null)
     this.maybeEmitVisit(pageContext)
     this.pushInternalEvent(
       eventName,
@@ -658,7 +663,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (!this.ensureReady()) {
       return false
     }
-    const pageContext = this.buildReusablePageContext(null)
+    const pageContext = this.buildEventPageContext(null)
     this.maybeEmitVisit(pageContext)
     this.pushInternalEvent(
       eventName,
@@ -679,7 +684,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   getCurrentPageContext() : GioPageContext | null {
-    return this.buildReusablePageContext(null)
+    return this.buildEventPageContext(null)
   }
 
   setShareOut(value : boolean) {
@@ -690,7 +695,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (!this.ensureReady()) {
       return
     }
-    const pageContext = this.buildReusablePageContext(null)
+    const pageContext = this.buildEventPageContext(null)
     this.maybeEmitVisit(pageContext)
     this.pushInternalEvent(
       eventName,
@@ -828,7 +833,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       consoleText('setUserAttributes 参数不合法，必须传入非空对象', 'error')
       return false
     }
-    let pageContext = this.buildReusablePageContext(null)
+    let pageContext = this.buildEventPageContext(null)
     if (pageContext == null || pageContext.path.length == 0) {
       pageContext = this.dataStore.buildLastVisitPageContext()
     }
