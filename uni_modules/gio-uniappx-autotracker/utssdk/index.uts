@@ -78,6 +78,18 @@ export function clearUserId () : boolean {
   return tracker.clearUserId()
 }
 
+function shouldForwardPlugin(pluginName : string) : boolean {
+  if (pluginName == 'gioShareTracking') {
+    // #ifdef MP-WEIXIN
+    return true
+    // #endif
+    // #ifndef MP-WEIXIN
+    return false
+    // #endif
+  }
+  return true
+}
+
 export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
   // 这里必须显式声明为 `Array<UTSJSONObject>`，不能放宽成 `Array<any>`。
   // uni-app x 的 JS↔UTS 桥只会在声明类型明确时把数组元素编组成真正的 UTSJSONObject；
@@ -88,6 +100,9 @@ export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
     const raw = plugins[i]
     const nameValue = raw.getString('name')
     if (nameValue == null || nameValue.length == 0) {
+      continue
+    }
+    if (!shouldForwardPlugin(nameValue)) {
       continue
     }
     // 嵌套对象必须通过 getJSON 读取，不能写 `raw['options'] as UTSJSONObject`。
