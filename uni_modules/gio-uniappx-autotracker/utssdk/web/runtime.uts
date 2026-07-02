@@ -521,14 +521,27 @@ function resolveBrowserPageContext(
   const documentReferrer = readDocumentReferrer()
   const currentHref = readCurrentHref()
   const previousPageUrl = lastPageFullUrl
-  lastPageFullUrl = currentHref.length > 0 ? currentHref : lastPageFullUrl
+  if (!useUnified) {
+    lastPageFullUrl = currentHref.length > 0 ? currentHref : lastPageFullUrl
+  }
+  let referralPage : string | null = null
+  if (
+    useUnified &&
+    logicalPageContext != null &&
+    logicalPageContext.referralPage != null &&
+    logicalPageContext.referralPage.length > 0
+  ) {
+    referralPage = logicalPageContext.referralPage
+  } else if (previousPageUrl.length > 0) {
+    referralPage = previousPageUrl
+  } else if (documentReferrer.length > 0) {
+    referralPage = documentReferrer
+  }
   return {
     path: path,
     query: query,
     title: title,
-    referralPage: previousPageUrl.length > 0
-      ? previousPageUrl
-      : documentReferrer,
+    referralPage: referralPage,
     duration: logicalPageContext != null ? logicalPageContext.duration : null
   } as GioPageContext
 }
