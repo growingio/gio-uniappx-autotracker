@@ -15,6 +15,7 @@ GioTracker.getInstance().setSystemContextResolver(
 export {
   clearLocation,
   clearUserId,
+  dispatchAutoTrackEvent,
   getABTest,
   identify,
   onHide,

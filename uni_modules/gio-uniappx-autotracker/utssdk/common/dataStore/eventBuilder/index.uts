@@ -142,7 +142,8 @@ export class GioEventBuilder {
       title: titleText,
       userId: context.userId,
       userKey: userKey,
-      attributes: properties
+      attributes: properties,
+      element: null
     } as GioTrackEvent)
   }
 }

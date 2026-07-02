@@ -62,4 +62,6 @@ gdp('track', 'buy_click', {
 gdp('setUserId', 'user-1001')
 ```
 
+无埋点点击/变更采集需要同时接入 `build/vite-plugin.mjs` 并注册 `gioEventAutoTracking`，详见 [功能插件](./docs/plugins.md)。
+
 完整配置项、API 参数和插件用法见上方文档目录。

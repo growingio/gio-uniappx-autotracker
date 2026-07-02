@@ -1,0 +1,203 @@
+import { copyJSONObject, readDynamicField } from './bridge-utils.uts'
+
+function copyDataset(source : any | null) : UTSJSONObject | null {
+  const raw = copyJSONObject(source)
+  if (raw == null) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const indexText = raw.getString('index')
+  if (indexText != null) {
+    copied['index'] = indexText
+  } else {
+    const indexNumber = raw.getNumber('index')
+    if (indexNumber != null) {
+      copied['index'] = indexNumber
+    }
+  }
+  const src = raw.getString('src')
+  if (src != null) {
+    copied['src'] = src
+  }
+  const title = raw.getString('title')
+  if (title != null) {
+    copied['title'] = title
+  }
+  const growingTrack = raw.getBoolean('growingTrack')
+  if (growingTrack != null) {
+    copied['growingTrack'] = growingTrack
+  }
+  const growingIgnore = raw.getBoolean('growingIgnore')
+  if (growingIgnore != null) {
+    copied['growingIgnore'] = growingIgnore
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function copyScalarValue(source : any | null) : UTSJSONObject | null {
+  const raw = copyJSONObject(source)
+  if (raw == null) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const valueText = raw.getString('value')
+  if (valueText != null) {
+    copied['value'] = valueText
+  } else {
+    const valueNumber = raw.getNumber('value')
+    if (valueNumber != null) {
+      copied['value'] = valueNumber
+    } else {
+      const valueBoolean = raw.getBoolean('value')
+      if (valueBoolean != null) {
+        copied['value'] = valueBoolean
+      }
+    }
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function copyEventTargetSnapshot(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const raw = copyJSONObject(source)
+  if (raw == null) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const id = raw.getString('id')
+  if (id != null) {
+    copied['id'] = id
+  }
+  const dataset = copyDataset(readDynamicField(source, 'dataset'))
+  if (dataset != null) {
+    copied['dataset'] = dataset
+  }
+  const attr = copyScalarValue(readDynamicField(source, 'attr'))
+  if (attr != null) {
+    copied['attr'] = attr
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function copyEventDetailSnapshot(source : any | null) : UTSJSONObject | null {
+  const raw = copyJSONObject(source)
+  if (raw == null) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const sourceText = raw.getString('source')
+  if (sourceText != null) {
+    copied['source'] = sourceText
+  }
+  const value = copyScalarValue(source)
+  if (value != null) {
+    const valueText = value.getString('value')
+    if (valueText != null) {
+      copied['value'] = valueText
+    } else {
+      const valueNumber = value.getNumber('value')
+      if (valueNumber != null) {
+        copied['value'] = valueNumber
+      } else {
+        const valueBoolean = value.getBoolean('value')
+        if (valueBoolean != null) {
+          copied['value'] = valueBoolean
+        }
+      }
+    }
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function copyTabItemTargetSnapshot(source : any | null) : UTSJSONObject | null {
+  const raw = copyJSONObject(source)
+  if (raw == null) {
+    return null
+  }
+  const dataset = {} as UTSJSONObject
+  const indexNumber = raw.getNumber('index')
+  if (indexNumber != null) {
+    dataset['index'] = (indexNumber as number) + 1
+  } else {
+    const indexText = raw.getString('index')
+    if (indexText != null && indexText.length > 0) {
+      const indexValue = parseInt(indexText, 10)
+      if (!isNaN(indexValue)) {
+        dataset['index'] = indexValue + 1
+      }
+    }
+  }
+  const text = raw.getString('text')
+  if (text != null) {
+    dataset['title'] = text
+  }
+  const pagePath = raw.getString('pagePath')
+  if (pagePath != null) {
+    dataset['src'] = pagePath
+  } else {
+    const path = raw.getString('path')
+    if (path != null) {
+      dataset['src'] = path
+    }
+  }
+  const copied = {} as UTSJSONObject
+  copied['id'] = ''
+  if (UTSJSONObject.keys(dataset).length > 0) {
+    copied['dataset'] = dataset
+  }
+  return copied
+}
+
+export function buildAutoTrackEventSnapshot(
+  action : string,
+  event : any | null,
+  eventName : string
+) : UTSJSONObject | null {
+  if (eventName.length == 0) {
+    return null
+  }
+  const snapshot = {} as UTSJSONObject
+  snapshot['action'] = action
+  snapshot['eventName'] = eventName
+  if (event != null && typeof event == 'object' && !Array.isArray(event)) {
+    const raw = copyJSONObject(event)
+    if (raw != null) {
+      const type = raw.getString('type')
+      if (type != null) {
+        snapshot['type'] = type
+      }
+      const timeStamp = raw.getNumber('timeStamp')
+      if (timeStamp != null) {
+        snapshot['timeStamp'] = timeStamp
+      }
+    }
+    const currentTarget = copyEventTargetSnapshot(readDynamicField(event, 'currentTarget'))
+    if (currentTarget != null) {
+      snapshot['currentTarget'] = currentTarget
+    }
+    const target = copyEventTargetSnapshot(readDynamicField(event, 'target'))
+    if (target != null) {
+      snapshot['target'] = target
+    }
+    const detail = copyEventDetailSnapshot(readDynamicField(event, 'detail'))
+    if (detail != null) {
+      snapshot['detail'] = detail
+    }
+  }
+  return snapshot
+}
+
+export function buildAutoTrackTabItemSnapshot(item : any | null) : UTSJSONObject | null {
+  const target = copyTabItemTargetSnapshot(item)
+  if (target == null) {
+    return null
+  }
+  const snapshot = {} as UTSJSONObject
+  snapshot['action'] = 'CLICK'
+  snapshot['eventName'] = 'onTabItemTap'
+  snapshot['type'] = 'tap'
+  snapshot['target'] = target
+  return snapshot
+}

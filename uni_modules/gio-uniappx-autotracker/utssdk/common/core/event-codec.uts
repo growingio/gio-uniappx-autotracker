@@ -38,12 +38,55 @@ export function eventToJSONObject(event : GioTrackEvent) : UTSJSONObject {
     title: event.title,
     userId: event.userId,
     userKey: event.userKey,
-    attributes: event.attributes
+    attributes: event.attributes,
+    element: event.element
   } as UTSJSONObject
   return payload
 }
 
+function copyElementItem(item : any | null) : UTSJSONObject | null {
+  if (item == null || typeof item != 'object' || Array.isArray(item)) {
+    return null
+  }
+  const text = JSON.stringify(item)
+  if (text == null || text.length == 0) {
+    return null
+  }
+  const copied = JSON.parseObject(text)
+  if (copied == null || UTSJSONObject.keys(copied).length == 0) {
+    return null
+  }
+  return copied
+}
+
 export function eventFromJSONObject(raw : UTSJSONObject) : GioTrackEvent {
+  let elementValue : Array<UTSJSONObject> | null = null
+  // #ifdef APP-HARMONY
+  const harmonyElements = raw.getArray<Object>('element')
+  if (harmonyElements != null) {
+    const items = [] as Array<UTSJSONObject>
+    for (let i = 0; i < harmonyElements.length; i++) {
+      const item = copyElementItem(harmonyElements[i])
+      if (item != null) {
+        items.push(item)
+      }
+    }
+    elementValue = items.length > 0 ? items : null
+  }
+  // #endif
+  // #ifndef APP-HARMONY
+  const rawElements = raw.getArray('element')
+  if (rawElements != null) {
+    const items = [] as Array<UTSJSONObject>
+    for (let i = 0; i < rawElements.length; i++) {
+      const item = copyElementItem(rawElements[i])
+      if (item != null) {
+        items.push(item)
+      }
+    }
+    elementValue = items.length > 0 ? items : null
+  }
+  // #endif
   return {
     appChannel: raw.getString('appChannel'),
     appName: raw.getString('appName'),
@@ -80,6 +123,7 @@ export function eventFromJSONObject(raw : UTSJSONObject) : GioTrackEvent {
     title: raw.getString('title'),
     userId: raw.getString('userId'),
     userKey: raw.getString('userKey'),
-    attributes: raw.getJSON('attributes')
+    attributes: raw.getJSON('attributes'),
+    element: elementValue
   } as GioTrackEvent
 }

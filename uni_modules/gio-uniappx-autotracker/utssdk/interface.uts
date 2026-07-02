@@ -134,6 +134,7 @@ export type GioTrackEvent = {
   userId : string | null
   userKey : string | null
   attributes : UTSJSONObject | null
+  element : Array<UTSJSONObject> | null
 }
 
 export interface GioOriginalSourceStore {
@@ -221,4 +222,10 @@ export interface GioShareTrackingHost {
   getCurrentPageContext() : GioPageContext | null
   setShareOut(value : boolean) : void
   emitShareEvent(eventName : string, properties : UTSJSONObject | null) : void
+}
+
+// 无埋点插件依赖的最小 host 能力。插件只负责把事件快照归一成 VIEW_* element，
+// 真正的上下文拼接、session 和上传仍由 GioTracker 统一编排。
+export interface GioEventAutoTrackingHost {
+  emitViewEvent(eventType : string, element : Array<UTSJSONObject>) : boolean
 }

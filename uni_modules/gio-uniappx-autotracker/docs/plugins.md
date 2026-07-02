@@ -17,6 +17,62 @@ gdp('registerPlugins', [
 
 `registerPlugins` 会忽略没有 `name` 的插件项。至少成功启用一个可用插件时返回 `true`。
 
+## gioEventAutoTracking
+
+`gioEventAutoTracking` 用于采集页面模板中已绑定的点击和变更事件，并上报 `VIEW_CLICK` / `VIEW_CHANGE`。
+
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+
+### 编译期接入
+
+无埋点事件依赖编译期改写模板事件绑定。业务工程需要在根目录 `vite.config.js` 显式接入：
+
+```ts
+import { defineConfig } from 'vite'
+import uni from '@dcloudio/vite-plugin-uni'
+import { gioUniappxAutoTrack } from './uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs'
+
+export default defineConfig({
+  plugins: [
+    gioUniappxAutoTrack(),
+    uni(),
+  ],
+})
+```
+
+### 注册插件
+
+```uts
+gdp('registerPlugins', [
+  {
+    name: 'gioEventAutoTracking'
+  }
+] as Array<UTSJSONObject>)
+```
+
+第一版不支持插件 options。插件未注册时，编译期插入的桥接函数会直接返回，不产生 `VIEW_CLICK` / `VIEW_CHANGE`。
+
+### 字段规则
+
+点击事件上报 `VIEW_CLICK`，变更事件上报 `VIEW_CHANGE`。事件的 `element` 字段对齐小程序独立 SDK：
+
+| 字段 | 来源 |
+| --- | --- |
+| `xpath` | `id#handlerName` |
+| `index` | `data-index`，必须是大于 `0` 且小于 `2147483647` 的整数 |
+| `textValue` | 点击事件读取 `data-title`；变更事件仅在 `data-growing-track` 为真时按 `detail.value || target.attr.value` 读取 |
+| `hyperlink` | `data-src` |
+
+tabBar 点击通过页面 `onTabItemTap` 上报 `VIEW_CLICK`，`xpath` 固定为 `#onTabItemTap`，`textValue` 取 tab 文案，`index` 取 tab 下标加一，`hyperlink` 取 `pagePath`。
+
+忽略规则：
+
+- `data-growing-ignore` 为真时忽略当前事件。
+- `detail.source == 'autoplay'` 且没有 `data-growing-track` 时忽略当前事件。
+- 同类型事件 `timeStamp` 间隔小于 `10ms` 时按重复触发忽略。
+
+仅支持 `growingTrack` / `data-growing-track`，不支持 `growingtrack` 小写变体。
+
 ## gioABTest
 
 `gioABTest` 用于获取指定实验层的变量结果。

@@ -6,6 +6,7 @@ import {
   GioABTestHost,
   GioABTestPluginOptions,
   GioContext,
+  GioEventAutoTrackingHost,
   GioEntryInfo,
   GioEntryResolver,
   GioInitOptions,
@@ -30,6 +31,7 @@ import {
 import { now } from '../utils/base.uts'
 import { consoleText } from '../utils/debug.uts'
 import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
+import { GioEventAutoTrackingPlugin } from '../plugins/gio-event-autotracking.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
 import { MAX_PERSISTED_EVENTS } from './event-persistence.uts'
@@ -57,7 +59,7 @@ import { resolvePageRoute } from '../route.uts'
 
 type GioPageReadyCallback = () => void
 
-export class GioTracker implements GioABTestHost, GioShareTrackingHost {
+export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEventAutoTrackingHost {
   static sharedInstance : GioTracker | null = null
 
   static getInstance() : GioTracker {
@@ -76,6 +78,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private pendingVisit : boolean = false
   private sessionUpdateReady : boolean = false
   private abTestPlugin : GioABTestPlugin | null = null
+  private eventAutoTrackingPlugin : GioEventAutoTrackingPlugin | null = null
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
   private pendingPageReadyCallbacks : Array<GioPageReadyCallback> = []
   private firstPageDispatchWaiting : boolean = false
@@ -415,7 +418,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       return
     }
     this.dataStore.maybeStoreOriginalSource(pageContext)
-    this.pushInternalEvent('visit', 'VISIT', null, pageContext, flushAfter)
+    this.pushInternalEvent('visit', 'VISIT', null, pageContext, flushAfter, null)
   }
 
   private maybeEmitVisit(pageContext : GioPageContext | null) : boolean {
@@ -445,15 +448,18 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     name : string,
     eventType : string,
     properties : UTSJSONObject | null,
-    pageContext : GioPageContext | null
+    pageContext : GioPageContext | null,
+    element : Array<UTSJSONObject> | null
   ) : GioTrackEvent {
-    return this.dataStore.buildEvent(
+    const event = this.dataStore.buildEvent(
       name,
       eventType,
       properties,
       pageContext,
       this.buildAppChannel()
     )
+    event.element = element
+    return event
   }
 
   private applyLastPageEventContext(event : GioTrackEvent) : GioTrackEvent {
@@ -519,7 +525,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     eventType : string,
     properties : UTSJSONObject | null,
     pageContext : GioPageContext | null,
-    flushAfter : boolean = false
+    flushAfter : boolean,
+    element : Array<UTSJSONObject> | null
   ) {
     if (!this.ensureReady()) {
       return
@@ -535,7 +542,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
           eventType,
           properties,
           this.buildCurrentPageContext(null),
-          flushAfter
+          flushAfter,
+          element
         )
       })
       return
@@ -544,7 +552,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
     this.dataStore.ensureSystemReady(() => {
       const event = this.applyLastPageEventContext(
-        this.buildEvent(name, eventType, properties, pageContext)
+        this.buildEvent(name, eventType, properties, pageContext, element)
       )
       this.recordEventContext(eventType, event)
       this.uploader.enqueue(event, this.getMaxQueueSize())
@@ -559,7 +567,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   private emitPageEvent(pageContext : GioPageContext | null) {
-    this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
+    this.pushInternalEvent('page', 'PAGE', null, pageContext, true, null)
   }
 
   private recordEventContext(eventType : string, event : GioTrackEvent) {
@@ -651,7 +659,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'CUSTOM',
       normalizeTrackProperties(properties),
       pageContext,
-      true
+      true,
+      null
     )
     return true
   }
@@ -670,9 +679,37 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'CUSTOM',
       normalizeTrackProperties(properties),
       pageContext,
-      true
+      true,
+      null
     )
     return true
+  }
+
+  emitViewEvent(eventType : string, element : Array<UTSJSONObject>) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (eventType != 'VIEW_CLICK' && eventType != 'VIEW_CHANGE') {
+      return false
+    }
+    const pageContext = this.buildEventPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      eventType == 'VIEW_CLICK' ? 'click' : 'change',
+      eventType,
+      null,
+      pageContext,
+      true,
+      element
+    )
+    return true
+  }
+
+  dispatchAutoTrackEvent(snapshot : UTSJSONObject) : boolean {
+    if (!this.ensureReady() || this.eventAutoTrackingPlugin == null) {
+      return false
+    }
+    return (this.eventAutoTrackingPlugin as GioEventAutoTrackingPlugin).handle(snapshot)
   }
 
   // ── GioShareTrackingHost：分享采集插件的平台无关 host 能力 ──
@@ -702,7 +739,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'CUSTOM',
       normalizeTrackProperties(properties),
       pageContext,
-      true
+      true,
+      null
     )
   }
 
@@ -741,6 +779,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
         installed = true
       } else if (plugin.name == 'gioShareTracking') {
         this.shareTrackingEnabled = true
+        installed = true
+      } else if (plugin.name == 'gioEventAutoTracking') {
+        this.eventAutoTrackingPlugin = new GioEventAutoTrackingPlugin(this)
         installed = true
       }
     }
@@ -843,7 +884,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'LOGIN_USER_ATTRIBUTES',
       normalized,
       pageContext,
-      true
+      true,
+      null
     )
     return true
   }
@@ -1019,7 +1061,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
         'APP_CLOSED',
         null,
         pageContext,
-        true
+        true,
+        null
       )
     }
     this.dataStore.updateAppState(this.resolveAppState(appState, false))

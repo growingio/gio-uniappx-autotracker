@@ -17,6 +17,9 @@ const checkOnly = process.argv.includes('--check')
 const requiredFiles = [
   'package.json',
   'README.md',
+  'auto-track-bridge.uts',
+  'bridge-utils.uts',
+  'build/vite-plugin.mjs',
   'plugin.uts',
   'gdp.uts',
   'utssdk/index.uts',

@@ -46,6 +46,10 @@ export function track(eventName : string, properties : UTSJSONObject | null = nu
   return tracker.track(eventName, properties)
 }
 
+export function dispatchAutoTrackEvent(snapshot : UTSJSONObject) : boolean {
+  return tracker.dispatchAutoTrackEvent(snapshot)
+}
+
 export function setUserId(userId : string, userKey : string | null = null) : boolean {
   return tracker.setUserId(userId, userKey)
 }

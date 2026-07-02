@@ -1,0 +1,23 @@
+export function copyJSONObject(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const text = JSON.stringify(source)
+  if (text == null || text.length == 0) {
+    return null
+  }
+  const copied = JSON.parseObject(text)
+  if (copied == null || UTSJSONObject.keys(copied).length == 0) {
+    return null
+  }
+  return copied
+}
+
+export function readDynamicField(source : any | null, key : string) : any | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const raw = source as UTSJSONObject
+  const value = raw[key]
+  return value != null ? value : null
+}

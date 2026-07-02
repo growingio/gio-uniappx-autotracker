@@ -6,6 +6,7 @@
   "scripts": {
     "demo:open": "open -a HBuilderX .",
     "sdk:check": "node scripts/release-sdk.mjs --check",
-    "sdk:release": "node scripts/release-sdk.mjs"
+    "sdk:release": "node scripts/release-sdk.mjs",
+    "sdk:test:vite-plugin": "node scripts/test-vite-plugin.mjs"
   }
 }

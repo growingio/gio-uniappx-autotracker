@@ -19,6 +19,7 @@ uni_modules/gio-uniappx-autotracker/gdp.uts
 uni_modules/gio-uniappx-autotracker/plugin.uts
 uni_modules/gio-uniappx-autotracker/package.json
 uni_modules/gio-uniappx-autotracker/README.md
+uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs
 uni_modules/gio-uniappx-autotracker/utssdk/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/interface.uts
 uni_modules/gio-uniappx-autotracker/utssdk/web/index.uts
@@ -28,6 +29,21 @@ uni_modules/gio-uniappx-autotracker/utssdk/app-android/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/app-android/config.json
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/config.json
+```
+
+如果需要启用 `gioEventAutoTracking` 无埋点点击/变更采集，还需要在业务工程根目录 `vite.config.js` 接入 SDK 的编译期插件。`uni_modules` 目录里的 Vite 插件不会被 HBuilderX 自动加载，业务工程必须显式配置：
+
+```ts
+import { defineConfig } from 'vite'
+import uni from '@dcloudio/vite-plugin-uni'
+import { gioUniappxAutoTrack } from './uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs'
+
+export default defineConfig({
+  plugins: [
+    gioUniappxAutoTrack(),
+    uni(),
+  ],
+})
 ```
 
 ## 2. 在应用入口初始化

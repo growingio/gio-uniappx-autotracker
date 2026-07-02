@@ -1,0 +1,227 @@
+import { GioEventAutoTrackingHost } from '../../interface.uts'
+import { stringifyScalar } from '../utils/validate.uts'
+
+const CLICK_EVENT_TYPE = 'VIEW_CLICK'
+const CHANGE_EVENT_TYPE = 'VIEW_CHANGE'
+const CLICK_ACTION = 'CLICK'
+const CHANGE_ACTION = 'CHANGE'
+const MIN_INDEX = 0
+const MAX_INDEX = 2147483647
+
+type GioPreviousAutoTrackEvent = {
+  eventType : string
+  timeStamp : number
+}
+
+export class GioEventAutoTrackingPlugin {
+  private host : GioEventAutoTrackingHost
+  private previousEvent : GioPreviousAutoTrackEvent | null = null
+
+  constructor(host : GioEventAutoTrackingHost) {
+    this.host = host
+  }
+
+  private readSnapshotObject(raw : UTSJSONObject, key : string) : UTSJSONObject | null {
+    return raw.getJSON(key)
+  }
+
+  private readCurrentTarget(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    return this.readSnapshotObject(snapshot, 'currentTarget')
+  }
+
+  private readOriginalTarget(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    return this.readSnapshotObject(snapshot, 'target')
+  }
+
+  private readPrimaryTarget(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    const currentTarget = this.readCurrentTarget(snapshot)
+    if (currentTarget != null) {
+      return currentTarget
+    }
+    return this.readOriginalTarget(snapshot)
+  }
+
+  private readDataset(target : UTSJSONObject | null) : UTSJSONObject | null {
+    if (target == null) {
+      return null
+    }
+    return target.getJSON('dataset')
+  }
+
+  private hasGrowingTrack(dataset : UTSJSONObject | null) : boolean {
+    return dataset != null && dataset.getBoolean('growingTrack', false) == true
+  }
+
+  private isIgnored(dataset : UTSJSONObject | null) : boolean {
+    return dataset != null && dataset.getBoolean('growingIgnore', false) == true
+  }
+
+  private isAutoplay(snapshot : UTSJSONObject) : boolean {
+    const detail = this.readSnapshotObject(snapshot, 'detail')
+    if (detail == null) {
+      return false
+    }
+    return detail.getString('source') == 'autoplay'
+  }
+
+  private isDuplicate(snapshot : UTSJSONObject) : boolean {
+    const eventType = snapshot.getString('type', '')
+    const timeStamp = snapshot.getNumber('timeStamp')
+    if (eventType.length == 0 || timeStamp == null) {
+      return false
+    }
+    const currentTime = timeStamp as number
+    const previous = this.previousEvent
+    if (
+      previous != null &&
+      previous.eventType == eventType &&
+      Math.abs(currentTime - previous.timeStamp) < 10
+    ) {
+      return true
+    }
+    this.previousEvent = {
+      eventType: eventType,
+      timeStamp: currentTime
+    } as GioPreviousAutoTrackEvent
+    return false
+  }
+
+  private buildXpath(target : UTSJSONObject | null, eventName : string) : string {
+    const id = target != null ? target.getString('id', '') : ''
+    return `${id}#${eventName}`
+  }
+
+  private readIndex(dataset : UTSJSONObject | null) : number | null {
+    if (dataset == null) {
+      return null
+    }
+    const rawIndex = dataset.getString('index')
+    let indexText = ''
+    if (rawIndex != null) {
+      indexText = rawIndex
+    } else {
+      const numericIndex = dataset.getNumber('index')
+      if (numericIndex != null) {
+        indexText = `${numericIndex as number}`
+      }
+    }
+    if (indexText.length == 0) {
+      return null
+    }
+    const indexValue = parseInt(indexText, 10)
+    if (isNaN(indexValue) || `${indexValue}` != indexText) {
+      return null
+    }
+    if (indexValue <= MIN_INDEX || indexValue >= MAX_INDEX) {
+      return null
+    }
+    return indexValue
+  }
+
+  private readTruthyValue(source : UTSJSONObject | null) : string | null {
+    if (source == null) {
+      return null
+    }
+    const textValue = source.getString('value')
+    if (textValue != null) {
+      return textValue.length > 0 ? textValue : null
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null) {
+      const value = numberValue as number
+      return value != 0 ? `${value}` : null
+    }
+    const booleanValue = source.getBoolean('value')
+    if (booleanValue != null) {
+      return (booleanValue as boolean) ? 'true' : null
+    }
+    return null
+  }
+
+  private readTruthyChangeValue(snapshot : UTSJSONObject) : string | null {
+    const detailValue = this.readTruthyValue(this.readSnapshotObject(snapshot, 'detail'))
+    if (detailValue != null) {
+      return detailValue
+    }
+    const target = this.readOriginalTarget(snapshot)
+    const attr = target != null ? target.getJSON('attr') : null
+    return this.readTruthyValue(attr)
+  }
+
+  private buildClickElement(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    const target = this.readPrimaryTarget(snapshot)
+    const dataset = this.readDataset(target)
+    const eventName = snapshot.getString('eventName', '')
+    if (eventName.length == 0) {
+      return null
+    }
+    const element = {} as UTSJSONObject
+    element['xpath'] = this.buildXpath(target, eventName)
+    const index = this.readIndex(dataset)
+    if (index != null) {
+      element['index'] = index
+    }
+    if (dataset != null) {
+      const title = dataset.getString('title')
+      if (title != null) {
+        element['textValue'] = title
+      }
+      const src = dataset.getString('src')
+      if (src != null) {
+        element['hyperlink'] = src
+      }
+    }
+    return element
+  }
+
+  private buildChangeElement(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    const target = this.readPrimaryTarget(snapshot)
+    const dataset = this.readDataset(target)
+    const eventName = snapshot.getString('eventName', '')
+    if (eventName.length == 0) {
+      return null
+    }
+    const element = {} as UTSJSONObject
+    element['xpath'] = this.buildXpath(target, eventName)
+    if (this.hasGrowingTrack(dataset)) {
+      const value = this.readTruthyChangeValue(snapshot)
+      if (value != null) {
+        element['textValue'] = stringifyScalar(value)
+      }
+    }
+    return element
+  }
+
+  private shouldIgnore(snapshot : UTSJSONObject) : boolean {
+    const currentTargetDataset = this.readDataset(this.readCurrentTarget(snapshot))
+    const targetDataset = this.readDataset(this.readOriginalTarget(snapshot))
+    if (this.isIgnored(currentTargetDataset) || this.isIgnored(targetDataset)) {
+      return true
+    }
+    if (!this.hasGrowingTrack(targetDataset) && this.isAutoplay(snapshot)) {
+      return true
+    }
+    return this.isDuplicate(snapshot)
+  }
+
+  handle(snapshot : UTSJSONObject) : boolean {
+    if (this.shouldIgnore(snapshot)) {
+      return true
+    }
+    const action = snapshot.getString('action', '')
+    const element = action == CLICK_ACTION
+      ? this.buildClickElement(snapshot)
+      : action == CHANGE_ACTION
+        ? this.buildChangeElement(snapshot)
+        : null
+    if (element == null) {
+      return false
+    }
+    const elements = [] as Array<UTSJSONObject>
+    elements.push(element)
+    return this.host.emitViewEvent(
+      action == CHANGE_ACTION ? CHANGE_EVENT_TYPE : CLICK_EVENT_TYPE,
+      elements
+    )
+  }
+}

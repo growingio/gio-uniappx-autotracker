@@ -2,8 +2,12 @@
 // 这里只负责挂载 mixin、提取页面快照和启动参数快照，再把稳定对象转发给 utssdk；
 // 初始化、session、事件构建和上报都由 utssdk 内部处理。
 
+import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './auto-track-bridge.uts'
+import { copyJSONObject } from './bridge-utils.uts'
+
 // #ifdef MP-WEIXIN
 import {
+  dispatchAutoTrackEvent,
   onHide as handleOnHide,
   onLaunch as handleOnLaunch,
   onPageLoad as handleOnPageLoad,
@@ -13,6 +17,7 @@ import {
 // #endif
 // #ifndef MP-WEIXIN
 import {
+  dispatchAutoTrackEvent,
   onHide as handleOnHide,
   onLaunch as handleOnLaunch,
   onPageLoad as handleOnPageLoad,
@@ -42,21 +47,6 @@ let mpShareAutoHookInstalled = false
 type MpOptionsFactory = (options : any | null) => any | null
 type MpShareHandler = (options : any | null) => any | null
 // #endif
-
-function copyJSONObject(source : any | null) : UTSJSONObject | null {
-  if (source == null || typeof source != 'object' || Array.isArray(source)) {
-    return null
-  }
-  const text = JSON.stringify(source)
-  if (text == null || text.length == 0) {
-    return null
-  }
-  const copied = JSON.parseObject(text)
-  if (copied == null || UTSJSONObject.keys(copied).length == 0) {
-    return null
-  }
-  return copied
-}
 
 function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null {
   if (source == null) {
@@ -156,6 +146,28 @@ function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null
 // 这里仍然做浅拷贝，但不能按启动参数那套白名单裁剪，否则普通页面参数会被误丢弃。
 function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
   return copyJSONObject(options)
+}
+
+function dispatchAutoTrackSnapshot(
+  action : string,
+  event : any | null,
+  eventName : string
+) : boolean {
+  const snapshot = buildAutoTrackEventSnapshot(action, event, eventName)
+  return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
+}
+
+function dispatchAutoTrackTabItemSnapshot(item : any | null) : boolean {
+  const snapshot = buildAutoTrackTabItemSnapshot(item)
+  return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
+}
+
+export function gioHandleAutoClick(event : any | null, eventName : string) : boolean {
+  return dispatchAutoTrackSnapshot('CLICK', event, eventName)
+}
+
+export function gioHandleAutoChange(event : any | null, eventName : string) : boolean {
+  return dispatchAutoTrackSnapshot('CHANGE', event, eventName)
 }
 
 // #ifdef MP-WEIXIN
@@ -283,6 +295,11 @@ const lifecycle = defineMixin({
       buildPageSnapshot(),
       buildPageOptionsSnapshot(options)
     )
+  },
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onTabItemTap(item : any | null) {
+    dispatchAutoTrackTabItemSnapshot(item)
   },
   // #ifdef MP-WEIXIN
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
