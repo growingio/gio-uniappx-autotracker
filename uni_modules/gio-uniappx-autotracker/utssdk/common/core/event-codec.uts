@@ -38,10 +38,33 @@ export function eventToJSONObject(event : GioTrackEvent) : UTSJSONObject {
     title: event.title,
     userId: event.userId,
     userKey: event.userKey,
-    attributes: event.attributes,
-    element: event.element
+    attributes: event.attributes
   } as UTSJSONObject
+  flattenFirstElement(payload, event.element)
   return payload
+}
+
+function flattenFirstElement(payload : UTSJSONObject, elements : Array<UTSJSONObject> | null) {
+  if (elements == null || elements.length == 0) {
+    return
+  }
+  const element = elements[0]
+  const xpath = element.getString('xpath')
+  if (xpath != null) {
+    payload['xpath'] = xpath
+  }
+  const index = element.getNumber('index')
+  if (index != null) {
+    payload['index'] = index
+  }
+  const textValue = element.getString('textValue')
+  if (textValue != null) {
+    payload['textValue'] = textValue
+  }
+  const hyperlink = element.getString('hyperlink')
+  if (hyperlink != null) {
+    payload['hyperlink'] = hyperlink
+  }
 }
 
 function copyElementItem(item : any | null) : UTSJSONObject | null {
@@ -57,6 +80,30 @@ function copyElementItem(item : any | null) : UTSJSONObject | null {
     return null
   }
   return copied
+}
+
+function readFlattenedElement(raw : UTSJSONObject) : UTSJSONObject | null {
+  const element = {} as UTSJSONObject
+  const xpath = raw.getString('xpath')
+  if (xpath != null) {
+    element['xpath'] = xpath
+  }
+  const index = raw.getNumber('index')
+  if (index != null) {
+    element['index'] = index
+  }
+  const textValue = raw.getString('textValue')
+  if (textValue != null) {
+    element['textValue'] = textValue
+  }
+  const hyperlink = raw.getString('hyperlink')
+  if (hyperlink != null) {
+    element['hyperlink'] = hyperlink
+  }
+  if (UTSJSONObject.keys(element).length == 0) {
+    return null
+  }
+  return element
 }
 
 export function eventFromJSONObject(raw : UTSJSONObject) : GioTrackEvent {
@@ -87,6 +134,14 @@ export function eventFromJSONObject(raw : UTSJSONObject) : GioTrackEvent {
     elementValue = items.length > 0 ? items : null
   }
   // #endif
+  if (elementValue == null) {
+    const flattenedElement = readFlattenedElement(raw)
+    if (flattenedElement != null) {
+      const items = [] as Array<UTSJSONObject>
+      items.push(flattenedElement)
+      elementValue = items
+    }
+  }
   return {
     appChannel: raw.getString('appChannel'),
     appName: raw.getString('appName'),

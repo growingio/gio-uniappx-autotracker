@@ -54,7 +54,7 @@ gdp('registerPlugins', [
 
 ### 字段规则
 
-点击事件上报 `VIEW_CLICK`，变更事件上报 `VIEW_CHANGE`。事件的 `element` 字段对齐小程序独立 SDK：
+点击事件上报 `VIEW_CLICK`，变更事件上报 `VIEW_CHANGE`。SDK 内部按小程序独立 SDK 先组装 `element`，最终上报时会把首个 `element` 内的字段平铺到事件顶层：
 
 | 字段 | 来源 |
 | --- | --- |
