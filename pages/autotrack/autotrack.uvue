@@ -628,7 +628,7 @@ function onChangeInlineSecond() {
 	note('change inline second: ' + (inlineChangeChecked.value ? 'true' : 'false'))
 }
 
-function onSliderChange(_event : any | null) {
+function onSliderChange(_event : any | null = null) {
 	note('slider change')
 }
 
