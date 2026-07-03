@@ -77,6 +77,10 @@ function copyScalarValue(source : any | null) : UTSJSONObject | null {
     return null
   }
   const copied = {} as UTSJSONObject
+  const typeText = readStringField(source, 'type')
+  if (typeText != null) {
+    copied['type'] = typeText
+  }
   const valueText = readStringField(source, 'value')
   if (valueText != null) {
     copied['value'] = valueText

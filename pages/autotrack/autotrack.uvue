@@ -336,6 +336,18 @@
 			</view>
 			<view class="caseRow">
 				<input
+					id="auto_password_input"
+					class="changeInput"
+					v-model="passwordValue"
+					type="password"
+					:data-growing-track="true"
+					data-title="password 输入框"
+					@blur="onPasswordBlur($event)"
+				/>
+				<text class="codeLine">发送：是；type="password" + data-growing-track；对齐 Web 独立 SDK，不带 textValue</text>
+			</view>
+			<view class="caseRow">
+				<input
 					id="auto_attr_fallback"
 					class="changeInput"
 					value="attr_fallback_value"
@@ -463,6 +475,7 @@ import { ref } from 'vue'
 const changeValue = ref('change_value')
 const blurValue = ref('blur_value')
 const confirmValue = ref('confirm_value')
+const passwordValue = ref('password_value')
 const switchChecked = ref(false)
 const eventArgumentChecked = ref(false)
 const inlineChangeChecked = ref(false)
@@ -594,6 +607,10 @@ function onInputBlur(_event : any | null) {
 
 function onInputConfirm(value : string) {
 	note('input confirm: ' + confirmValue.value + ' / ' + value)
+}
+
+function onPasswordBlur(_event : any | null) {
+	note('password blur')
 }
 
 function onSwitchChange() {
