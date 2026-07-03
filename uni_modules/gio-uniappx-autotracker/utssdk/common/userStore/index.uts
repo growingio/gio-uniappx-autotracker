@@ -28,6 +28,9 @@ export class GioUserStore {
   private deviceId : string = ''
   private storage : GioStorageContainer | null = null
   private memorySessionId : string = ''
+  private cachedUserId : string = ''
+  private cachedUserKey : string = ''
+  private identityLoaded : boolean = false
   // 本次冷启动是否首次生成 deviceId（存储里原本没有）。对齐独立 SDK 的
   // `!oldUId && newUId` —— 只有「全新设备」才允许后续把首访 session 记为 newDevice 快照；
   // 老设备（deviceId 从存储读出）恒不算新设备。
@@ -36,6 +39,7 @@ export class GioUserStore {
   hydrate(options : GioInitOptions, storage : GioStorageContainer) {
     this.projectId = options.projectId
     this.storage = storage
+    this.identityLoaded = false
     this.deviceId = this.readStoredDeviceId()
 
     if (this.deviceId.length == 0) {
@@ -136,6 +140,25 @@ export class GioUserStore {
     return stringifyScalar(value)
   }
 
+  private ensureIdentityLoaded() {
+    if (this.identityLoaded) {
+      return
+    }
+    this.cachedUserId = this.readStoredUserId()
+    this.cachedUserKey = this.readStoredUserKey()
+    this.identityLoaded = true
+  }
+
+  private resolveUserId() : string {
+    this.ensureIdentityLoaded()
+    return this.cachedUserId
+  }
+
+  private resolveUserKey() : string {
+    this.ensureIdentityLoaded()
+    return this.cachedUserKey
+  }
+
   private readStoredGioId() : string {
     const value = this.getMainStorage().getItem(this.getGioIdKey())
     return stringifyScalar(value)
@@ -165,6 +188,9 @@ export class GioUserStore {
   private persistUser(userId : string, userKey : string) {
     this.getMainStorage().setItem(this.getUserIdKey(), userId, null)
     this.getMainStorage().setItem(this.getUserKeyKey(), userKey, null)
+    this.cachedUserId = userId
+    this.cachedUserKey = userKey
+    this.identityLoaded = true
   }
 
   private persistGioId(gioId : string) {
@@ -252,8 +278,8 @@ export class GioUserStore {
   }
 
   setUserId(userId : string) {
-    const previousUserId = this.readStoredUserId()
-    this.persistUser(userId, this.readStoredUserKey())
+    const previousUserId = this.resolveUserId()
+    this.persistUser(userId, this.resolveUserKey())
     if (userId.length > 0) {
       this.persistGioId(userId)
     }
@@ -270,8 +296,8 @@ export class GioUserStore {
   }
 
   setUserKey(userKey : string) {
-    const previousUserKey = this.readStoredUserKey()
-    this.persistUser(this.readStoredUserId(), userKey)
+    const previousUserKey = this.resolveUserKey()
+    this.persistUser(this.resolveUserId(), userKey)
     this.emitUserKeyUpdate(userKey, previousUserKey)
   }
 
@@ -307,12 +333,11 @@ export class GioUserStore {
   }
 
   getContext() : GioContext {
-    const deviceId = this.readStoredDeviceId()
     const sessionId = this.resolveSessionId()
-    const userId = this.readStoredUserId()
-    const userKey = this.readStoredUserKey()
+    const userId = this.resolveUserId()
+    const userKey = this.resolveUserKey()
     return {
-      deviceId: deviceId.length > 0 ? deviceId : this.deviceId,
+      deviceId: this.deviceId,
       sessionId: sessionId,
       userId: userId.length > 0 ? userId : null,
       userKey: userKey.length > 0 ? userKey : null
