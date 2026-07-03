@@ -1,8 +1,13 @@
-export function copyJSONObject(source : any | null) : UTSJSONObject | null {
+export function copyJSONObject(source : any | null, keys : Array<string> | null = null) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
-  const text = JSON.stringify(source)
+  // #ifndef APP-ANDROID
+  const text = (keys != null && keys.length > 0) ? JSON.stringify(source, keys) : JSON.stringify(source)
+  // #endif
+  // #ifdef APP-ANDROID
+  const text = (keys != null && keys.length > 0) ? JSON.stringify(source, new UTSArray(keys)) : JSON.stringify(source)
+  // #endif
   if (text == null || text.length == 0) {
     return null
   }
@@ -17,7 +22,7 @@ export function readDynamicField(source : any | null, key : string) : any | null
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
-  const raw = copyJSONObject(source)
+  const raw = copyJSONObject(source, [key])
   if (raw == null) {
     return null
   }
