@@ -344,7 +344,7 @@
 					data-title="password 输入框"
 					@blur="onPasswordBlur($event)"
 				/>
-				<text class="codeLine">发送：是；type="password" + data-growing-track；对齐 Web 独立 SDK，不带 textValue</text>
+				<text class="codeLine">发送：是；change 发送逻辑同普通 input；type="password" + data-growing-track 强制不带 textValue</text>
 			</view>
 			<view class="caseRow">
 				<input

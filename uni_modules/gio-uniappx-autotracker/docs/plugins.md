@@ -60,8 +60,10 @@ gdp('registerPlugins', [
 | --- | --- |
 | `xpath` | `id#handlerName` |
 | `index` | `data-index`，必须是大于 `0` 且小于 `2147483647` 的整数 |
-| `textValue` | 点击事件读取 `data-title`；变更事件仅在 `data-growing-track` 为真时按 `detail.value || target.attr.value` 读取；`type="password"` 输入框不采集 |
+| `textValue` | 点击事件读取 `data-title`；变更事件仅在 `data-growing-track` 为真时按 `detail.value || target.attr.value` 读取；标记了 `data-growing-track` 的 `type="password"` 输入框强制不采集输入内容 |
 | `hyperlink` | `data-src` |
+
+变更事件是否上报不受输入类型影响，仍按统一的 change 触发和忽略规则执行。唯一的 password 特殊逻辑是：标记了 `data-growing-track` 的 `type="password"` 输入框即使触发 `VIEW_CHANGE`，也不会写入 `textValue`。
 
 tabBar 点击仅在 Web、微信小程序、HarmonyOS VDOM 挂载页面 `onTabItemTap` hook 并上报 `VIEW_CLICK`；Android、iOS、HarmonyOS Vapor 不挂载该 hook。事件字段中 `xpath` 固定为 `#onTabItemTap`，`textValue` 取 tab 文案，`index` 取 tab 下标加一，`hyperlink` 取 `pagePath`。
 
