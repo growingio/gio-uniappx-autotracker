@@ -187,6 +187,10 @@ export class GioEventAutoTrackingPlugin {
     if (target == null) {
       return false
     }
+    const targetType = target.getString('type', '')
+    if (targetType.toLowerCase() == 'password') {
+      return true
+    }
     const attr = target.getJSON('attr')
     if (attr == null) {
       return false
@@ -196,6 +200,10 @@ export class GioEventAutoTrackingPlugin {
   }
 
   private isPasswordChange(snapshot : UTSJSONObject) : boolean {
+    const elementType = snapshot.getString('elementType', '')
+    if (elementType.toLowerCase() == 'password') {
+      return true
+    }
     const originalTarget = this.readOriginalTarget(snapshot)
     const currentTarget = this.readCurrentTarget(snapshot)
     return this.isPasswordTarget(originalTarget) || this.isPasswordTarget(currentTarget)

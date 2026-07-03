@@ -111,6 +111,10 @@ function copyEventTargetSnapshot(source : any | null) : UTSJSONObject | null {
   if (dataset != null) {
     copied['dataset'] = dataset
   }
+  const typeText = readStringField(source, 'type')
+  if (typeText != null) {
+    copied['type'] = typeText
+  }
   const attr = copyScalarValue(readDynamicField(source, 'attr'))
   if (attr != null) {
     copied['attr'] = attr
@@ -188,7 +192,8 @@ function copyTabItemTargetSnapshot(source : any | null) : UTSJSONObject | null {
 export function buildAutoTrackEventSnapshot(
   action : string,
   event : any | null,
-  eventName : string
+  eventName : string,
+  elementType : string | null
 ) : UTSJSONObject | null {
   if (eventName.length == 0) {
     return null
@@ -196,6 +201,9 @@ export function buildAutoTrackEventSnapshot(
   const snapshot = {} as UTSJSONObject
   snapshot['action'] = action
   snapshot['eventName'] = eventName
+  if (elementType != null && elementType.length > 0) {
+    snapshot['elementType'] = elementType
+  }
   if (event != null && typeof event == 'object' && !Array.isArray(event)) {
     const type = readStringField(event, 'type')
     if (type != null) {

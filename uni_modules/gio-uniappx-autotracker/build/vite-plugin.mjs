@@ -167,22 +167,59 @@ function quoteString(value, attrQuote) {
 }
 
 function buildBridgeMethodsObject(indent = '  ') {
-  return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName)\n${indent}  },\n${indent}},\n`
+  return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName, elementType)\n${indent}  },\n${indent}},\n`
 }
 
 function buildBridgeMethodsEntries(indent = '    ') {
-  return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName)\n${indent}},`
+  return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName, elementType)\n${indent}},`
 }
 
 function buildSetupBridgeFunctions() {
-  return `\nfunction gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n  return _gioHandleAutoClick(event, eventName)\n}\n\nfunction gioHandleAutoChange(event : any | null, eventName : string) : boolean {\n  return _gioHandleAutoChange(event, eventName)\n}\n`
+  return `\nfunction gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n  return _gioHandleAutoClick(event, eventName)\n}\n\nfunction gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {\n  return _gioHandleAutoChange(event, eventName, elementType)\n}\n`
 }
 
-function buildWrappedExpression(kind, expression, eventName, attrQuote) {
+function findContainingTagSource(content, offset) {
+  const open = content.lastIndexOf('<', offset)
+  const previousClose = content.lastIndexOf('>', offset)
+  if (open < 0 || open < previousClose) {
+    return null
+  }
+  const close = content.indexOf('>', offset)
+  if (close < 0) {
+    return null
+  }
+  return content.slice(open, close + 1)
+}
+
+function readStaticTypeAttribute(tagSource) {
+  if (tagSource == null) {
+    return null
+  }
+  const match = /(?:^|\s)((?::type)|(?:v-bind:type)|type)\s*=\s*(["'])([\s\S]*?)\2/i.exec(tagSource)
+  if (match == null) {
+    return null
+  }
+  const name = match[1].toLowerCase()
+  const value = match[3].trim()
+  if (name === 'type') {
+    return value.length > 0 ? value : null
+  }
+  const literal = /^(['"])([\s\S]*?)\1$/.exec(value)
+  return literal != null && literal[2].length > 0 ? literal[2] : null
+}
+
+function buildChangeElementTypeArgument(elementType, attrQuote) {
+  return elementType != null ? quoteString(elementType, attrQuote) : 'null'
+}
+
+function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null) {
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
   const bridge = kind === 'change' ? 'gioHandleAutoChange' : 'gioHandleAutoClick'
-  const trackCall = `${bridge}($event, ${quoteString(handlerName, attrQuote)})`
+  const args = kind === 'change'
+    ? `$event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}`
+    : `$event, ${quoteString(handlerName, attrQuote)}`
+  const trackCall = `${bridge}(${args})`
   if (METHOD_PATH_RE.test(source)) {
     return `${trackCall}; ${source}()`
   }
@@ -209,10 +246,11 @@ function collectTemplateReplacements(code) {
     ) {
       const quoteOffset = match[0].indexOf(match[2])
       const start = template.contentStart + match.index + quoteOffset + 1
+      const tagSource = findContainingTagSource(content, match.index)
       replacements.push({
         start,
         end: start + expression.length,
-        value: buildWrappedExpression(kind, expression, eventName, match[2]),
+        value: buildWrappedExpression(kind, expression, eventName, match[2], readStaticTypeAttribute(tagSource)),
       })
     }
     match = EVENT_ATTR_RE.exec(content)

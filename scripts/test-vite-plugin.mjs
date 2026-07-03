@@ -25,7 +25,7 @@ function transform(code, id = '/src/pages/index/index.uvue') {
   const code = '<template><button @click="foo(); bar()"></button></template><script lang="uts">export default {}</script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick\(\$event, 'foo'\)/)
-  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick\(event : any \| null, eventName : string\) : boolean {\s*return _gioHandleAutoClick\(event, eventName\)\s*},\s*gioHandleAutoChange\(event : any \| null, eventName : string\) : boolean {\s*return _gioHandleAutoChange\(event, eventName\)\s*},/)
+  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick\(event : any \| null, eventName : string\) : boolean {\s*return _gioHandleAutoClick\(event, eventName\)\s*},\s*gioHandleAutoChange\(event : any \| null, eventName : string, elementType : string \| null\) : boolean {\s*return _gioHandleAutoChange\(event, eventName, elementType\)\s*},/)
   assert.match(output, /foo\(\); bar\(\)/)
   assert.doesNotMatch(output, /return foo\(\);/)
   assert.doesNotMatch(output, /\(\$event\)\s*=>/)
@@ -34,9 +34,21 @@ function transform(code, id = '/src/pages/index/index.uvue') {
 {
   const code = '<template><input @change="onChange($event)" /></template><script lang="uts"></script>'
   const output = transform(code)
-  assert.match(output, /gioHandleAutoChange\(\$event, 'onChange'\)/)
+  assert.match(output, /gioHandleAutoChange\(\$event, 'onChange', null\)/)
   assert.match(output, /export default\s*{\s*methods\s*:\s*{\s*gioHandleAutoClick\(event : any \| null, eventName : string\) : boolean/)
   assert.match(output, /onChange\(\$event\)/)
+}
+
+{
+  const code = '<template><input type="password" @blur="onPasswordBlur($event)" /></template><script setup lang="uts"></script>'
+  const output = transform(code)
+  assert.match(output, /gioHandleAutoChange\(\$event, 'onPasswordBlur', 'password'\)/)
+}
+
+{
+  const code = `<template><input :type="'password'" @change="onDynamicLiteralType" /></template><script setup lang="uts"></script>`
+  const output = transform(code)
+  assert.match(output, /gioHandleAutoChange\(\$event, 'onDynamicLiteralType', 'password'\)/)
 }
 
 {
@@ -49,7 +61,7 @@ function transform(code, id = '/src/pages/index/index.uvue') {
 {
   const code = `<template><view @click="go('autotrack')"></view></template><script lang="uts">export default { methods: { go(name: string) {} } }</script>`
   const output = transform(code)
-  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick\(event : any \| null, eventName : string\) : boolean[\s\S]*gioHandleAutoChange\(event : any \| null, eventName : string\) : boolean[\s\S]*go\(name: string\)/)
+  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick\(event : any \| null, eventName : string\) : boolean[\s\S]*gioHandleAutoChange\(event : any \| null, eventName : string, elementType : string \| null\) : boolean[\s\S]*go\(name: string\)/)
   assert.match(output, /gioHandleAutoClick\(\$event, 'go'\); go\('autotrack'\)/)
 }
 

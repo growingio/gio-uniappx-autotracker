@@ -151,9 +151,10 @@ function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
 function dispatchAutoTrackSnapshot(
   action : string,
   event : any | null,
-  eventName : string
+  eventName : string,
+  elementType : string | null
 ) : boolean {
-  const snapshot = buildAutoTrackEventSnapshot(action, event, eventName)
+  const snapshot = buildAutoTrackEventSnapshot(action, event, eventName, elementType)
   return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
 }
 
@@ -163,11 +164,11 @@ function dispatchAutoTrackTabItemSnapshot(item : any | null) : boolean {
 }
 
 export function gioHandleAutoClick(event : any | null, eventName : string) : boolean {
-  return dispatchAutoTrackSnapshot('CLICK', event, eventName)
+  return dispatchAutoTrackSnapshot('CLICK', event, eventName, null)
 }
 
-export function gioHandleAutoChange(event : any | null, eventName : string) : boolean {
-  return dispatchAutoTrackSnapshot('CHANGE', event, eventName)
+export function gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {
+  return dispatchAutoTrackSnapshot('CHANGE', event, eventName, elementType)
 }
 
 // #ifdef MP-WEIXIN
