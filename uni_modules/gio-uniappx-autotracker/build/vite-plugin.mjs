@@ -10,7 +10,7 @@ const CLICK_EVENTS = new Set([
 
 const CHANGE_EVENTS = new Set(['blur', 'change', 'confirm'])
 const IMPORT_CODE =
-  "import { gioHandleAutoClick, gioHandleAutoChange } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
+  "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
 const EVENT_ATTR_RE =
   /(?:@|v-on:)([A-Za-z][\w-]*)(?:\.[\w-]+)*\s*=\s*(["'])([\s\S]*?)\2/g
 const METHOD_PATH_RE = /^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/
@@ -167,11 +167,15 @@ function quoteString(value, attrQuote) {
 }
 
 function buildBridgeMethodsObject(indent = '  ') {
-  return `${indent}methods: {\n${indent}  gioHandleAutoClick,\n${indent}  gioHandleAutoChange,\n${indent}},\n`
+  return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName)\n${indent}  },\n${indent}},\n`
 }
 
 function buildBridgeMethodsEntries(indent = '    ') {
-  return `\n${indent}gioHandleAutoClick,\n${indent}gioHandleAutoChange,`
+  return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName)\n${indent}},`
+}
+
+function buildSetupBridgeFunctions() {
+  return `\nfunction gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n  return _gioHandleAutoClick(event, eventName)\n}\n\nfunction gioHandleAutoChange(event : any | null, eventName : string) : boolean {\n  return _gioHandleAutoChange(event, eventName)\n}\n`
 }
 
 function buildWrappedExpression(kind, expression, eventName, attrQuote) {
@@ -230,6 +234,14 @@ function buildImportReplacement(code) {
     }
   }
   const offset = findScriptInsertionOffset(code)
+  const script = findScriptBlock(code)
+  if (isSetupScript(script)) {
+    return {
+      start: offset,
+      end: offset,
+      value: `\n${IMPORT_CODE}${buildSetupBridgeFunctions()}`,
+    }
+  }
   return {
     start: offset,
     end: offset,
