@@ -122,6 +122,81 @@ function copyEventTargetSnapshot(source : any | null) : UTSJSONObject | null {
   return UTSJSONObject.keys(copied).length > 0 ? copied : null
 }
 
+function writeStaticDatasetValue(target : UTSJSONObject, key : string, value : string | null) {
+  if (value != null && value.length > 0) {
+    target[key] = value
+  }
+}
+
+function buildStaticTargetSnapshot(
+  staticId : string | null,
+  staticIndex : string | null,
+  staticTitle : string | null,
+  staticSrc : string | null,
+  staticGrowingTrack : string | null,
+  staticGrowingIgnore : string | null
+) : UTSJSONObject | null {
+  const copied = {} as UTSJSONObject
+  if (staticId != null && staticId.length > 0) {
+    copied['id'] = staticId
+  }
+  const dataset = {} as UTSJSONObject
+  writeStaticDatasetValue(dataset, 'index', staticIndex)
+  writeStaticDatasetValue(dataset, 'title', staticTitle)
+  writeStaticDatasetValue(dataset, 'src', staticSrc)
+  writeStaticDatasetValue(dataset, 'growingTrack', staticGrowingTrack)
+  writeStaticDatasetValue(dataset, 'growingIgnore', staticGrowingIgnore)
+  if (UTSJSONObject.keys(dataset).length > 0) {
+    copied['dataset'] = dataset
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function isDatasetFieldMissing(dataset : UTSJSONObject, key : string) : boolean {
+  return dataset.getString(key) == null && dataset.getNumber(key) == null && dataset.getBoolean(key) == null
+}
+
+function mergeStaticDatasetValue(runtimeDataset : UTSJSONObject, staticDataset : UTSJSONObject, key : string) {
+  const value = staticDataset.getString(key)
+  if (value != null && isDatasetFieldMissing(runtimeDataset, key)) {
+    runtimeDataset[key] = value
+  }
+}
+
+function mergeStaticDataset(runtimeDataset : UTSJSONObject | null, staticDataset : UTSJSONObject | null) : UTSJSONObject | null {
+  if (runtimeDataset == null) {
+    return staticDataset
+  }
+  if (staticDataset == null) {
+    return runtimeDataset
+  }
+  mergeStaticDatasetValue(runtimeDataset, staticDataset, 'index')
+  mergeStaticDatasetValue(runtimeDataset, staticDataset, 'title')
+  mergeStaticDatasetValue(runtimeDataset, staticDataset, 'src')
+  mergeStaticDatasetValue(runtimeDataset, staticDataset, 'growingTrack')
+  mergeStaticDatasetValue(runtimeDataset, staticDataset, 'growingIgnore')
+  return runtimeDataset
+}
+
+function mergeStaticTargetSnapshot(runtimeTarget : UTSJSONObject | null, staticTarget : UTSJSONObject | null) : UTSJSONObject | null {
+  if (runtimeTarget == null) {
+    return staticTarget
+  }
+  if (staticTarget == null) {
+    return runtimeTarget
+  }
+  const runtimeId = runtimeTarget.getString('id', '')
+  const staticId = staticTarget.getString('id')
+  if (runtimeId.length == 0 && staticId != null) {
+    runtimeTarget['id'] = staticId
+  }
+  const dataset = mergeStaticDataset(runtimeTarget.getJSON('dataset'), staticTarget.getJSON('dataset'))
+  if (dataset != null) {
+    runtimeTarget['dataset'] = dataset
+  }
+  return runtimeTarget
+}
+
 function copyEventDetailSnapshot(source : any | null) : UTSJSONObject | null {
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
@@ -193,7 +268,13 @@ export function buildAutoTrackEventSnapshot(
   action : string,
   event : any | null,
   eventName : string,
-  elementType : string | null
+  elementType : string | null,
+  staticId : string | null,
+  staticIndex : string | null,
+  staticTitle : string | null,
+  staticSrc : string | null,
+  staticGrowingTrack : string | null,
+  staticGrowingIgnore : string | null
 ) : UTSJSONObject | null {
   if (eventName.length == 0) {
     return null
@@ -201,6 +282,14 @@ export function buildAutoTrackEventSnapshot(
   const snapshot = {} as UTSJSONObject
   snapshot['action'] = action
   snapshot['eventName'] = eventName
+  const staticTarget = buildStaticTargetSnapshot(
+    staticId,
+    staticIndex,
+    staticTitle,
+    staticSrc,
+    staticGrowingTrack,
+    staticGrowingIgnore
+  )
   if (elementType != null && elementType.length > 0) {
     snapshot['elementType'] = elementType
   }
@@ -213,11 +302,17 @@ export function buildAutoTrackEventSnapshot(
     if (timeStamp != null) {
       snapshot['timeStamp'] = timeStamp
     }
-    const currentTarget = copyEventTargetSnapshot(readDynamicField(event, 'currentTarget'))
+    const currentTarget = mergeStaticTargetSnapshot(
+      copyEventTargetSnapshot(readDynamicField(event, 'currentTarget')),
+      staticTarget
+    )
     if (currentTarget != null) {
       snapshot['currentTarget'] = currentTarget
     }
-    const target = copyEventTargetSnapshot(readDynamicField(event, 'target'))
+    const target = mergeStaticTargetSnapshot(
+      copyEventTargetSnapshot(readDynamicField(event, 'target')),
+      staticTarget
+    )
     if (target != null) {
       snapshot['target'] = target
     }
@@ -225,6 +320,9 @@ export function buildAutoTrackEventSnapshot(
     if (detail != null) {
       snapshot['detail'] = detail
     }
+  } else if (staticTarget != null) {
+    snapshot['currentTarget'] = staticTarget
+    snapshot['target'] = staticTarget
   }
   return snapshot
 }

@@ -14,6 +14,7 @@ const IMPORT_CODE =
 const EVENT_ATTR_RE =
   /(?:@|v-on:)([A-Za-z][\w-]*)(?:\.[\w-]+)*\s*=\s*(["'])([\s\S]*?)\2/g
 const METHOD_PATH_RE = /^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/
+const CALL_EXPRESSION_RE = /(?:^|[^\w$])([$A-Z_a-z][$\w]*)\s*\(/g
 
 function isTargetFile(id) {
   const cleanId = id.split('?')[0]
@@ -156,6 +157,14 @@ function inferHandlerName(expression, fallback) {
   if (call != null) {
     return call[1]
   }
+  CALL_EXPRESSION_RE.lastIndex = 0
+  let nestedCall = CALL_EXPRESSION_RE.exec(source)
+  while (nestedCall != null) {
+    if (nestedCall[1] !== 'gioHandleAutoClick' && nestedCall[1] !== 'gioHandleAutoChange') {
+      return nestedCall[1]
+    }
+    nestedCall = CALL_EXPRESSION_RE.exec(source)
+  }
   return fallback
 }
 
@@ -166,16 +175,20 @@ function quoteString(value, attrQuote) {
   return JSON.stringify(value)
 }
 
+function quoteNullableString(value, attrQuote) {
+  return value != null && value.length > 0 ? quoteString(value, attrQuote) : 'null'
+}
+
 function buildBridgeMethodsObject(indent = '  ') {
-  return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName, elementType)\n${indent}  },\n${indent}},\n`
+  return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}  },\n${indent}},\n`
 }
 
 function buildBridgeMethodsEntries(indent = '    ') {
-  return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName, elementType)\n${indent}},`
+  return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}},`
 }
 
 function buildSetupBridgeFunctions() {
-  return `\nfunction gioHandleAutoClick(event : any | null, eventName : string) : boolean {\n  return _gioHandleAutoClick(event, eventName)\n}\n\nfunction gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {\n  return _gioHandleAutoChange(event, eventName, elementType)\n}\n`
+  return `\nfunction gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n  return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n}\n\nfunction gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n  return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n}\n`
 }
 
 function findContainingTagSource(content, offset) {
@@ -208,17 +221,75 @@ function readStaticTypeAttribute(tagSource) {
   return literal != null && literal[2].length > 0 ? literal[2] : null
 }
 
+function readStaticAttribute(tagSource, name) {
+  if (tagSource == null) {
+    return null
+  }
+  const escaped = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+  const match = new RegExp(`(?:^|\\s)${escaped}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i').exec(tagSource)
+  return match != null && match[2].length > 0 ? match[2] : null
+}
+
+function normalizeStaticBoundValue(value) {
+  const trimmed = value.trim()
+  if (trimmed.length === 0) {
+    return null
+  }
+  const literal = /^(['"])([\s\S]*?)\1$/.exec(trimmed)
+  if (literal != null) {
+    return literal[2]
+  }
+  if (/^-?\d+(?:\.\d+)?$/.test(trimmed) || trimmed === 'true' || trimmed === 'false') {
+    return trimmed
+  }
+  return null
+}
+
+function readStaticDatasetAttribute(tagSource, name) {
+  const staticValue = readStaticAttribute(tagSource, `data-${name}`)
+  if (staticValue != null) {
+    return staticValue
+  }
+  const boundValue =
+    readStaticAttribute(tagSource, `:data-${name}`) ??
+    readStaticAttribute(tagSource, `v-bind:data-${name}`)
+  return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
+}
+
+function readStaticTargetMetadata(tagSource) {
+  return {
+    id: readStaticAttribute(tagSource, 'id'),
+    index: readStaticDatasetAttribute(tagSource, 'index'),
+    title: readStaticDatasetAttribute(tagSource, 'title'),
+    src: readStaticDatasetAttribute(tagSource, 'src'),
+    growingTrack: readStaticDatasetAttribute(tagSource, 'growing-track'),
+    growingIgnore: readStaticDatasetAttribute(tagSource, 'growing-ignore'),
+  }
+}
+
 function buildChangeElementTypeArgument(elementType, attrQuote) {
   return elementType != null ? quoteString(elementType, attrQuote) : 'null'
 }
 
-function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null) {
+function buildStaticTargetArguments(metadata, attrQuote) {
+  return [
+    quoteNullableString(metadata.id, attrQuote),
+    quoteNullableString(metadata.index, attrQuote),
+    quoteNullableString(metadata.title, attrQuote),
+    quoteNullableString(metadata.src, attrQuote),
+    quoteNullableString(metadata.growingTrack, attrQuote),
+    quoteNullableString(metadata.growingIgnore, attrQuote),
+  ].join(', ')
+}
+
+function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null, metadata = readStaticTargetMetadata(null)) {
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
   const bridge = kind === 'change' ? 'gioHandleAutoChange' : 'gioHandleAutoClick'
+  const staticTargetArgs = buildStaticTargetArguments(metadata, attrQuote)
   const args = kind === 'change'
-    ? `$event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}`
-    : `$event, ${quoteString(handlerName, attrQuote)}`
+    ? `$event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}`
+    : `$event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
   const trackCall = `${bridge}(${args})`
   if (METHOD_PATH_RE.test(source)) {
     return `${trackCall}; ${source}()`
@@ -247,10 +318,11 @@ function collectTemplateReplacements(code) {
       const quoteOffset = match[0].indexOf(match[2])
       const start = template.contentStart + match.index + quoteOffset + 1
       const tagSource = findContainingTagSource(content, match.index)
+      const metadata = readStaticTargetMetadata(tagSource)
       replacements.push({
         start,
         end: start + expression.length,
-        value: buildWrappedExpression(kind, expression, eventName, match[2], readStaticTypeAttribute(tagSource)),
+        value: buildWrappedExpression(kind, expression, eventName, match[2], readStaticTypeAttribute(tagSource), metadata),
       })
     }
     match = EVENT_ATTR_RE.exec(content)

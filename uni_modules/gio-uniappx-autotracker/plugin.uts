@@ -152,9 +152,26 @@ function dispatchAutoTrackSnapshot(
   action : string,
   event : any | null,
   eventName : string,
-  elementType : string | null
+  elementType : string | null,
+  staticId : string | null,
+  staticIndex : string | null,
+  staticTitle : string | null,
+  staticSrc : string | null,
+  staticGrowingTrack : string | null,
+  staticGrowingIgnore : string | null
 ) : boolean {
-  const snapshot = buildAutoTrackEventSnapshot(action, event, eventName, elementType)
+  const snapshot = buildAutoTrackEventSnapshot(
+    action,
+    event,
+    eventName,
+    elementType,
+    staticId,
+    staticIndex,
+    staticTitle,
+    staticSrc,
+    staticGrowingTrack,
+    staticGrowingIgnore
+  )
   return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
 }
 
@@ -163,12 +180,53 @@ function dispatchAutoTrackTabItemSnapshot(item : any | null) : boolean {
   return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
 }
 
-export function gioHandleAutoClick(event : any | null, eventName : string) : boolean {
-  return dispatchAutoTrackSnapshot('CLICK', event, eventName, null)
+export function gioHandleAutoClick(
+  event : any | null,
+  eventName : string,
+  staticId : string | null,
+  staticIndex : string | null,
+  staticTitle : string | null,
+  staticSrc : string | null,
+  staticGrowingTrack : string | null,
+  staticGrowingIgnore : string | null
+) : boolean {
+  return dispatchAutoTrackSnapshot(
+    'CLICK',
+    event,
+    eventName,
+    null,
+    staticId,
+    staticIndex,
+    staticTitle,
+    staticSrc,
+    staticGrowingTrack,
+    staticGrowingIgnore
+  )
 }
 
-export function gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null) : boolean {
-  return dispatchAutoTrackSnapshot('CHANGE', event, eventName, elementType)
+export function gioHandleAutoChange(
+  event : any | null,
+  eventName : string,
+  elementType : string | null,
+  staticId : string | null,
+  staticIndex : string | null,
+  staticTitle : string | null,
+  staticSrc : string | null,
+  staticGrowingTrack : string | null,
+  staticGrowingIgnore : string | null
+) : boolean {
+  return dispatchAutoTrackSnapshot(
+    'CHANGE',
+    event,
+    eventName,
+    elementType,
+    staticId,
+    staticIndex,
+    staticTitle,
+    staticSrc,
+    staticGrowingTrack,
+    staticGrowingIgnore
+  )
 }
 
 // #ifdef MP-WEIXIN
