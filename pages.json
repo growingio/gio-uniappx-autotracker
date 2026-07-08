@@ -47,6 +47,12 @@
 			"style": {
 				"navigationBarTitleText": "数据采集开关 / setOptions"
 			}
+		},
+		{
+			"path": "uni_modules/uni-link-x/pages/link-webview",
+			"style": {
+				"navigationBarTitleText": "链接预览"
+			}
 		}
 		// #ifdef MP-WEIXIN
 		,

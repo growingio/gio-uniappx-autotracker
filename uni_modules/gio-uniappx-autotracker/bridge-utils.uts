@@ -22,10 +22,6 @@ export function readDynamicField(source : any | null, key : string) : any | null
   if (source == null || typeof source != 'object' || Array.isArray(source)) {
     return null
   }
-  const raw = copyJSONObject(source, [key])
-  if (raw == null) {
-    return null
-  }
-  const value = raw.get(key)
+  const value = source[key]
   return value != null ? value : null
 }

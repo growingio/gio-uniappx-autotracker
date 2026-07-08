@@ -13,12 +13,17 @@ const IMPORT_CODE =
   "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
 const EVENT_ATTR_RE =
   /(?:@|v-on:)([A-Za-z][\w-]*)(?:\.[\w-]+)*\s*=\s*(["'])([\s\S]*?)\2/g
+const UNI_LINK_OPEN_TAG_RE = /<uni-link\b[^>]*>/gi
 const METHOD_PATH_RE = /^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/
 const CALL_EXPRESSION_RE = /(?:^|[^\w$])([$A-Z_a-z][$\w]*)\s*\(/g
 
 function isTargetFile(id) {
   const cleanId = id.split('?')[0]
   return cleanId.endsWith('.vue') || cleanId.endsWith('.uvue')
+}
+
+function isUniLinkComponentFile(id) {
+  return id.split('?')[0].replace(/\\/g, '/').endsWith('/uni_modules/uni-link-x/components/uni-link/uni-link.uvue')
 }
 
 function getEventKind(eventName) {
@@ -230,6 +235,14 @@ function readStaticAttribute(tagSource, name) {
   return match != null && match[2].length > 0 ? match[2] : null
 }
 
+function hasStaticAttribute(tagSource, name) {
+  if (tagSource == null) {
+    return false
+  }
+  const escaped = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+  return new RegExp(`(?:^|\\s)${escaped}\\s*=`, 'i').test(tagSource)
+}
+
 function normalizeStaticBoundValue(value) {
   const trimmed = value.trim()
   if (trimmed.length === 0) {
@@ -256,12 +269,56 @@ function readStaticDatasetAttribute(tagSource, name) {
   return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
 }
 
+function readStaticHrefAttribute(tagSource) {
+  const staticValue = readStaticAttribute(tagSource, 'href')
+  if (staticValue != null) {
+    return staticValue
+  }
+  const boundValue =
+    readStaticAttribute(tagSource, ':href') ??
+    readStaticAttribute(tagSource, 'v-bind:href')
+  return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
+}
+
+function buildHrefDatasetAttribute(tagSource) {
+  const staticValue = readStaticAttribute(tagSource, 'href')
+  if (staticValue != null) {
+    return ` data-src="${staticValue.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`
+  }
+  const shorthandValue = readStaticAttribute(tagSource, ':href')
+  if (shorthandValue != null) {
+    return ` :data-src="${shorthandValue.replace(/"/g, '&quot;')}"`
+  }
+  const boundValue = readStaticAttribute(tagSource, 'v-bind:href')
+  if (boundValue != null) {
+    return ` v-bind:data-src="${boundValue.replace(/"/g, '&quot;')}"`
+  }
+  return ''
+}
+
+function hasHrefAttribute(tagSource) {
+  return (
+    hasStaticAttribute(tagSource, 'href') ||
+    hasStaticAttribute(tagSource, ':href') ||
+    hasStaticAttribute(tagSource, 'v-bind:href')
+  )
+}
+
+function hasDataSrcAttribute(tagSource) {
+  return (
+    hasStaticAttribute(tagSource, 'data-src') ||
+    hasStaticAttribute(tagSource, ':data-src') ||
+    hasStaticAttribute(tagSource, 'v-bind:data-src')
+  )
+}
+
 function readStaticTargetMetadata(tagSource) {
+  const datasetSrc = readStaticDatasetAttribute(tagSource, 'src')
   return {
     id: readStaticAttribute(tagSource, 'id'),
     index: readStaticDatasetAttribute(tagSource, 'index'),
     title: readStaticDatasetAttribute(tagSource, 'title'),
-    src: readStaticDatasetAttribute(tagSource, 'src'),
+    src: datasetSrc ?? (hasDataSrcAttribute(tagSource) ? null : readStaticHrefAttribute(tagSource)),
     growingTrack: readStaticDatasetAttribute(tagSource, 'growing-track'),
     growingIgnore: readStaticDatasetAttribute(tagSource, 'growing-ignore'),
   }
@@ -297,13 +354,76 @@ function buildWrappedExpression(kind, expression, eventName, attrQuote, elementT
   return `${trackCall}; ${source}`
 }
 
-function collectTemplateReplacements(code) {
+function buildStaticClickExpression(eventName, attrQuote, metadata) {
+  return `gioHandleAutoClick($event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})`
+}
+
+function hasClickEventBinding(tagSource) {
+  const eventRe = /(?:@|v-on:)([A-Za-z][\w-]*)(?:\.[\w-]+)*\s*=/g
+  let match = eventRe.exec(tagSource)
+  while (match != null) {
+    if (getEventKind(match[1]) === 'click') {
+      return true
+    }
+    match = eventRe.exec(tagSource)
+  }
+  return false
+}
+
+function collectUniLinkReplacements(content, templateStart) {
+  const replacements = []
+  let needsBridge = false
+  UNI_LINK_OPEN_TAG_RE.lastIndex = 0
+  let match = UNI_LINK_OPEN_TAG_RE.exec(content)
+  while (match != null) {
+    const tagSource = match[0]
+    const insertOffset = tagSource.endsWith('/>') ? tagSource.length - 2 : tagSource.length - 1
+    const insertPosition = templateStart + match.index + insertOffset
+    if (hasHrefAttribute(tagSource) && !hasDataSrcAttribute(tagSource)) {
+      replacements.push({
+        start: insertPosition,
+        end: insertPosition,
+        value: buildHrefDatasetAttribute(tagSource),
+      })
+    }
+    if (!tagSource.includes('gioHandleAutoClick') && !hasClickEventBinding(tagSource)) {
+      const metadata = readStaticTargetMetadata(tagSource)
+      replacements.push({
+        start: insertPosition,
+        end: insertPosition,
+        value: ` @click="${buildStaticClickExpression('openURL', '"', metadata)}"`,
+      })
+      needsBridge = true
+    }
+    match = UNI_LINK_OPEN_TAG_RE.exec(content)
+  }
+  return {
+    replacements,
+    needsBridge,
+  }
+}
+
+function collectTemplateReplacements(code, options = { skipEventBindings: false }) {
   const template = findBlock(code, 'template')
   if (template == null) {
-    return []
+    return {
+      replacements: [],
+      needsBridge: false,
+    }
   }
   const content = code.slice(template.contentStart, template.contentEnd)
-  const replacements = []
+  const uniLinkResult = options.skipEventBindings
+    ? { replacements: [], needsBridge: false }
+    : collectUniLinkReplacements(content, template.contentStart)
+  const replacements = uniLinkResult.replacements
+  let needsBridge = uniLinkResult.needsBridge
+  if (options.skipEventBindings) {
+    return {
+      replacements,
+      needsBridge,
+    }
+  }
+  EVENT_ATTR_RE.lastIndex = 0
   let match = EVENT_ATTR_RE.exec(content)
   while (match != null) {
     const eventName = match[1]
@@ -319,6 +439,7 @@ function collectTemplateReplacements(code) {
       const start = template.contentStart + match.index + quoteOffset + 1
       const tagSource = findContainingTagSource(content, match.index)
       const metadata = readStaticTargetMetadata(tagSource)
+      needsBridge = true
       replacements.push({
         start,
         end: start + expression.length,
@@ -327,7 +448,10 @@ function collectTemplateReplacements(code) {
     }
     match = EVENT_ATTR_RE.exec(content)
   }
-  return replacements
+  return {
+    replacements,
+    needsBridge,
+  }
 }
 
 function buildImportReplacement(code) {
@@ -419,17 +543,22 @@ export function gioUniappxAutoTrack() {
       if (!isTargetFile(id)) {
         return null
       }
-      const replacements = collectTemplateReplacements(code)
+      const transformResult = collectTemplateReplacements(code, {
+        skipEventBindings: isUniLinkComponentFile(id),
+      })
+      const replacements = transformResult.replacements
       if (replacements.length === 0) {
         return null
       }
-      const importReplacement = buildImportReplacement(code)
-      if (importReplacement != null) {
-        replacements.push(importReplacement)
-      }
-      const bridgeExposureReplacement = buildOptionsBridgeExposureReplacement(code)
-      if (bridgeExposureReplacement != null) {
-        replacements.push(bridgeExposureReplacement)
+      if (transformResult.needsBridge) {
+        const importReplacement = buildImportReplacement(code)
+        if (importReplacement != null) {
+          replacements.push(importReplacement)
+        }
+        const bridgeExposureReplacement = buildOptionsBridgeExposureReplacement(code)
+        if (bridgeExposureReplacement != null) {
+          replacements.push(bridgeExposureReplacement)
+        }
       }
       return {
         code: applyReplacements(code, replacements),

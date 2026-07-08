@@ -3,6 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "description": "Minimal feature showcase for gio-uniappx-autotracker SDK",
+  "engines": {
+    "HBuilderX": ">=5.07",
+    "uni-app-x": ">=5.07"
+  },
   "scripts": {
     "demo:open": "open -a HBuilderX .",
     "sdk:check": "node scripts/release-sdk.mjs --check",

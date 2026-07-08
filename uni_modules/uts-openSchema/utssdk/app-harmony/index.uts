@@ -1,0 +1,19 @@
+import { bundleManager, common } from '@kit.AbilityKit'
+import { getAbilityContext } from '@dcloudio/uni-runtime'
+import { OpenSchema, CanOpenURL } from '../interface.uts'
+
+export const openSchema : OpenSchema = function (url : string) : void {
+  const context = getAbilityContext() as common.UIAbilityContext
+  context.openLink(url, {
+    appLinkingOnly: false
+  })
+}
+
+export const canOpenURL : CanOpenURL = function (url : string) : boolean {
+  try {
+    return bundleManager.canOpenLink(url)
+  } catch (error) {
+    console.error('[uts-openSchema] url param Error：', JSON.stringify(url))
+    return false
+  }
+}

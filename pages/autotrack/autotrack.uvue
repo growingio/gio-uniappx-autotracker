@@ -19,14 +19,16 @@
 				data-src="/pages/autotrack/autotrack?case=tap"
 				@tap="onTapClick"
 			>tap 事件</button>
-			<button
+			<view
 				id="auto_longpress_method"
 				class="btnOrange"
 				:data-index="3"
-				data-title="longpress 按钮"
+				data-title="longpress 区域"
 				data-src="/pages/autotrack/autotrack?case=longpress"
 				@longpress="onLongPress"
-			>longpress 事件</button>
+			>
+				<text class="btnText">longpress 事件</text>
+			</view>
 			<button
 				id="auto_explicit_event"
 				class="btnGhost"
@@ -51,6 +53,36 @@
 				data-src="/pages/autotrack/autotrack?case=inline-arg"
 				@click="onInlineArgument('inline argument click')"
 			>内联参数调用</button>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">链接组件</text>
+			<text class="hint">覆盖 uni-link 默认点击、显式 click 和 href 作为 hyperlink。</text>
+			<view class="caseRow">
+				<view class="linkControl">
+					<uni-link
+						id="auto_uni_link_default"
+						href="https://doc.dcloud.net.cn/uni-app-x/"
+						target="_self"
+						:data-index="17"
+						data-title="uni-link 默认点击"
+					>uni-link 默认点击</uni-link>
+				</view>
+				<text class="codeLine">uni-link href；内部 click 携带 data-src</text>
+			</view>
+			<view class="caseRow">
+				<view class="linkControl">
+					<uni-link
+						id="auto_uni_link_explicit"
+						href="https://uniapp.dcloud.net.cn"
+						target="_self"
+						:data-index="18"
+						data-title="uni-link 显式 click"
+						@click="onUniLinkClick"
+					>uni-link 显式 click</uni-link>
+				</view>
+				<text class="codeLine">uni-link href + &#64;click="onUniLinkClick"</text>
+			</view>
 		</view>
 
 		<view class="section">
@@ -511,6 +543,10 @@ function onInlineArgument(message : string) {
 	note(message)
 }
 
+function onUniLinkClick() {
+	note('uni-link explicit click')
+}
+
 function onElementIdOnly() {
 	note('element id only')
 }
@@ -666,6 +702,7 @@ function onIgnoredChange() {
 .btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btnGreen { background: #13a67a; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btnOrange { background: #fa8c16; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
+.btnText { color: #fff; font-size: 26rpx; text-align: center; }
 .btnWarn { background: #fff7e6; color: #b26200; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; border: 1rpx solid #ffd591; }
 .btnDanger { background: #ef4444; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btnGhost { background: #eef5ff; color: #1677ff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; border: 1rpx solid #9ec5ff; }
@@ -679,6 +716,7 @@ function onIgnoredChange() {
 .changeInput { width: 300rpx; border: 1rpx solid #d0d5dd; padding: 14rpx; border-radius: 6rpx; margin-right: 12rpx; font-size: 24rpx; }
 .changeControl { width: 300rpx; margin-right: 12rpx; justify-content: center; }
 .changeSlider { width: 300rpx; margin-right: 12rpx; }
+.linkControl { width: 300rpx; margin-right: 12rpx; justify-content: center; }
 .nestBox { padding: 20rpx; border: 1rpx solid #9ec5ff; border-radius: 10rpx; background: #eef5ff; }
 .nestTitle { font-size: 26rpx; color: #1677ff; margin-bottom: 12rpx; }
 .nestChild { margin-top: 12rpx; padding: 18rpx; border-radius: 8rpx; background: #fff; border: 1rpx solid #d0d5dd; }

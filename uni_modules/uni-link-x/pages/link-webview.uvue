@@ -1,0 +1,30 @@
+<template>
+  <web-view style="flex: 1;" :src="currentUrl" @error="onWebViewError"></web-view>
+</template>
+
+<script setup lang="uts">
+  import { ref } from 'vue'
+
+  const currentUrl = ref<string>('')
+
+  onLoad((options : UTSJSONObject | null) => {
+    if (options == null) {
+      return
+    }
+    const nextUrl = options.getString('url')
+    if (nextUrl == null) {
+      return
+    }
+    const decodedUrl = decodeURIComponent(nextUrl)
+    currentUrl.value = decodedUrl != null ? decodedUrl : nextUrl
+  })
+
+  function onWebViewError(event : UniWebViewErrorEvent) {
+    const detail = event.detail
+    const errMsg = detail.errMsg != null ? detail.errMsg : ''
+    uni.showModal({
+      content: `Error: ${errMsg}`,
+      showCancel: false
+    })
+  }
+</script>
