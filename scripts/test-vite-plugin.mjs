@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import fs from 'node:fs'
 import { gioUniappxAutoTrack } from '../uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs'
 
 const plugin = gioUniappxAutoTrack()
@@ -39,10 +40,19 @@ function transformOptional(code, id = '/src/pages/index/index.uvue') {
   const code = `<template>
     <view id="press" data-title="longpress 区域" @longpress="onLongPress"></view>
     <view id="tap" data-title="longtap 区域" @longtap="onLongTap"></view>
+    <button id="press_button" data-title="button longpress" @longpress="onButtonLongPress"></button>
   </template><script setup lang="uts"></script>`
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick\(\$event, 'onLongPress', 'press', null, 'longpress 区域', null, null, null\); onLongPress\(\)/)
   assert.match(output, /gioHandleAutoClick\(\$event, 'onLongTap', 'tap', null, 'longtap 区域', null, null, null\); onLongTap\(\)/)
+  assert.match(output, /gioHandleAutoClick\(\$event, 'onButtonLongPress', 'press_button', null, 'button longpress', null, null, null\); onButtonLongPress\(\)/)
+}
+
+{
+  const code = fs.readFileSync('pages/autotrack/autotrack.uvue', 'utf8')
+  const output = transform(code, '/src/pages/autotrack/autotrack.uvue')
+  assert.match(output, /<view\s+id="auto_longpress_method"[\s\S]*@longpress="gioHandleAutoClick\(\$event, 'onLongPress', 'auto_longpress_method', '3', 'longpress 区域', '\/pages\/autotrack\/autotrack\?case=longpress', null, null\); onLongPress\(\)"/)
+  assert.match(output, /<view\s+id="auto_longtap_method"[\s\S]*@longtap="gioHandleAutoClick\(\$event, 'onLongTap', 'auto_longtap_method', '60', 'longtap 区域', '\/pages\/autotrack\/autotrack\?case=longtap', null, null\); onLongTap\(\)"/)
 }
 
 {
