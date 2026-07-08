@@ -115,6 +115,48 @@ function validateSdkShape(baseDir) {
   }
 }
 
+function countOccurrences(text, pattern) {
+  return text.split(pattern).length - 1
+}
+
+function validateIdentityCacheContract(baseDir) {
+  const userStorePath = join(baseDir, 'utssdk/common/userStore/index.uts')
+  if (!existsSync(userStorePath)) {
+    fail(`missing user store: ${relative(rootDir, userStorePath)}`)
+    return
+  }
+
+  const source = readFileSync(userStorePath, 'utf8')
+  const requiredSnippets = [
+    'private cachedUserId : string',
+    'private cachedUserKey : string',
+    'private identityLoaded : boolean',
+    'if (this.identityLoaded)',
+    'this.cachedUserId = this.readStoredUserId()',
+    'this.cachedUserKey = this.readStoredUserKey()',
+    'this.cachedUserId = userId',
+    'this.cachedUserKey = userKey',
+    'this.identityLoaded = true',
+    'this.identityLoaded = false',
+  ]
+
+  for (const snippet of requiredSnippets) {
+    if (!source.includes(snippet)) {
+      fail(`identity cache contract changed unexpectedly: ${snippet}`)
+    }
+  }
+
+  if (countOccurrences(source, 'setItem(this.getUserIdKey()') != 1) {
+    fail('userId storage writes must stay centralized in persistUser()')
+  }
+  if (countOccurrences(source, 'setItem(this.getUserKeyKey()') != 1) {
+    fail('userKey storage writes must stay centralized in persistUser()')
+  }
+  if (countOccurrences(source, 'this.getMainStorage().removeItem(this.getUserKeyKey())') != 1) {
+    fail('userKey storage removal must stay limited to idMapping=false hydration cleanup')
+  }
+}
+
 function stagePackage() {
   rmSync(stagedSdkDir, { recursive: true, force: true })
   mkdirSync(distUniModulesDir, { recursive: true })
@@ -148,10 +190,12 @@ function createArchive(version) {
 const packageJson = readSdkPackage()
 validatePackageJson(packageJson)
 validateSdkShape(sdkDir)
+validateIdentityCacheContract(sdkDir)
 
 if (!checkOnly && process.exitCode == null) {
   stagePackage()
   validateSdkShape(stagedSdkDir)
+  validateIdentityCacheContract(stagedSdkDir)
   const archivePath = createArchive(packageJson.version)
   if (archivePath != null) {
     console.log(`[sdk-release] staged: ${relative(rootDir, stagedSdkDir)}`)

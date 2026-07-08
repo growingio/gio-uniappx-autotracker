@@ -205,7 +205,8 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 持久化 `sessionId`
 - 持久化 `sessionExpiresAt`
 - 判断当前是否需要创建新 session
-- 每次构建事件时都从存储重新读取 `sessionId` / `userId` / `userKey`
+- 初始化时从存储恢复 `userId` / `userKey`，运行期用内存缓存服务事件构建
+- `setUserId()` / `clearUserId()` 等公开身份入口必须同步更新存储和内存缓存
 - `identify(assignmentId)` 生效后持久化新的 `deviceId`
 
 存储键约定：
@@ -387,7 +388,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - `userKey`
 - `attributes`
 
-其中 `sessionId`、`userId`、`userKey` 不是从运行时内存缓存里拿，而是在构建事件时即时从存储读取。这样即使页面刷新、运行时局部重建、或者别的流程先一步改写了存储，最终进入请求体的仍然是当前存储里的真实值。
+其中 `sessionId` 按平台 session 策略从存储或内存态读取；`userId`、`userKey` 在 `GioUserStore` 首次取用时从存储恢复，随后通过内存缓存参与事件构建，避免高频事件反复读取存储。所有会改登录身份的公开入口都必须走 `GioUserStore.persistUser()` 这一集中路径，同步写存储和缓存，避免事件构建读到旧身份。
 
 `eventSequenceId` 当前按独立 SDK 的全局事件序号思路实现：普通事件从 `1` 开始递增并持久化到 `${projectId}_gdp_sequence_ids`；`LOGIN_USER_ATTRIBUTES` 和 `APP_CLOSED` 不带这个字段。
 
@@ -481,7 +482,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 当 `setUserId()` 把登录用户从 A 切到 B 时，也会切新 session，并在后续事件前补发新的 `VISIT`
 - 页面 `onShow` 是首屏和后续前台页面采集的主要触发点
 - 自定义 `track` 也会重新检查 session，避免漏掉新的访问边界
-- `sessionId`、`userId`、`userKey` 的最终取值始终以存储中的值为准，不依赖内存态缓存
+- `userId`、`userKey` 初始化时以存储为准，运行期以 `GioUserStore` 内存缓存为事件构建来源；身份变更入口必须同步更新缓存和存储
 
 `sessionExpires` 不作为对外初始化配置暴露，session 过期策略由 SDK 内部按平台默认规则处理。
 
