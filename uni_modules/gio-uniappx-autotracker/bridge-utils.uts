@@ -19,9 +19,25 @@ export function copyJSONObject(source : any | null, keys : Array<string> | null 
 }
 
 export function readDynamicField(source : any | null, key : string) : any | null {
-  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+  const copied = copyJSONObject(source)
+  if (copied == null) {
     return null
   }
-  const value = source[key]
-  return value != null ? value : null
+  const objectValue = copied.getJSON(key)
+  if (objectValue != null) {
+    return objectValue
+  }
+  const stringValue = copied.getString(key)
+  if (stringValue != null) {
+    return stringValue
+  }
+  const numberValue = copied.getNumber(key)
+  if (numberValue != null) {
+    return numberValue
+  }
+  const booleanValue = copied.getBoolean(key)
+  if (booleanValue != null) {
+    return booleanValue
+  }
+  return null
 }
