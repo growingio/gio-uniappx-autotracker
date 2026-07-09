@@ -19,6 +19,24 @@ export function copyJSONObject(source : any | null, keys : Array<string> | null 
 }
 
 export function readDynamicField(source : any | null, key : string) : any | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  // #ifdef APP-ANDROID
+  return readCopiedDynamicField(source, key)
+  // #endif
+  // #ifdef APP-HARMONY
+  return readCopiedDynamicField(source, key)
+  // #endif
+  // #ifndef APP-ANDROID
+  // #ifndef APP-HARMONY
+  const value = source[key]
+  return value != null ? value : null
+  // #endif
+  // #endif
+}
+
+function readCopiedDynamicField(source : any | null, key : string) : any | null {
   const copied = copyJSONObject(source)
   if (copied == null) {
     return null
