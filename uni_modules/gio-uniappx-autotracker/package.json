@@ -4,6 +4,11 @@
   "displayName": "GrowingIO uni-app x Autotracker Lite",
   "version": "1.0.0",
   "description": "A minimal uni-app x cross-platform tracking SDK with init, track, user identity management, session management, and reporting.",
+  "dependencies": {
+    "@babel/parser": "7.28.5",
+    "@vue/compiler-dom": "3.5.22",
+    "magic-string": "0.30.19"
+  },
   "keywords": [
     "growingio",
     "analytics",

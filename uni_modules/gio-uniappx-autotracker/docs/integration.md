@@ -29,6 +29,8 @@ uni_modules/gio-uniappx-autotracker/utssdk/app-android/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/app-android/config.json
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/config.json
+uni_modules/gio-uniappx-autotracker/utssdk/app-harmony/index.uts
+uni_modules/gio-uniappx-autotracker/utssdk/app-harmony/config.json
 ```
 
 如果需要启用 `gioEventAutoTracking` 无埋点点击/变更采集，还需要在业务工程根目录 `vite.config.js` 接入 SDK 的编译期插件。`uni_modules` 目录里的 Vite 插件不会被 HBuilderX 自动加载，业务工程必须显式配置：
@@ -45,6 +47,15 @@ export default defineConfig({
   ],
 })
 ```
+
+编译期插件使用的 AST 依赖已在插件目录的 `package.json` 中声明。通过插件市场安装时由安装流程处理；**手工复制** `uni_modules/gio-uniappx-autotracker` 时，先在该目录执行一次包管理器安装，再启动 HBuilderX 编译：
+
+```bash
+cd uni_modules/gio-uniappx-autotracker
+npm install --omit=dev
+```
+
+不要把生成的 `node_modules` 提交或打进 SDK 发布包；它属于业务工程本地的 Vite 编译依赖。
 
 ## 2. 在应用入口初始化
 

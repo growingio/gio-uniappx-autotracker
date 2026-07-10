@@ -12,5 +12,10 @@
     "sdk:check": "node scripts/release-sdk.mjs --check",
     "sdk:release": "node scripts/release-sdk.mjs",
     "sdk:test:vite-plugin": "node scripts/test-vite-plugin.mjs"
+  },
+  "devDependencies": {
+    "@babel/parser": "7.28.5",
+    "@vue/compiler-dom": "3.5.22",
+    "magic-string": "0.30.19"
   }
 }

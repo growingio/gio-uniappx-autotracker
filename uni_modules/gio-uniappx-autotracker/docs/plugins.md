@@ -40,6 +40,8 @@ export default defineConfig({
 })
 ```
 
+对于 `<script setup lang="uts">` 页面，插件会基于模板 AST 改写事件绑定，并只在页面中追加一个显式类型的 `_gioAutoTrackDispatch`。事件的静态采集信息写入当前组件的 `dataset`，分发时依据标准事件 `type` 选择对应业务表达式；不会按每个事件绑定生成额外 UTS 函数。原有业务函数仍保留在源代码位置，避免触发 UTS 的函数声明顺序问题。
+
 ### 注册插件
 
 ```uts

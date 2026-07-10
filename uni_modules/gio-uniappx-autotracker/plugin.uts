@@ -3,7 +3,7 @@
 // 初始化、session、事件构建和上报都由 utssdk 内部处理。
 
 import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './auto-track-bridge.uts'
-import { copyJSONObject } from './bridge-utils.uts'
+import { copyJSONObject, readDynamicField } from './bridge-utils.uts'
 
 // #ifdef MP-WEIXIN
 import {
@@ -227,6 +227,48 @@ export function gioHandleAutoChange(
     staticGrowingTrack,
     staticGrowingIgnore
   )
+}
+
+function readAutoTrackActionString(value : any | null) : string | null {
+  if (value == null || typeof value != 'string') {
+    return null
+  }
+  const text = value as string
+  return text.length > 0 ? text : null
+}
+
+function readAutoTrackActionNumber(mapping : string, eventType : string | null) : number | null {
+  const entries = mapping.split('|')
+  const count : number = entries.length as number
+  for (let index = 0; index < count; index++) {
+    const entry = entries[index]
+    const separator = entry.indexOf(':')
+    if (separator <= 0 || separator >= entry.length - 1) {
+      continue
+    }
+    const name = entry.substring(0, separator)
+    if (eventType != null && name != eventType) {
+      continue
+    }
+    const action = parseInt(entry.substring(separator + 1), 10)
+    if (!isNaN(action)) {
+      return action
+    }
+  }
+  return null
+}
+
+// Vite 为 script setup 页面生成一个显式类型的统一事件入口，并将每个事件的
+// 静态 action 表写入 currentTarget.dataset。这里集中处理宿主事件对象差异。
+export function gioReadAutoTrackAction(event : any | null) : number | null {
+  const currentTarget = readDynamicField(event, 'currentTarget')
+  const dataset = readDynamicField(currentTarget, 'dataset')
+  const mapping = readAutoTrackActionString(readDynamicField(dataset, 'gioAutoTrackAction'))
+  if (mapping == null) {
+    return null
+  }
+  const eventType = readAutoTrackActionString(readDynamicField(event, 'type'))
+  return readAutoTrackActionNumber(mapping, eventType)
 }
 
 // #ifdef MP-WEIXIN

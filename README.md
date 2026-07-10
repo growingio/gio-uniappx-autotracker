@@ -56,6 +56,7 @@ open -a HBuilderX .
 - `mp-weixin`
 - `app-android`
 - `app-ios`
+- `app-harmony`
 
 demo 的初始化入口在 [main.uts](./main.uts)，页面示例在 [pages](./pages)。如果你只是想了解 SDK 如何集成到业务工程，请优先阅读上面的 SDK 文档，而不是从 demo 页面反推完整用法。
 

@@ -46,6 +46,12 @@ const forbiddenInStagedPackage = [
   'node_modules',
 ]
 
+const requiredVitePluginDependencies = {
+  '@babel/parser': '7.28.5',
+  '@vue/compiler-dom': '3.5.22',
+  'magic-string': '0.30.19',
+}
+
 function fail(message) {
   console.error(`[sdk-release] ${message}`)
   process.exitCode = 1
@@ -91,6 +97,12 @@ function validatePackageJson(packageJson) {
   }
   if (packageJson.private === true) {
     fail('SDK package must not be private for a release artifact')
+  }
+
+  for (const [name, version] of Object.entries(requiredVitePluginDependencies)) {
+    if (packageJson.dependencies?.[name] !== version) {
+      fail(`SDK package.json must declare ${name}@${version} for the Vite autotrack plugin`)
+    }
   }
 
   const platforms = packageJson.uni_modules?.platforms?.client?.['uni-app-x']

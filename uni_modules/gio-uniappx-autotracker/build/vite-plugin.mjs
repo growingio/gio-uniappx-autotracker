@@ -1,3 +1,7 @@
+import { parse as parseTemplate } from '@vue/compiler-dom'
+import { parse as parseExpression } from '@babel/parser'
+import MagicString from 'magic-string'
+
 const CLICK_EVENTS = new Set([
   'click',
   'tap',
@@ -10,12 +14,7 @@ const CLICK_EVENTS = new Set([
 
 const CHANGE_EVENTS = new Set(['blur', 'change', 'confirm'])
 const IMPORT_CODE =
-  "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
-const EVENT_ATTR_RE =
-  /(?:@|v-on:)([A-Za-z][\w-]*)(?:\.[\w-]+)*\s*=\s*(["'])([\s\S]*?)\2/g
-const UNI_LINK_OPEN_TAG_RE = /<uni-link\b[^>]*>/gi
-const METHOD_PATH_RE = /^[$A-Z_a-z][$\w]*(?:\.[$A-Z_a-z][$\w]*)*$/
-const CALL_EXPRESSION_RE = /(?:^|[^\w$])([$A-Z_a-z][$\w]*)\s*\(/g
+  "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange, gioReadAutoTrackAction as _gioReadAutoTrackAction } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
 
 function isTargetFile(id) {
   const cleanId = id.split('?')[0]
@@ -155,22 +154,88 @@ function findScriptInsertionOffset(code) {
 
 function inferHandlerName(expression, fallback) {
   const source = expression.trim()
-  if (METHOD_PATH_RE.test(source)) {
-    return source
+  if (source.length === 0) {
+    return fallback
   }
-  const call = source.match(/^([$A-Z_a-z][$\w]*)\s*\(/)
-  if (call != null) {
-    return call[1]
-  }
-  CALL_EXPRESSION_RE.lastIndex = 0
-  let nestedCall = CALL_EXPRESSION_RE.exec(source)
-  while (nestedCall != null) {
-    if (nestedCall[1] !== 'gioHandleAutoClick' && nestedCall[1] !== 'gioHandleAutoChange') {
-      return nestedCall[1]
+  try {
+    const program = parseExpression(source, {
+      sourceType: 'script',
+      plugins: ['typescript'],
+    })
+    for (const statement of program.program.body) {
+      if (statement.type !== 'ExpressionStatement') {
+        continue
+      }
+      const handlerName = findHandlerName(statement.expression)
+      if (handlerName != null) {
+        return handlerName
+      }
     }
-    nestedCall = CALL_EXPRESSION_RE.exec(source)
+  } catch (_) {
+    return fallback
   }
   return fallback
+}
+
+function findHandlerName(expression) {
+  if (expression == null || typeof expression !== 'object') {
+    return null
+  }
+  if (expression.type === 'CallExpression') {
+    return readMemberPath(expression.callee)
+  }
+  if (expression.type === 'Identifier' || expression.type === 'MemberExpression') {
+    return readMemberPath(expression)
+  }
+  if (expression.type === 'ConditionalExpression') {
+    return findHandlerName(expression.consequent) ?? findHandlerName(expression.alternate)
+  }
+  if (expression.type === 'LogicalExpression') {
+    return findHandlerName(expression.right) ?? findHandlerName(expression.left)
+  }
+  if (expression.type === 'SequenceExpression') {
+    for (const item of expression.expressions) {
+      const nested = findHandlerName(item)
+      if (nested != null) {
+        return nested
+      }
+    }
+    return null
+  }
+  for (const value of Object.values(expression)) {
+    if (value == null || typeof value !== 'object') {
+      continue
+    }
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        const nested = findHandlerName(item)
+        if (nested != null) {
+          return nested
+        }
+      }
+      continue
+    }
+    const nested = findHandlerName(value)
+    if (nested != null) {
+      return nested
+    }
+  }
+  return null
+}
+
+function readMemberPath(node) {
+  if (node == null || typeof node !== 'object') {
+    return null
+  }
+  if (node.type === 'Identifier') {
+    return node.name
+  }
+  if (node.type === 'MemberExpression' && node.computed !== true) {
+    const objectPath = readMemberPath(node.object)
+    const propertyPath = readMemberPath(node.property)
+    return objectPath != null && propertyPath != null ? `${objectPath}.${propertyPath}` : null
+  }
+  return null
 }
 
 function quoteString(value, attrQuote) {
@@ -192,57 +257,6 @@ function buildBridgeMethodsEntries(indent = '    ') {
   return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}},`
 }
 
-function buildSetupBridgeFunctions(wrapperFunctions = '') {
-  return `\nfunction gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n  return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n}\n\nfunction gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n  return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n}\n${wrapperFunctions}`
-}
-
-function findContainingTagSource(content, offset) {
-  const open = content.lastIndexOf('<', offset)
-  const previousClose = content.lastIndexOf('>', offset)
-  if (open < 0 || open < previousClose) {
-    return null
-  }
-  const close = content.indexOf('>', offset)
-  if (close < 0) {
-    return null
-  }
-  return content.slice(open, close + 1)
-}
-
-function readStaticTypeAttribute(tagSource) {
-  if (tagSource == null) {
-    return null
-  }
-  const match = /(?:^|\s)((?::type)|(?:v-bind:type)|type)\s*=\s*(["'])([\s\S]*?)\2/i.exec(tagSource)
-  if (match == null) {
-    return null
-  }
-  const name = match[1].toLowerCase()
-  const value = match[3].trim()
-  if (name === 'type') {
-    return value.length > 0 ? value : null
-  }
-  const literal = /^(['"])([\s\S]*?)\1$/.exec(value)
-  return literal != null && literal[2].length > 0 ? literal[2] : null
-}
-
-function readStaticAttribute(tagSource, name) {
-  if (tagSource == null) {
-    return null
-  }
-  const escaped = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
-  const match = new RegExp(`(?:^|\\s)${escaped}\\s*=\\s*(["'])([\\s\\S]*?)\\1`, 'i').exec(tagSource)
-  return match != null && match[2].length > 0 ? match[2] : null
-}
-
-function hasStaticAttribute(tagSource, name) {
-  if (tagSource == null) {
-    return false
-  }
-  const escaped = name.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
-  return new RegExp(`(?:^|\\s)${escaped}\\s*=`, 'i').test(tagSource)
-}
-
 function normalizeStaticBoundValue(value) {
   const trimmed = value.trim()
   if (trimmed.length === 0) {
@@ -258,69 +272,76 @@ function normalizeStaticBoundValue(value) {
   return null
 }
 
-function readStaticDatasetAttribute(tagSource, name) {
-  const staticValue = readStaticAttribute(tagSource, `data-${name}`)
+function readStaticAttribute(node, name) {
+  const attribute = node.props.find((prop) => prop.type === 6 && prop.name === name)
+  if (attribute == null || attribute.value == null) {
+    return null
+  }
+  return attribute.value.content.length > 0 ? attribute.value.content : null
+}
+
+function readBoundAttribute(node, name) {
+  const attribute = node.props.find(
+    (prop) => prop.type === 7 && prop.name === 'bind' && prop.arg != null && prop.arg.isStatic && prop.arg.content === name,
+  )
+  return attribute != null && attribute.exp != null ? attribute.exp.content : null
+}
+
+function hasAttribute(node, name) {
+  return node.props.some(
+    (prop) =>
+      (prop.type === 6 && prop.name === name) ||
+      (prop.type === 7 && prop.name === 'bind' && prop.arg != null && prop.arg.isStatic && prop.arg.content === name),
+  )
+}
+
+function readStaticDatasetAttribute(node, name) {
+  const staticValue = readStaticAttribute(node, `data-${name}`)
   if (staticValue != null) {
     return staticValue
   }
-  const boundValue =
-    readStaticAttribute(tagSource, `:data-${name}`) ??
-    readStaticAttribute(tagSource, `v-bind:data-${name}`)
+  const boundValue = readBoundAttribute(node, `data-${name}`)
   return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
 }
 
-function readStaticHrefAttribute(tagSource) {
-  const staticValue = readStaticAttribute(tagSource, 'href')
+function readStaticHrefAttribute(node) {
+  const staticValue = readStaticAttribute(node, 'href')
   if (staticValue != null) {
     return staticValue
   }
-  const boundValue =
-    readStaticAttribute(tagSource, ':href') ??
-    readStaticAttribute(tagSource, 'v-bind:href')
+  const boundValue = readBoundAttribute(node, 'href')
   return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
 }
 
-function buildHrefDatasetAttribute(tagSource) {
-  const staticValue = readStaticAttribute(tagSource, 'href')
+function buildHrefDatasetAttribute(node) {
+  const staticValue = readStaticAttribute(node, 'href')
   if (staticValue != null) {
-    return ` data-src="${staticValue.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`
+    return `data-src="${staticValue.replace(/&/g, '&amp;').replace(/"/g, '&quot;')}"`
   }
-  const shorthandValue = readStaticAttribute(tagSource, ':href')
-  if (shorthandValue != null) {
-    return ` :data-src="${shorthandValue.replace(/"/g, '&quot;')}"`
-  }
-  const boundValue = readStaticAttribute(tagSource, 'v-bind:href')
+  const boundValue = readBoundAttribute(node, 'href')
   if (boundValue != null) {
-    return ` v-bind:data-src="${boundValue.replace(/"/g, '&quot;')}"`
+    return `:data-src="${boundValue.replace(/"/g, '&quot;')}"`
   }
   return ''
 }
 
-function hasHrefAttribute(tagSource) {
-  return (
-    hasStaticAttribute(tagSource, 'href') ||
-    hasStaticAttribute(tagSource, ':href') ||
-    hasStaticAttribute(tagSource, 'v-bind:href')
-  )
+function hasHrefAttribute(node) {
+  return hasAttribute(node, 'href')
 }
 
-function hasDataSrcAttribute(tagSource) {
-  return (
-    hasStaticAttribute(tagSource, 'data-src') ||
-    hasStaticAttribute(tagSource, ':data-src') ||
-    hasStaticAttribute(tagSource, 'v-bind:data-src')
-  )
+function hasDataSrcAttribute(node) {
+  return hasAttribute(node, 'data-src')
 }
 
-function readStaticTargetMetadata(tagSource) {
-  const datasetSrc = readStaticDatasetAttribute(tagSource, 'src')
+function readStaticTargetMetadata(node) {
+  const datasetSrc = readStaticDatasetAttribute(node, 'src')
   return {
-    id: readStaticAttribute(tagSource, 'id'),
-    index: readStaticDatasetAttribute(tagSource, 'index'),
-    title: readStaticDatasetAttribute(tagSource, 'title'),
-    src: datasetSrc ?? (hasDataSrcAttribute(tagSource) ? null : readStaticHrefAttribute(tagSource)),
-    growingTrack: readStaticDatasetAttribute(tagSource, 'growing-track'),
-    growingIgnore: readStaticDatasetAttribute(tagSource, 'growing-ignore'),
+    id: readStaticAttribute(node, 'id'),
+    index: readStaticDatasetAttribute(node, 'index'),
+    title: readStaticDatasetAttribute(node, 'title'),
+    src: datasetSrc ?? (hasDataSrcAttribute(node) ? null : readStaticHrefAttribute(node)),
+    growingTrack: readStaticDatasetAttribute(node, 'growing-track'),
+    growingIgnore: readStaticDatasetAttribute(node, 'growing-ignore'),
   }
 }
 
@@ -339,31 +360,148 @@ function buildStaticTargetArguments(metadata, attrQuote) {
   ].join(', ')
 }
 
-function buildTrackCall(kind, eventArgument, handlerName, attrQuote, elementType = null, metadata = readStaticTargetMetadata(null)) {
+function isMethodReference(expression) {
+  try {
+    const program = parseExpression(expression.trim(), {
+      sourceType: 'script',
+      plugins: ['typescript'],
+    })
+    return program.program.body.length === 1 && program.program.body[0].type === 'ExpressionStatement' && readMemberPath(program.program.body[0].expression) != null
+  } catch (_) {
+    return false
+  }
+}
+
+function isCallbackExpression(expression) {
+  try {
+    const program = parseExpression(expression.trim(), {
+      sourceType: 'script',
+      plugins: ['typescript'],
+    })
+    if (program.program.body.length !== 1 || program.program.body[0].type !== 'ExpressionStatement') {
+      return false
+    }
+    const node = program.program.body[0].expression
+    return node.type === 'ArrowFunctionExpression' || node.type === 'FunctionExpression'
+  } catch (_) {
+    return false
+  }
+}
+
+function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null, metadata) {
+  const source = expression.trim()
+  const handlerName = inferHandlerName(source, eventName)
   const bridge = kind === 'change' ? 'gioHandleAutoChange' : 'gioHandleAutoClick'
   const staticTargetArgs = buildStaticTargetArguments(metadata, attrQuote)
   const args = kind === 'change'
-    ? `${eventArgument}, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}`
-    : `${eventArgument}, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
-  return `${bridge}(${args})`
-}
-
-function normalizeWrapperExpression(expression) {
-  const source = expression.trim()
-  if (METHOD_PATH_RE.test(source)) {
-    return `${source}()`
+    ? `$event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}`
+    : `$event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
+  const trackCall = `${bridge}(${args})`
+  if (isMethodReference(source)) {
+    return `${trackCall}; ${source}()`
   }
-  return replaceEventArgumentReferences(source)
+  if (isCallbackExpression(source)) {
+    return `${trackCall}; (${source})($event)`
+  }
+  return `${trackCall}; ${source}`
 }
 
-function replaceEventArgumentReferences(source) {
-  let result = ''
+function replaceSetupEventReference(expression) {
+  const source = expression.trim()
+  let program = null
+  try {
+    program = parseExpression(source, {
+      sourceType: 'script',
+      plugins: ['typescript'],
+    })
+  } catch (error) {
+    throw new Error(`gio autotrack cannot parse setup event expression: ${source}; ${error.message}`)
+  }
+  const transformed = new MagicString(source)
+  replaceEventIdentifier(program.program, null, null, transformed)
+  return transformed.toString()
+}
+
+function replaceEventIdentifier(node, parent, key, transformed) {
+  if (node == null || typeof node !== 'object') {
+    return
+  }
+  if (node.type === 'Identifier' && node.name === '$event' && isEventReference(parent, key)) {
+    if (parent != null && parent.type === 'ObjectProperty' && parent.shorthand === true && key === 'value') {
+      transformed.overwrite(node.start, node.end, '$event: event')
+      return
+    }
+    transformed.overwrite(node.start, node.end, 'event')
+    return
+  }
+  for (const [childKey, value] of Object.entries(node)) {
+    if (value == null || typeof value !== 'object') {
+      continue
+    }
+    if (Array.isArray(value)) {
+      for (const child of value) {
+        replaceEventIdentifier(child, node, childKey, transformed)
+      }
+      continue
+    }
+    replaceEventIdentifier(value, node, childKey, transformed)
+  }
+}
+
+function isEventReference(parent, key) {
+  if (parent == null) {
+    return true
+  }
+  if (parent.type === 'MemberExpression' && key === 'property' && parent.computed !== true) {
+    return false
+  }
+  if ((parent.type === 'ObjectProperty' || parent.type === 'ObjectMethod') && key === 'key' && parent.computed !== true) {
+    return false
+  }
+  return true
+}
+
+function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementType, metadata, action) {
+  const source = expression.trim()
+  const handlerName = inferHandlerName(source, eventName)
+  const bridge = kind === 'change' ? '_gioHandleAutoChange' : '_gioHandleAutoClick'
+  const staticTargetArgs = buildStaticTargetArguments(metadata, attrQuote)
+  const args = kind === 'change'
+    ? `event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}`
+    : `event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
+  const originalExpression = isMethodReference(source)
+    ? `${source}()`
+    : isCallbackExpression(source)
+      ? `(${replaceSetupEventReference(source)})(event)`
+      : replaceSetupEventReference(source)
+  return `  if (action == ${action}) {\n    ${bridge}(${args})\n    ${originalExpression}\n    return\n  }\n`
+}
+
+function buildSetupTrackOnlyDispatchCase(eventName, attrQuote, metadata, action) {
+  return `  if (action == ${action}) {\n    _gioHandleAutoClick(event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})\n    return\n  }\n`
+}
+
+function buildSetupDispatcher(cases) {
+  return `\nfunction _gioAutoTrackDispatch(event : any | null) : void {\n  const action = _gioReadAutoTrackAction(event)\n  if (action == null) {\n    return\n  }\n${cases.join('')}}\n`
+}
+
+function buildStaticClickExpression(eventName, attrQuote, metadata) {
+  return `gioHandleAutoClick($event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})`
+}
+
+function getEventBindings(node) {
+  return node.props.filter(
+    (prop) => prop.type === 7 && prop.name === 'on' && prop.arg != null && prop.arg.isStatic && prop.exp != null,
+  )
+}
+
+function findElementInsertionOffset(content, element) {
   let quote = null
   let escaped = false
-  for (let i = 0; i < source.length; i++) {
-    const current = source[i]
+  const start = element.loc.start.offset
+  for (let index = start; index < content.length; index++) {
+    const current = content[index]
     if (quote != null) {
-      result += current
       if (escaped) {
         escaped = false
       } else if (current === '\\') {
@@ -373,177 +511,156 @@ function replaceEventArgumentReferences(source) {
       }
       continue
     }
-    if (current === '"' || current === "'" || current === '`') {
+    if (current === '"' || current === "'") {
       quote = current
-      result += current
       continue
     }
-    if (source.startsWith('$event', i)) {
-      const before = i > 0 ? source[i - 1] : ''
-      const after = i + 6 < source.length ? source[i + 6] : ''
-      const beforeIsIdentifier = /[$\w]/.test(before)
-      const afterIsIdentifier = /[$\w]/.test(after)
-      if (!beforeIsIdentifier && !afterIsIdentifier) {
-        result += 'event'
-        i += 5
-        continue
-      }
+    if (current === '>') {
+      return content[index - 1] === '/' ? index - 1 : index
     }
-    result += current
   }
-  return result
+  return -1
 }
 
-function buildSetupWrapperFunction(wrapperName, kind, expression, eventName, attrQuote, elementType, metadata) {
-  const source = expression.trim()
-  const handlerName = inferHandlerName(source, eventName)
-  const trackCall = buildTrackCall(kind, 'event', handlerName, attrQuote, elementType, metadata)
-  return `\nfunction ${wrapperName}(event : any | null) : void {\n  ${trackCall}\n  ${normalizeWrapperExpression(source)}\n}\n`
-}
-
-function buildSetupTrackOnlyWrapperFunction(wrapperName, kind, eventName, attrQuote, elementType, metadata) {
-  const trackCall = buildTrackCall(kind, 'event', eventName, attrQuote, elementType, metadata)
-  return `\nfunction ${wrapperName}(event : any | null) : void {\n  ${trackCall}\n}\n`
-}
-
-function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null, metadata = readStaticTargetMetadata(null)) {
-  const source = expression.trim()
-  const handlerName = inferHandlerName(source, eventName)
-  const trackCall = buildTrackCall(kind, '$event', handlerName, attrQuote, elementType, metadata)
-  if (METHOD_PATH_RE.test(source)) {
-    return `${trackCall}; ${source}()`
+function visitTemplateNodes(node, visit) {
+  if (node == null || typeof node !== 'object') {
+    return
   }
-  return `${trackCall}; ${source}`
-}
-
-function buildStaticClickExpression(eventName, attrQuote, metadata) {
-  return `gioHandleAutoClick($event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})`
-}
-
-function hasClickEventBinding(tagSource) {
-  const eventRe = /(?:@|v-on:)([A-Za-z][\w-]*)(?:\.[\w-]+)*\s*=/g
-  let match = eventRe.exec(tagSource)
-  while (match != null) {
-    if (getEventKind(match[1]) === 'click') {
-      return true
+  if (node.type === 1) {
+    visit(node)
+  }
+  if (Array.isArray(node.children)) {
+    for (const child of node.children) {
+      visitTemplateNodes(child, visit)
     }
-    match = eventRe.exec(tagSource)
   }
-  return false
-}
-
-function collectUniLinkReplacements(content, templateStart, state) {
-  const replacements = []
-  const wrapperFunctions = []
-  let needsBridge = false
-  UNI_LINK_OPEN_TAG_RE.lastIndex = 0
-  let match = UNI_LINK_OPEN_TAG_RE.exec(content)
-  while (match != null) {
-    const tagSource = match[0]
-    const insertOffset = tagSource.endsWith('/>') ? tagSource.length - 2 : tagSource.length - 1
-    const insertPosition = templateStart + match.index + insertOffset
-    if (hasHrefAttribute(tagSource) && !hasDataSrcAttribute(tagSource)) {
-      replacements.push({
-        start: insertPosition,
-        end: insertPosition,
-        value: buildHrefDatasetAttribute(tagSource),
-      })
+  if (Array.isArray(node.branches)) {
+    for (const branch of node.branches) {
+      visitTemplateNodes(branch, visit)
     }
-    if (!tagSource.includes('gioHandleAutoClick') && !hasClickEventBinding(tagSource)) {
-      const metadata = readStaticTargetMetadata(tagSource)
-      let clickExpression = buildStaticClickExpression('openURL', '"', metadata)
-      if (state.useSetupWrappers) {
-        const wrapperName = `_gioAutoTrackHandler${state.nextWrapperIndex}`
-        state.nextWrapperIndex += 1
-        clickExpression = wrapperName
-        wrapperFunctions.push(buildSetupTrackOnlyWrapperFunction(wrapperName, 'click', 'openURL', '"', null, metadata))
-      }
-      replacements.push({
-        start: insertPosition,
-        end: insertPosition,
-        value: ` @click="${clickExpression}"`,
-      })
-      needsBridge = true
-    }
-    match = UNI_LINK_OPEN_TAG_RE.exec(content)
-  }
-  return {
-    replacements,
-    needsBridge,
-    wrapperFunctions,
   }
 }
 
-function collectTemplateReplacements(code, options = { skipEventBindings: false, useSetupWrappers: false }) {
+function getAttributeQuote(attribute) {
+  const source = attribute.loc.source
+  const doubleQuote = source.indexOf('"')
+  const singleQuote = source.indexOf("'")
+  return doubleQuote >= 0 && (singleQuote < 0 || doubleQuote < singleQuote) ? '"' : "'"
+}
+
+function collectTemplateReplacements(code, options = { skipEventBindings: false, useSetupDispatcher: false }) {
   const template = findBlock(code, 'template')
-  if (template == null) {
+  if (template == null || options.skipEventBindings) {
     return {
       replacements: [],
       needsBridge: false,
-      wrapperFunctions: [],
     }
   }
   const content = code.slice(template.contentStart, template.contentEnd)
-  const state = {
-    useSetupWrappers: options.useSetupWrappers === true,
-    nextWrapperIndex: 0,
-  }
-  const uniLinkResult = options.skipEventBindings
-    ? { replacements: [], needsBridge: false, wrapperFunctions: [] }
-    : collectUniLinkReplacements(content, template.contentStart, state)
-  const replacements = uniLinkResult.replacements
-  const wrapperFunctions = uniLinkResult.wrapperFunctions
-  let needsBridge = uniLinkResult.needsBridge
-  if (options.skipEventBindings) {
-    return {
-      replacements,
-      needsBridge,
-      wrapperFunctions,
+  const templateAst = parseTemplate(content, { comments: true })
+  const transformed = new MagicString(content)
+  const attributeInsertions = new Map()
+  const setupDispatcherCases = []
+  let changed = false
+  let needsBridge = false
+
+  function addAttribute(element, value) {
+    if (value.length === 0) {
+      return
     }
+    const offset = findElementInsertionOffset(content, element)
+    if (offset < 0) {
+      return
+    }
+    const values = attributeInsertions.get(offset) ?? []
+    values.push(value)
+    attributeInsertions.set(offset, values)
   }
-  EVENT_ATTR_RE.lastIndex = 0
-  let match = EVENT_ATTR_RE.exec(content)
-  while (match != null) {
-    const eventName = match[1]
-    const kind = getEventKind(eventName)
-    const expression = match[3]
-    if (
-      kind != null &&
-      expression.trim().length > 0 &&
-      !expression.includes('gioHandleAutoClick') &&
-      !expression.includes('gioHandleAutoChange')
-    ) {
-      const quoteOffset = match[0].indexOf(match[2])
-      const start = template.contentStart + match.index + quoteOffset + 1
-      const tagSource = findContainingTagSource(content, match.index)
-      const metadata = readStaticTargetMetadata(tagSource)
-      const elementType = readStaticTypeAttribute(tagSource)
-      let value = buildWrappedExpression(kind, expression, eventName, match[2], elementType, metadata)
-      if (state.useSetupWrappers) {
-        const wrapperName = `_gioAutoTrackHandler${state.nextWrapperIndex}`
-        state.nextWrapperIndex += 1
-        wrapperFunctions.push(buildSetupWrapperFunction(wrapperName, kind, expression, eventName, match[2], elementType, metadata))
-        value = wrapperName
+
+  visitTemplateNodes(templateAst, (element) => {
+    const bindings = getEventBindings(element)
+    const hasClickBinding = bindings.some((binding) => getEventKind(binding.arg.content) === 'click')
+    const setupActions = []
+    if (element.tag === 'uni-link') {
+      if (hasHrefAttribute(element) && !hasDataSrcAttribute(element)) {
+        addAttribute(element, buildHrefDatasetAttribute(element))
       }
-      needsBridge = true
-      replacements.push({
-        start,
-        end: start + expression.length,
-        value,
-      })
+      if (!hasClickBinding) {
+        if (options.useSetupDispatcher) {
+          const action = setupDispatcherCases.length
+          setupDispatcherCases.push(buildSetupTrackOnlyDispatchCase('openURL', '"', readStaticTargetMetadata(element), action))
+          setupActions.push(`click:${action}`)
+          addAttribute(element, '@click="_gioAutoTrackDispatch"')
+        } else {
+          addAttribute(element, `@click="${buildStaticClickExpression('openURL', '"', readStaticTargetMetadata(element))}"`)
+        }
+        changed = true
+        needsBridge = true
+      }
     }
-    match = EVENT_ATTR_RE.exec(content)
+
+    for (const binding of bindings) {
+      const eventName = binding.arg.content
+      const kind = getEventKind(eventName)
+      const expression = binding.exp.content
+      if (
+        kind == null ||
+        expression.trim().length === 0 ||
+        expression.includes('gioHandleAutoClick') ||
+        expression.includes('gioHandleAutoChange')
+      ) {
+        continue
+      }
+      const attributeQuote = getAttributeQuote(binding)
+      const elementType = normalizeStaticBoundValue(readBoundAttribute(element, 'type') ?? '') ?? readStaticAttribute(element, 'type')
+      const metadata = readStaticTargetMetadata(element)
+      if (options.useSetupDispatcher) {
+        const action = setupDispatcherCases.length
+        setupDispatcherCases.push(buildSetupDispatchCase(kind, expression, eventName, attributeQuote, elementType, metadata, action))
+        setupActions.push(`${eventName}:${action}`)
+        transformed.overwrite(binding.exp.loc.start.offset, binding.exp.loc.end.offset, '_gioAutoTrackDispatch')
+      } else {
+        transformed.overwrite(
+          binding.exp.loc.start.offset,
+          binding.exp.loc.end.offset,
+          buildWrappedExpression(kind, expression, eventName, attributeQuote, elementType, metadata),
+        )
+      }
+      changed = true
+      needsBridge = true
+    }
+
+    if (setupActions.length > 0) {
+      if (hasAttribute(element, 'data-gio-auto-track-action')) {
+        throw new Error('gio autotrack reserves data-gio-auto-track-action for generated setup dispatch')
+      }
+      addAttribute(element, `data-gio-auto-track-action="${setupActions.join('|')}"`)
+    }
+  })
+
+  for (const [offset, values] of attributeInsertions) {
+    transformed.appendLeft(offset, ` ${values.join(' ')}`)
+    changed = true
+  }
+
+  if (!changed) {
+    return { replacements: [], needsBridge: false }
   }
   return {
-    replacements,
+    replacements: [{ start: template.contentStart, end: template.contentEnd, value: transformed.toString() }],
     needsBridge,
-    wrapperFunctions,
+    setupDispatcherCases,
   }
 }
 
 function buildImportReplacement(code) {
-  if (code.includes('gioHandleAutoClick') || code.includes('gioHandleAutoChange')) {
+  const reservedAliases = ['_gioHandleAutoClick', '_gioHandleAutoChange', '_gioReadAutoTrackAction']
+  const presentAliasCount = reservedAliases.filter((alias) => code.includes(alias)).length
+  if (presentAliasCount === reservedAliases.length) {
     return null
+  }
+  if (presentAliasCount > 0) {
+    throw new Error(`gio autotrack reserves generated imports: ${reservedAliases.join(', ')}`)
   }
   const hasScript = /<script\b[^>]*>/i.test(code)
   if (!hasScript) {
@@ -560,7 +677,7 @@ function buildImportReplacement(code) {
     return {
       start: offset,
       end: offset,
-      value: `\n${IMPORT_CODE}${buildSetupBridgeFunctions()}`,
+      value: `\n${IMPORT_CODE}`,
     }
   }
   return {
@@ -570,20 +687,22 @@ function buildImportReplacement(code) {
   }
 }
 
-function buildSetupWrapperReplacement(code, wrapperFunctions) {
-  if (wrapperFunctions.length === 0) {
+function buildSetupDispatcherReplacement(code, cases) {
+  if (cases.length === 0) {
     return null
   }
   const script = findScriptBlock(code)
   if (!isSetupScript(script)) {
     return null
   }
+  if (code.includes('_gioAutoTrackDispatch')) {
+    throw new Error('gio autotrack reserves _gioAutoTrackDispatch for generated setup dispatch')
+  }
   return {
-    // UTS resolves the generated handler body in declaration order. Appending
-    // wrappers keeps every user-defined script-setup handler visible.
     start: script.contentEnd,
     end: script.contentEnd,
-    value: `\n${wrapperFunctions}`,
+    value: buildSetupDispatcher(cases),
+    priority: 1,
   }
 }
 
@@ -631,7 +750,7 @@ function buildOptionsBridgeExposureReplacement(code) {
 }
 
 function applyReplacements(code, replacements) {
-  const ordered = replacements.slice().sort((a, b) => b.start - a.start)
+  const ordered = replacements.slice().sort((a, b) => b.start - a.start || (b.priority ?? 0) - (a.priority ?? 0))
   let result = code
   for (const item of ordered) {
     result = result.slice(0, item.start) + item.value + result.slice(item.end)
@@ -650,7 +769,7 @@ export function gioUniappxAutoTrack() {
       const script = findScriptBlock(code)
       const transformResult = collectTemplateReplacements(code, {
         skipEventBindings: isUniLinkComponentFile(id),
-        useSetupWrappers: isSetupScript(script),
+        useSetupDispatcher: isSetupScript(script),
       })
       const replacements = transformResult.replacements
       if (replacements.length === 0) {
@@ -661,9 +780,9 @@ export function gioUniappxAutoTrack() {
         if (importReplacement != null) {
           replacements.push(importReplacement)
         }
-        const setupWrapperReplacement = buildSetupWrapperReplacement(code, transformResult.wrapperFunctions.join(''))
-        if (setupWrapperReplacement != null) {
-          replacements.push(setupWrapperReplacement)
+        const setupDispatcherReplacement = buildSetupDispatcherReplacement(code, transformResult.setupDispatcherCases ?? [])
+        if (setupDispatcherReplacement != null) {
+          replacements.push(setupDispatcherReplacement)
         }
         const bridgeExposureReplacement = buildOptionsBridgeExposureReplacement(code)
         if (bridgeExposureReplacement != null) {
