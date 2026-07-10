@@ -28,6 +28,12 @@ function transformOptional(code, id = '/src/pages/index/index.uvue') {
 }
 
 {
+  const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts">function onSimpleTrack() : void {}</script>'
+  const output = transform(code)
+  assert.ok(output.indexOf('function onSimpleTrack() : void {}') < output.indexOf('function _gioAutoTrackHandler0'))
+}
+
+{
   const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts">function gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean { return true }</script>'
   const output = transform(code)
   assert.doesNotMatch(output, /gioHandleAutoClick as _gioHandleAutoClick/)

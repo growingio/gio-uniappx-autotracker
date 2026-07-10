@@ -541,15 +541,8 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
   }
 }
 
-function buildImportReplacement(code, wrapperFunctions = '') {
+function buildImportReplacement(code) {
   if (code.includes('gioHandleAutoClick') || code.includes('gioHandleAutoChange')) {
-    if (wrapperFunctions.length > 0) {
-      return {
-        start: findScriptInsertionOffset(code),
-        end: findScriptInsertionOffset(code),
-        value: wrapperFunctions,
-      }
-    }
     return null
   }
   const hasScript = /<script\b[^>]*>/i.test(code)
@@ -567,13 +560,30 @@ function buildImportReplacement(code, wrapperFunctions = '') {
     return {
       start: offset,
       end: offset,
-      value: `\n${IMPORT_CODE}${buildSetupBridgeFunctions(wrapperFunctions)}`,
+      value: `\n${IMPORT_CODE}${buildSetupBridgeFunctions()}`,
     }
   }
   return {
     start: offset,
     end: offset,
     value: `\n${IMPORT_CODE}`,
+  }
+}
+
+function buildSetupWrapperReplacement(code, wrapperFunctions) {
+  if (wrapperFunctions.length === 0) {
+    return null
+  }
+  const script = findScriptBlock(code)
+  if (!isSetupScript(script)) {
+    return null
+  }
+  return {
+    // UTS resolves the generated handler body in declaration order. Appending
+    // wrappers keeps every user-defined script-setup handler visible.
+    start: script.contentEnd,
+    end: script.contentEnd,
+    value: `\n${wrapperFunctions}`,
   }
 }
 
@@ -647,9 +657,13 @@ export function gioUniappxAutoTrack() {
         return null
       }
       if (transformResult.needsBridge) {
-        const importReplacement = buildImportReplacement(code, transformResult.wrapperFunctions.join(''))
+        const importReplacement = buildImportReplacement(code)
         if (importReplacement != null) {
           replacements.push(importReplacement)
+        }
+        const setupWrapperReplacement = buildSetupWrapperReplacement(code, transformResult.wrapperFunctions.join(''))
+        if (setupWrapperReplacement != null) {
+          replacements.push(setupWrapperReplacement)
         }
         const bridgeExposureReplacement = buildOptionsBridgeExposureReplacement(code)
         if (bridgeExposureReplacement != null) {
