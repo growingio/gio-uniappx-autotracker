@@ -517,9 +517,7 @@ const changeNoIdChecked = ref(false)
 const invalidChangeChecked = ref(false)
 const ignoredChecked = ref(false)
 const lastAction = ref('(none)')
-// 条件表达式会由无埋点插件移入 script setup 的统一分发器执行。
-// 该上下文不会自动解包 Ref；这里用普通布尔值，确保两次点击在 true / false 分支间交替。
-let conditionEnabled = true
+const conditionEnabled = ref(true)
 
 function note(message : string) {
 	lastAction.value = message
@@ -586,12 +584,12 @@ function onEventAndArgument(_event : any | null, value : string) {
 }
 
 function onConditionalTrue() {
-	conditionEnabled = false
+	conditionEnabled.value = false
 	note('conditional true branch')
 }
 
 function onConditionalFalse() {
-	conditionEnabled = true
+	conditionEnabled.value = true
 	note('conditional false branch')
 }
 

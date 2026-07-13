@@ -15,12 +15,12 @@
 ```text
 模板事件
   → Vite 编译期模板 AST 改写
-  → script setup: _gioAutoTrackDispatch($event, action)
+  → script setup 模板表达式: _gioAutoTrackDispatch($event, action); 原业务表达式
   → plugin.uts: gioHandleAutoClick / gioHandleAutoChange
   → bridge/auto-track-event.uts: 构建稳定事件快照
   → GioEventAutoTrackingPlugin: 去重、忽略、脱敏、element 构建
   → VIEW_CLICK / VIEW_CHANGE
-  → 执行原业务表达式
+  → 在原模板上下文执行原业务表达式
 ```
 
 Web 端在上述模板桥接之外，还安装 `document` 级的 `click` / `change` 监听，用于采集未声明模板事件的普通 DOM 节点。已被模板插桩的节点会带 `data-gio-auto-track-bound="true"`，Web 全局监听会跳过它们，避免重复上报。
@@ -33,8 +33,9 @@ Web 端在上述模板桥接之外，还安装 `document` 级的 `click` / `chan
 | 事件表达式 | 字符串匹配函数名并拼接 | Babel 表达式 AST | 可处理成员调用、条件表达式、连续语句、`$event` | 表达式无法解析时会明确报编译错误 |
 | script setup 函数 | 每个绑定生成 `_gioAutoTrackHandlerN` | 每页一个 `_gioAutoTrackDispatch(event, action)` | 生成代码更少，避免 N 个 UTS 函数 | 大页面 action 分支按顺序判断，复杂度为 O(N) |
 | action 定位 | 中间方案从 dataset 和事件 type 反查 | 模板直接传入数值 action | 不依赖 `currentTarget`、dataset、type | 模板生成表达式中会多一个 action 参数 |
+| Ref / computed 条件 | 业务表达式移入脚本分发器后会失去模板自动解包 | 分发器只采集，原表达式留在模板 | 保留 Vue 的 Ref、computed 与模板作用域语义 | 模板事件属性会变成长一些的连续表达式 |
 | 自定义组件事件 | dataset/type 不完整时可能找不到 action 并提前返回 | action 已确定，照常进入对应分支 | 业务 handler 不再被吞掉 | 自定义组件仍需自行保证其事件参数符合业务需求 |
-| `$event` 改写 | 字符串替换存在伤及字符串/属性名风险 | 按 AST 标识符位置改写 | 保留 `'$event'` 字符串和对象 key | 只处理可解析的静态事件表达式 |
+| `$event` | 搬入脚本时需要把 `$event` 改成函数参数 | 原表达式留在模板，不再改写 `$event` | 字符串、对象 key、修饰符与模板事件语义保持不变 | 只处理可解析的静态事件表达式 |
 | Options API | 内联桥接并注入 methods | 保持内联桥接，但事件与属性识别改为 AST | 保持 `methods` / `this` 语义 | 未使用统一分发器，生成形态与 setup 不同 |
 | 双脚本 SFC | 可能把注入内容放到第一个普通 script | 优先选择 `<script setup>` | import 和分发器进入正确作用域 | 非标准、损坏的 SFC 仍应由编译器报错 |
 | uni-link | 字符串方式补 click / data-src | AST 读取 href，缺 click 时补桥接 | 静态 href 与绑定 href 均可处理 | 内部 uni-link-x 组件会跳过，避免递归改写 |
@@ -68,7 +69,10 @@ Web 端在上述模板桥接之外，还安装 `document` 级的 `click` / `chan
 编译后等价为：
 
 ```vue
-<view @tap="_gioAutoTrackDispatch($event, 0)" data-gio-auto-track-bound="true" />
+<view
+  @tap="_gioAutoTrackDispatch($event, 0); onTap($event, 'from-card')"
+  data-gio-auto-track-bound="true"
+/>
 ```
 
 脚本尾部追加单个分支：
@@ -77,13 +81,12 @@ Web 端在上述模板桥接之外，还安装 `document` 级的 `click` / `chan
 function _gioAutoTrackDispatch(event : any | null, action : number) : void {
   if (action == 0) {
     _gioHandleAutoClick(event, 'onTap', null, null, null, null, null, null)
-    onTap(event, 'from-card')
     return
   }
 }
 ```
 
-采集发生在业务表达式之前。这样即使业务代码随后发生跳转，点击事件也能优先进入采集链路。
+统一分发器只执行采集，业务表达式仍由模板编译器处理。两者在同一个事件表达式中按“先采集、后业务”的顺序执行，因此业务代码随后跳转时，点击事件仍会优先进入采集链路，同时不会破坏模板中的 Ref 自动解包。
 
 ### 4.2 变更类
 
@@ -116,10 +119,28 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 会直接改写为：
 
 ```vue
-<tracking-card @click="_gioAutoTrackDispatch($event, 0)" />
+<tracking-card @click="_gioAutoTrackDispatch($event, 0); onCardClick()" />
 ```
 
 因此，即使组件通过 `emit` 传出的参数没有 `currentTarget`、dataset 或 type，仍会执行采集分支与 `onCardClick()`。
+
+### 4.5 Ref / computed 条件表达式
+
+条件表达式必须保留模板语义。例如：
+
+```vue
+<button @click="conditionEnabled ? onConditionalTrue() : onConditionalFalse()" />
+```
+
+其中 `conditionEnabled` 是 `ref(true)`。当前输出为：
+
+```vue
+<button
+  @click="_gioAutoTrackDispatch($event, 0); conditionEnabled ? onConditionalTrue() : onConditionalFalse()"
+/>
+```
+
+`conditionEnabled` 仍在模板上下文由 Vue 自动解包；`_gioAutoTrackDispatch` 内不会再复制该条件表达式。旧实现把条件搬进普通 UTS 函数后，判断对象本身会恒为真，导致 false 分支永远无法执行。
 
 ## 5. 事件快照与统一插件处理
 
@@ -169,7 +190,7 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 | 点击运行时定位 | 依赖 `currentTarget`、dataset、`event.type` | 数值 action 作为绑定参数直接传入 | 自定义组件、包装组件的事件形态不完整时更稳定 |
 | 事件快照 | 从原始宿主事件中读取字段 | 保持快照桥接，只改 action 的来源 | Android / iOS / Harmony 仍不会把页面、组件或原生句柄传进 `utssdk` |
 | 未绑定节点 | 无 | 无 | 移动端没有 Web 的全局 DOM fallback，未声明支持事件的节点仍不会自动采集 |
-| 业务行为 | 取决于原模板表达式 | 采集后执行原表达式 | 正常调用语义保持；依赖自动注入 `$event` 的纯方法引用应显式写出 `$event` |
+| 业务行为 | 业务表达式可能被搬入脚本函数 | 先采集，再在原模板上下文执行表达式 | Ref / computed 自动解包和模板作用域保持；依赖自动注入 `$event` 的纯方法引用仍建议显式写出 `$event` |
 
 ### 7.2 Android
 
@@ -218,6 +239,7 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 | 普通静态 `@tap` / `@click` | 支持 | 支持 | 支持 | 支持 | 模板 AST 写入固定 action；事件字段不完整也能归类为 CLICK。 |
 | `@change` / `@blur` / `@confirm` | 支持 | 支持 | 支持 | 支持 | 固定 action 归类为 CHANGE；仅 `data-growing-track` 时采集值，password 脱敏。 |
 | 自定义组件 `emit('click')` | 支持 | 支持 | 支持 | 支持 | 不再依赖 emit 参数存在 dataset/type；原业务 handler 仍需自己适配参数。 |
+| Ref / computed 条件表达式 | 支持 | 支持 | 支持 | 支持 | 原表达式留在模板上下文，不会因 Ref 对象恒 truthy 而固定进入 true 分支。 |
 | `uni-link` | 支持 | 支持 | 支持 | 支持 | AST 补充 click 和静态 href 推导；跳过内部 `uni-link-x`。 |
 | 动态事件名 `v-on:[name]` | 不支持自动插桩 | 不支持自动插桩 | 不支持自动插桩 | 不支持自动插桩 | 编译期无法可靠决定 CLICK/CHANGE；需显式使用已支持的静态事件。 |
 | 无模板事件的原生节点 | 不支持 | 不支持 | 不支持 | 不支持 | 不会像 Web 一样由 document listener 兜底，属于覆盖边界。 |

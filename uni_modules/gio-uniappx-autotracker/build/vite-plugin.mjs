@@ -465,68 +465,22 @@ function buildWrappedExpression(kind, expression, eventName, attrQuote, elementT
 }
 
 /**
- * 将 script setup 生成函数中的 `$event` 改为显式参数 `event`。
- * AST 改写只替换标识符，不会误伤字符串 `'$event'` 或对象属性名。
+ * 为 script setup 事件表达式前置统一采集调用。
+ * 原业务表达式必须留在模板上下文，让 Vue 编译器继续负责 Ref 自动解包等模板语义。
  */
-function replaceSetupEventReference(expression) {
+function buildSetupWrappedExpression(expression, action) {
   const source = expression.trim()
-  let program = null
-  try {
-    program = parseExpression(source, {
-      sourceType: 'script',
-      plugins: ['typescript'],
-    })
-  } catch (error) {
-    throw new Error(`gio autotrack cannot parse setup event expression: ${source}; ${error.message}`)
+  const trackCall = `_gioAutoTrackDispatch($event, ${action})`
+  if (isMethodReference(source)) {
+    return `${trackCall}; ${source}()`
   }
-  const transformed = new MagicString(source)
-  replaceEventIdentifier(program.program, null, null, transformed)
-  return transformed.toString()
+  if (isCallbackExpression(source)) {
+    return `${trackCall}; (${source})($event)`
+  }
+  return `${trackCall}; ${source}`
 }
 
-/** 遍历 Babel AST 并按节点位置回写 `$event`；MagicString 保持其他源码字符不变。 */
-function replaceEventIdentifier(node, parent, key, transformed) {
-  if (node == null || typeof node !== 'object') {
-    return
-  }
-  if (node.type === 'Identifier' && node.name === '$event' && isEventReference(parent, key)) {
-    if (parent != null && parent.type === 'ObjectProperty' && parent.shorthand === true && key === 'value') {
-      // `{ $event }` 不能改成 `{ event }`，否则对象 key 也变了；应展开为 `{ $event: event }`。
-      transformed.overwrite(node.start, node.end, '$event: event')
-      return
-    }
-    transformed.overwrite(node.start, node.end, 'event')
-    return
-  }
-  for (const [childKey, value] of Object.entries(node)) {
-    if (value == null || typeof value !== 'object') {
-      continue
-    }
-    if (Array.isArray(value)) {
-      for (const child of value) {
-        replaceEventIdentifier(child, node, childKey, transformed)
-      }
-      continue
-    }
-    replaceEventIdentifier(value, node, childKey, transformed)
-  }
-}
-
-/** 判断当前 `$event` 是否是可替换的值引用，而不是成员属性名或对象 key。 */
-function isEventReference(parent, key) {
-  if (parent == null) {
-    return true
-  }
-  if (parent.type === 'MemberExpression' && key === 'property' && parent.computed !== true) {
-    return false
-  }
-  if ((parent.type === 'ObjectProperty' || parent.type === 'ObjectMethod') && key === 'key' && parent.computed !== true) {
-    return false
-  }
-  return true
-}
-
-/** 生成 script setup 统一分发器中的一个 action 分支：先采集，再执行原业务表达式。 */
+/** 生成 script setup 统一分发器中的一个 action 分支；这里只采集，不执行原业务表达式。 */
 function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementType, metadata, action) {
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
@@ -535,13 +489,7 @@ function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementT
   const args = kind === 'change'
     ? `event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}`
     : `event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
-  // 统一分发器位于用户脚本末尾，确保 UTS 无函数提升时业务函数已经声明。
-  const originalExpression = isMethodReference(source)
-    ? `${source}()`
-    : isCallbackExpression(source)
-      ? `(${replaceSetupEventReference(source)})(event)`
-      : replaceSetupEventReference(source)
-  return `  if (action == ${action}) {\n    ${bridge}(${args})\n    ${originalExpression}\n    return\n  }\n`
+  return `  if (action == ${action}) {\n    ${bridge}(${args})\n    return\n  }\n`
 }
 
 /** 为没有显式 click 的 uni-link 生成仅采集、不执行业务回调的分发分支。 */
@@ -549,7 +497,7 @@ function buildSetupTrackOnlyDispatchCase(eventName, attrQuote, metadata, action)
   return `  if (action == ${action}) {\n    _gioHandleAutoClick(event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})\n    return\n  }\n`
 }
 
-/** 将所有 setup action 分支收敛为一个显式类型的 UTS 函数。 */
+/** 将所有 setup 采集分支收敛为一个显式类型的 UTS 函数。 */
 function buildSetupDispatcher(cases) {
   return `\nfunction _gioAutoTrackDispatch(event : any | null, action : number) : void {\n${cases.join('')}}\n`
 }
@@ -719,11 +667,11 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
       if (options.useSetupDispatcher) {
         const action = setupDispatcherCases.length
         setupDispatcherCases.push(buildSetupDispatchCase(kind, expression, eventName, attributeQuote, elementType, metadata, action))
-        // 模板只负责传递原始事件和稳定 action；所有业务表达式都留在脚本中的统一函数执行。
+        // 采集由统一分发器完成，原表达式留在模板上下文，避免破坏 Ref 自动解包等语义。
         transformed.overwrite(
           binding.exp.loc.start.offset,
           binding.exp.loc.end.offset,
-          `_gioAutoTrackDispatch($event, ${action})`,
+          buildSetupWrappedExpression(expression, action),
         )
         markGeneratedBinding(element)
       } else {
