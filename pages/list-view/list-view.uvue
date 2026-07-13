@@ -65,12 +65,6 @@ type DemoListItem = {
 	src: string
 }
 
-const items = ref<Array<DemoListItem>>(buildItems(1, 30))
-const refresherTriggered = ref(false)
-const scrollIntoView = ref('')
-const lastAction = ref('拖动列表或点击列表项，观察 PAGE / VIEW_CLICK / 自定义 track。')
-let nextIndex = 31
-
 function buildItems(startIndex: number, count: number): Array<DemoListItem> {
 	const list: Array<DemoListItem> = []
 	for (let i = 0; i < count; i++) {
@@ -86,6 +80,12 @@ function buildItems(startIndex: number, count: number): Array<DemoListItem> {
 	}
 	return list
 }
+
+const items = ref<Array<DemoListItem>>(buildItems(1, 30))
+const refresherTriggered = ref(false)
+const scrollIntoView = ref('')
+const lastAction = ref('拖动列表或点击列表项，观察 PAGE / VIEW_CLICK / 自定义 track。')
+let nextIndex = 31
 
 function setAction(text: string) {
 	lastAction.value = text

@@ -15,38 +15,105 @@
 		</view>
 
 		<view class="section">
-			<text class="section-title">功能演示（7 个子页）</text>
+			<text class="section-title">功能演示（8 个子页）</text>
 			<view class="card-list">
-				<view class="card" @click="go('custom-event')">
+				<view
+					id="home_entry_custom_event"
+					class="card"
+					:data-index="1"
+					data-title="进入自定义事件演示页"
+					data-src="/pages/custom-event/custom-event"
+					@click="go('custom-event')"
+				>
 					<text class="card-title">① 自定义事件 / track</text>
 					<text class="card-desc">覆盖典型、边界和业务埋点场景，方便在网络面板里看最终 body。</text>
 				</view>
-				<view class="card" @click="go('user')">
+				<view
+					id="home_entry_user"
+					class="card"
+					:data-index="2"
+					data-title="进入用户身份演示页"
+					data-src="/pages/user/user"
+					@click="go('user')"
+				>
 					<text class="card-title">② 用户身份 / setUserId / setUserAttributes</text>
 					<text class="card-desc">切换 userId、userKey 和用户属性，观察请求体变化。</text>
 				</view>
-				<view class="card" @click="go('lifecycle')">
+				<view
+					id="home_entry_lifecycle"
+					class="card"
+					:data-index="3"
+					data-title="进入生命周期演示页"
+					data-src="/pages/lifecycle/lifecycle"
+					@click="go('lifecycle')"
+				>
 					<text class="card-title">③ 生命周期 / VISIT / PAGE / APP_CLOSED</text>
 					<text class="card-desc">通过切页、切后台来验证关键事件触发时机。</text>
 				</view>
-				<view class="card" @click="go('autotrack')">
+				<view
+					id="home_entry_autotrack"
+					class="card"
+					:data-index="4"
+					data-title="进入无埋点演示页"
+					data-src="/pages/autotrack/autotrack"
+					@click="go('autotrack')"
+				>
 					<text class="card-title">④ 无埋点 / VIEW_CLICK / VIEW_CHANGE</text>
 					<text class="card-desc">覆盖 click、change、dataset、growingTrack、growingIgnore、tabBar 等触发面。</text>
 				</view>
-				<view class="card" @click="go('route')">
+				<view
+					id="home_entry_route"
+					class="card"
+					:data-index="5"
+					data-title="进入路由演示页"
+					data-src="/pages/route/route"
+					@click="go('route')"
+				>
 					<text class="card-title">⑤ 路由 / referralPage / query</text>
 					<text class="card-desc">带 query 跳转，帮助验证 page 级上下文字段。</text>
 				</view>
-				<view class="card" @click="go('abtest')">
+				<view
+					id="home_entry_abtest"
+					class="card"
+					:data-index="6"
+					data-title="进入 ABTest 演示页"
+					data-src="/pages/abtest/abtest"
+					@click="go('abtest')"
+				>
 					<text class="card-title">⑥ ABTest / registerPlugins / getABTest</text>
 					<text class="card-desc">当前插件层只考虑 gioABTest，先按小程序逻辑对齐。</text>
 				</view>
-				<view class="card" @click="go('datacollect')">
+				<view
+					id="home_entry_datacollect"
+					class="card"
+					:data-index="7"
+					data-title="进入数据采集开关演示页"
+					data-src="/pages/datacollect/datacollect"
+					@click="go('datacollect')"
+				>
 					<text class="card-title">⑦ 数据采集开关 / setOptions</text>
 					<text class="card-desc">动态切换 dataCollect，控制 SDK 是否采集数据。关闭后事件不上报，开启后恢复。</text>
 				</view>
+				<view
+					id="home_entry_list_view"
+					class="card"
+					:data-index="8"
+					data-title="进入 list-view 长列表演示页"
+					data-src="/pages/list-view/list-view"
+					@click="go('list-view')"
+				>
+					<text class="card-title">⑧ list-view 长列表 / 滚动与点击采集</text>
+					<text class="card-desc">验证长列表、下拉刷新、触底追加、定位滚动和列表项点击采集。</text>
+				</view>
 				<!-- #ifdef MP-WEIXIN -->
-				<view class="card" @click="go('share')">
+				<view
+					id="home_entry_share"
+					class="card"
+					:data-index="9"
+					data-title="进入微信分享演示页"
+					data-src="/pages/share/share"
+					@click="go('share')"
+				>
 					<text class="card-title">⑥ 分享 / 朋友圈 / 收藏（仅小程序）</text>
 					<text class="card-desc">注册 gioShareTracking 后按微信原生分享钩子采集 $mp_on_share / $mp_share_timeline / $mp_add_favorites。</text>
 				</view>
