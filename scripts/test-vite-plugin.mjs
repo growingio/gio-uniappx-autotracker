@@ -48,6 +48,16 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 }
 
 {
+  const code = '<template><view @click="onSimpleTrack"></view></template><script lang="uts">export default {}</script><script setup lang="uts">function onSimpleTrack() : void {}</script>'
+  const output = transform(code)
+  const setupStart = output.indexOf('<script setup lang="uts">')
+  const setupImport = output.indexOf('gioHandleAutoClick as _gioHandleAutoClick')
+  assert.ok(setupImport > setupStart)
+  assert.ok(output.indexOf('function onSimpleTrack() : void {}') < output.indexOf('function _gioAutoTrackDispatch'))
+  assert.doesNotMatch(output, /methods\s*:\s*{\s*gioHandleAutoClick/)
+}
+
+{
   const code = '<template><button @click="foo(); bar()"></button></template><script lang="uts">export default {}</script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick\(\$event, 'foo', null, null, null, null, null, null\)/)

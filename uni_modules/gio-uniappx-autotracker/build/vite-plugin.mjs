@@ -2,6 +2,8 @@ import { parse as parseTemplate } from '@vue/compiler-dom'
 import { parse as parseExpression } from '@babel/parser'
 import MagicString from 'magic-string'
 
+// 这个插件在 uni 编译器之前运行：模板使用 Vue AST 识别，事件表达式使用 Babel AST 识别。
+// 两层 AST 避免正则在引号、修饰符、条件表达式和嵌套调用上误改业务代码。
 const CLICK_EVENTS = new Set([
   'click',
   'tap',
@@ -17,15 +19,19 @@ const AUTO_TRACK_BOUND_ATTRIBUTE = 'data-gio-auto-track-bound="true"'
 const IMPORT_CODE =
   "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
 
+/** 判断当前 Vite 转换目标是否为 Vue / uvue 单文件组件。 */
 function isTargetFile(id) {
+  // Vite 会在 id 后追加 ?vue、?v=hash 等查询参数，判断扩展名时必须先去掉它们。
   const cleanId = id.split('?')[0]
   return cleanId.endsWith('.vue') || cleanId.endsWith('.uvue')
 }
 
+/** 判断是否为 uni-link-x 的内部实现，避免改写组件内部的 openURL 事件导致递归采集。 */
 function isUniLinkComponentFile(id) {
   return id.split('?')[0].replace(/\\/g, '/').endsWith('/uni_modules/uni-link-x/components/uni-link/uni-link.uvue')
 }
 
+/** 把模板事件名归并为 SDK 的 CLICK / CHANGE 两类采集动作；未知事件保持原样，不强行插桩。 */
 function getEventKind(eventName) {
   const normalized = eventName.toLowerCase()
   if (CLICK_EVENTS.has(normalized)) {
@@ -37,6 +43,10 @@ function getEventKind(eventName) {
   return null
 }
 
+/**
+ * 定位 SFC 中指定块的完整偏移量。
+ * 模板内容随后会交给 AST 解析；这里仅负责保留原文件坐标，以便精确回写。
+ */
 function findBlock(code, tagName) {
   const openRe = new RegExp(`<${tagName}\\b[^>]*>`, 'i')
   const open = openRe.exec(code)
@@ -59,32 +69,45 @@ function findBlock(code, tagName) {
   }
 }
 
+/**
+ * 定位所有 script 块，并优先返回 script setup。
+ * 一个合法 SFC 可以同时有普通 script 与 script setup；模板 handler 属于 setup 作用域时，
+ * import 和统一分发器必须注入 setup，不能错误地写入第一个普通 script。
+ */
 function findScriptBlock(code) {
-  const openRe = /<script\b[^>]*>/i
-  const open = openRe.exec(code)
-  if (open == null) {
-    return null
+  const blocks = []
+  const openRe = /<script\b[^>]*>/gi
+  let open = openRe.exec(code)
+  while (open != null) {
+    const start = open.index + open[0].length
+    const closeRe = /<\/script>/i
+    const close = closeRe.exec(code.slice(start))
+    if (close == null) {
+      return null
+    }
+    blocks.push({
+      openStart: open.index,
+      openTag: open[0],
+      contentStart: start,
+      contentEnd: start + close.index,
+      closeEnd: start + close.index + close[0].length,
+    })
+    // 从当前闭合标签之后继续，避免把 script 内容里的字符串误识别为第二个块。
+    openRe.lastIndex = start + close.index + close[0].length
+    open = openRe.exec(code)
   }
-  const start = open.index + open[0].length
-  const closeRe = /<\/script>/i
-  const rest = code.slice(start)
-  const close = closeRe.exec(rest)
-  if (close == null) {
-    return null
-  }
-  return {
-    openStart: open.index,
-    openTag: open[0],
-    contentStart: start,
-    contentEnd: start + close.index,
-    closeEnd: start + close.index + close[0].length,
-  }
+  return blocks.find((block) => isSetupScript(block)) ?? (blocks.length > 0 ? blocks[0] : null)
 }
 
+/** 判断脚本是否为 `<script setup>`；两类脚本的可注入位置和调用作用域不同。 */
 function isSetupScript(script) {
   return script != null && /\bsetup\b/i.test(script.openTag)
 }
 
+/**
+ * 在普通 Options API 脚本中寻找对象字面量的闭合花括号。
+ * 需要跳过字符串、模板字符串及单双行注释，避免业务代码里的 `}` 干扰 methods 注入位置。
+ */
 function findMatchingBrace(code, openIndex, limit) {
   let depth = 0
   let quote = null
@@ -94,6 +117,7 @@ function findMatchingBrace(code, openIndex, limit) {
   for (let i = openIndex; i < limit; i++) {
     const current = code[i]
     const next = i + 1 < limit ? code[i + 1] : ''
+    // 注释、字符串内部的花括号不参与对象层级计数。
     if (lineComment) {
       if (current === '\n') {
         lineComment = false
@@ -143,22 +167,26 @@ function findMatchingBrace(code, openIndex, limit) {
   return -1
 }
 
-function findScriptInsertionOffset(code) {
-  const scriptRe = /<script\b[^>]*>/i
-  const script = scriptRe.exec(code)
+/** 返回桥接 import 应插入的位置：优先已选 script 开标签之后，无 script 时插入 template 之后。 */
+function findScriptInsertionOffset(code, script = null) {
   if (script != null) {
-    return script.index + script[0].length
+    return script.contentStart
   }
   const template = findBlock(code, 'template')
   return template != null ? template.closeEnd : code.length
 }
 
+/**
+ * 从任意事件表达式推断用于 xpath 的 handler 名。
+ * 推断失败只影响采集标签，不影响原业务表达式执行，因此回退到事件名而不是抛错。
+ */
 function inferHandlerName(expression, fallback) {
   const source = expression.trim()
   if (source.length === 0) {
     return fallback
   }
   try {
+    // Babel 把表达式包装为 Program，统一处理 `foo()`、条件表达式和逗号表达式。
     const program = parseExpression(source, {
       sourceType: 'script',
       plugins: ['typescript'],
@@ -178,6 +206,7 @@ function inferHandlerName(expression, fallback) {
   return fallback
 }
 
+/** 递归从表达式 AST 中提取第一个可读的方法路径。 */
 function findHandlerName(expression) {
   if (expression == null || typeof expression !== 'object') {
     return null
@@ -189,6 +218,7 @@ function findHandlerName(expression) {
     return readMemberPath(expression)
   }
   if (expression.type === 'ConditionalExpression') {
+    // 条件分支通常都是同类 handler，优先取真分支以获得稳定的 xpath 名。
     return findHandlerName(expression.consequent) ?? findHandlerName(expression.alternate)
   }
   if (expression.type === 'LogicalExpression') {
@@ -203,6 +233,7 @@ function findHandlerName(expression) {
     }
     return null
   }
+  // 兜底遍历覆盖被 Babel 包装的表达式节点，避免为每一种语法再写一套分支。
   for (const value of Object.values(expression)) {
     if (value == null || typeof value !== 'object') {
       continue
@@ -224,6 +255,7 @@ function findHandlerName(expression) {
   return null
 }
 
+/** 将 `foo.bar` 这类非计算成员访问转换为稳定文本路径；`foo[key]` 不可静态推断。 */
 function readMemberPath(node) {
   if (node == null || typeof node !== 'object') {
     return null
@@ -239,6 +271,7 @@ function readMemberPath(node) {
   return null
 }
 
+/** 按模板原有引号风格生成 UTS 字符串字面量，并转义会破坏表达式的字符。 */
 function quoteString(value, attrQuote) {
   if (attrQuote === '"') {
     return `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`
@@ -246,18 +279,21 @@ function quoteString(value, attrQuote) {
   return JSON.stringify(value)
 }
 
+/** 将空的静态元数据统一输出为 UTS `null`，避免把空字符串误当成有效字段。 */
 function quoteNullableString(value, attrQuote) {
   return value != null && value.length > 0 ? quoteString(value, attrQuote) : 'null'
 }
 
+/** 为 Options API 新建 export default 时生成完整的桥接 methods 对象。 */
 function buildBridgeMethodsObject(indent = '  ') {
   return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}  },\n${indent}},\n`
 }
 
+/** 为已有 Options API methods 块生成待插入的方法条目。 */
 function buildBridgeMethodsEntries(indent = '    ') {
   return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}},`
 }
-
+/** 仅接受可在编译期确定的字面量绑定值；动态变量交由运行时事件快照读取。 */
 function normalizeStaticBoundValue(value) {
   const trimmed = value.trim()
   if (trimmed.length === 0) {
@@ -273,6 +309,7 @@ function normalizeStaticBoundValue(value) {
   return null
 }
 
+/** 从 Vue 模板 AST 读取普通静态属性；空属性不作为有效采集元数据。 */
 function readStaticAttribute(node, name) {
   const attribute = node.props.find((prop) => prop.type === 6 && prop.name === name)
   if (attribute == null || attribute.value == null) {
@@ -281,6 +318,7 @@ function readStaticAttribute(node, name) {
   return attribute.value.content.length > 0 ? attribute.value.content : null
 }
 
+/** 从 Vue 模板 AST 读取 `:name` / `v-bind:name` 的表达式文本。 */
 function readBoundAttribute(node, name) {
   const attribute = node.props.find(
     (prop) => prop.type === 7 && prop.name === 'bind' && prop.arg != null && prop.arg.isStatic && prop.arg.content === name,
@@ -288,6 +326,7 @@ function readBoundAttribute(node, name) {
   return attribute != null && attribute.exp != null ? attribute.exp.content : null
 }
 
+/** 判断属性是否存在，空字符串也算存在，用于避免重复注入 data-* 属性。 */
 function hasAttribute(node, name) {
   return node.props.some(
     (prop) =>
@@ -296,6 +335,10 @@ function hasAttribute(node, name) {
   )
 }
 
+/**
+ * 读取 data-* 元数据：静态值直接使用，绑定值只接受能在编译期归一化的字面量。
+ * 动态值不会被错误固化，运行时快照仍会从实际 target.dataset 读取。
+ */
 function readStaticDatasetAttribute(node, name) {
   const staticValue = readStaticAttribute(node, `data-${name}`)
   if (staticValue != null) {
@@ -305,6 +348,7 @@ function readStaticDatasetAttribute(node, name) {
   return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
 }
 
+/** 读取 href 的静态或字面量绑定值，供 uni-link 补充 data-src 使用。 */
 function readStaticHrefAttribute(node) {
   const staticValue = readStaticAttribute(node, 'href')
   if (staticValue != null) {
@@ -314,6 +358,7 @@ function readStaticHrefAttribute(node) {
   return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
 }
 
+/** 为没有 data-src 的 uni-link 生成等价属性，保留静态/绑定两种写法。 */
 function buildHrefDatasetAttribute(node) {
   const staticValue = readStaticAttribute(node, 'href')
   if (staticValue != null) {
@@ -326,14 +371,17 @@ function buildHrefDatasetAttribute(node) {
   return ''
 }
 
+/** 判断 uni-link 是否声明了 href（包含绑定形式）。 */
 function hasHrefAttribute(node) {
   return hasAttribute(node, 'href')
 }
 
+/** 判断业务是否已显式提供 data-src，显式值优先级高于 href 推导。 */
 function hasDataSrcAttribute(node) {
   return hasAttribute(node, 'data-src')
 }
 
+/** 汇总一个模板节点可静态得到的 id、dataset 与链接元数据。 */
 function readStaticTargetMetadata(node) {
   const datasetSrc = readStaticDatasetAttribute(node, 'src')
   return {
@@ -346,10 +394,12 @@ function readStaticTargetMetadata(node) {
   }
 }
 
+/** 将 input 等节点的静态 type 转成生成 UTS 代码所需的字面量。 */
 function buildChangeElementTypeArgument(elementType, attrQuote) {
   return elementType != null ? quoteString(elementType, attrQuote) : 'null'
 }
 
+/** 按 plugin.uts 的固定参数顺序构造静态 target 参数，防止调用点自行拼错位置。 */
 function buildStaticTargetArguments(metadata, attrQuote) {
   return [
     quoteNullableString(metadata.id, attrQuote),
@@ -361,6 +411,7 @@ function buildStaticTargetArguments(metadata, attrQuote) {
   ].join(', ')
 }
 
+/** 判断表达式是否只是方法引用，如 `onTap` 或 `actions.onTap`。 */
 function isMethodReference(expression) {
   try {
     const program = parseExpression(expression.trim(), {
@@ -373,6 +424,7 @@ function isMethodReference(expression) {
   }
 }
 
+/** 判断表达式是否为内联回调；这类表达式需要显式传入事件才能保持原语义。 */
 function isCallbackExpression(expression) {
   try {
     const program = parseExpression(expression.trim(), {
@@ -389,6 +441,10 @@ function isCallbackExpression(expression) {
   }
 }
 
+/**
+ * 为 Options API 事件表达式拼接采集调用。
+ * 普通方法引用必须补 `()`；内联回调必须立即以 `$event` 调用，不能只返回函数对象。
+ */
 function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null, metadata) {
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
@@ -399,6 +455,7 @@ function buildWrappedExpression(kind, expression, eventName, attrQuote, elementT
     : `$event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
   const trackCall = `${bridge}(${args})`
   if (isMethodReference(source)) {
+    // 模板原本会自动调用方法引用，改写后需在表达式中显式保持这一语义。
     return `${trackCall}; ${source}()`
   }
   if (isCallbackExpression(source)) {
@@ -407,6 +464,10 @@ function buildWrappedExpression(kind, expression, eventName, attrQuote, elementT
   return `${trackCall}; ${source}`
 }
 
+/**
+ * 将 script setup 生成函数中的 `$event` 改为显式参数 `event`。
+ * AST 改写只替换标识符，不会误伤字符串 `'$event'` 或对象属性名。
+ */
 function replaceSetupEventReference(expression) {
   const source = expression.trim()
   let program = null
@@ -423,12 +484,14 @@ function replaceSetupEventReference(expression) {
   return transformed.toString()
 }
 
+/** 遍历 Babel AST 并按节点位置回写 `$event`；MagicString 保持其他源码字符不变。 */
 function replaceEventIdentifier(node, parent, key, transformed) {
   if (node == null || typeof node !== 'object') {
     return
   }
   if (node.type === 'Identifier' && node.name === '$event' && isEventReference(parent, key)) {
     if (parent != null && parent.type === 'ObjectProperty' && parent.shorthand === true && key === 'value') {
+      // `{ $event }` 不能改成 `{ event }`，否则对象 key 也变了；应展开为 `{ $event: event }`。
       transformed.overwrite(node.start, node.end, '$event: event')
       return
     }
@@ -449,6 +512,7 @@ function replaceEventIdentifier(node, parent, key, transformed) {
   }
 }
 
+/** 判断当前 `$event` 是否是可替换的值引用，而不是成员属性名或对象 key。 */
 function isEventReference(parent, key) {
   if (parent == null) {
     return true
@@ -462,6 +526,7 @@ function isEventReference(parent, key) {
   return true
 }
 
+/** 生成 script setup 统一分发器中的一个 action 分支：先采集，再执行原业务表达式。 */
 function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementType, metadata, action) {
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
@@ -470,6 +535,7 @@ function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementT
   const args = kind === 'change'
     ? `event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}`
     : `event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
+  // 统一分发器位于用户脚本末尾，确保 UTS 无函数提升时业务函数已经声明。
   const originalExpression = isMethodReference(source)
     ? `${source}()`
     : isCallbackExpression(source)
@@ -478,24 +544,32 @@ function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementT
   return `  if (action == ${action}) {\n    ${bridge}(${args})\n    ${originalExpression}\n    return\n  }\n`
 }
 
+/** 为没有显式 click 的 uni-link 生成仅采集、不执行业务回调的分发分支。 */
 function buildSetupTrackOnlyDispatchCase(eventName, attrQuote, metadata, action) {
   return `  if (action == ${action}) {\n    _gioHandleAutoClick(event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})\n    return\n  }\n`
 }
 
+/** 将所有 setup action 分支收敛为一个显式类型的 UTS 函数。 */
 function buildSetupDispatcher(cases) {
   return `\nfunction _gioAutoTrackDispatch(event : any | null, action : number) : void {\n${cases.join('')}}\n`
 }
 
+/** 为 Options API 的自动 uni-link click 生成内联采集表达式。 */
 function buildStaticClickExpression(eventName, attrQuote, metadata) {
   return `gioHandleAutoClick($event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})`
 }
 
+/** 筛选具有静态事件名和表达式的 v-on 指令；动态事件名无法在编译期可靠分类。 */
 function getEventBindings(node) {
   return node.props.filter(
     (prop) => prop.type === 7 && prop.name === 'on' && prop.arg != null && prop.arg.isStatic && prop.exp != null,
   )
 }
 
+/**
+ * 找到元素开标签的属性插入点。
+ * Vue AST 提供元素起点但不提供开标签结尾位置，因此扫描时要跳过属性值中的 `>`。
+ */
 function findElementInsertionOffset(content, element) {
   let quote = null
   let escaped = false
@@ -517,12 +591,14 @@ function findElementInsertionOffset(content, element) {
       continue
     }
     if (current === '>') {
+      // 自闭合标签必须在 `/` 前插入属性，保持 `<input ... />` 的合法结构。
       return content[index - 1] === '/' ? index - 1 : index
     }
   }
   return -1
 }
 
+/** 深度遍历模板元素与 if 分支；文本、注释节点不参与事件改写。 */
 function visitTemplateNodes(node, visit) {
   if (node == null || typeof node !== 'object') {
     return
@@ -542,6 +618,7 @@ function visitTemplateNodes(node, visit) {
   }
 }
 
+/** 保持原事件属性的引号风格，降低生成代码和业务源码的视觉差异。 */
 function getAttributeQuote(attribute) {
   const source = attribute.loc.source
   const doubleQuote = source.indexOf('"')
@@ -549,6 +626,10 @@ function getAttributeQuote(attribute) {
   return doubleQuote >= 0 && (singleQuote < 0 || doubleQuote < singleQuote) ? '"' : "'"
 }
 
+/**
+ * 基于模板 AST 收集所有改写，不立即修改整个 SFC。
+ * 返回的坐标始终相对于原 SFC，最后由 applyReplacements 从后向前统一应用。
+ */
 function collectTemplateReplacements(code, options = { skipEventBindings: false, useSetupDispatcher: false }) {
   const template = findBlock(code, 'template')
   if (template == null || options.skipEventBindings) {
@@ -557,6 +638,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
       needsBridge: false,
     }
   }
+  // 模板 AST 的 loc.offset 相对 template 内容，因此 MagicString 也只操作这一段内容。
   const content = code.slice(template.contentStart, template.contentEnd)
   const templateAst = parseTemplate(content, { comments: true })
   const transformed = new MagicString(content)
@@ -566,6 +648,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
   let changed = false
   let needsBridge = false
 
+  /** 延迟收集一个开标签属性，避免多次字符串拼接造成属性顺序和坐标错乱。 */
   function addAttribute(element, value) {
     if (value.length === 0) {
       return
@@ -574,17 +657,20 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
     if (offset < 0) {
       return
     }
+    // 同一元素可能同时补 href、click 和去重标记，先聚合再一次插入。
     const values = attributeInsertions.get(offset) ?? []
     values.push(value)
     attributeInsertions.set(offset, values)
   }
 
+  /** 为已插桩节点添加 Web 全局监听去重标记；同一开标签只写入一次。 */
   function markGeneratedBinding(element) {
     const offset = findElementInsertionOffset(content, element)
     if (offset < 0 || generatedBindingOffsets.has(offset)) {
       return
     }
     if (hasAttribute(element, 'data-gio-auto-track-bound')) {
+      // 该标记是 Web document 监听去重协议，业务占用时直接失败，不能静默导致双发。
       throw new Error('gio autotrack reserves data-gio-auto-track-bound for generated event bindings')
     }
     generatedBindingOffsets.add(offset)
@@ -601,6 +687,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
       if (!hasClickBinding) {
         if (options.useSetupDispatcher) {
           const action = setupDispatcherCases.length
+          // action 直接写入模板调用参数，不再从跨端事件对象反查 dataset/type。
           setupDispatcherCases.push(buildSetupTrackOnlyDispatchCase('openURL', '"', readStaticTargetMetadata(element), action))
           addAttribute(element, `@click="_gioAutoTrackDispatch($event, ${action})"`)
           markGeneratedBinding(element)
@@ -623,6 +710,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
         expression.includes('gioHandleAutoClick') ||
         expression.includes('gioHandleAutoChange')
       ) {
+        // 已经是桥接调用的表达式视为幂等，避免 Vite 重复转换时再次套一层。
         continue
       }
       const attributeQuote = getAttributeQuote(binding)
@@ -631,6 +719,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
       if (options.useSetupDispatcher) {
         const action = setupDispatcherCases.length
         setupDispatcherCases.push(buildSetupDispatchCase(kind, expression, eventName, attributeQuote, elementType, metadata, action))
+        // 模板只负责传递原始事件和稳定 action；所有业务表达式都留在脚本中的统一函数执行。
         transformed.overwrite(
           binding.exp.loc.start.offset,
           binding.exp.loc.end.offset,
@@ -652,6 +741,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
   })
 
   for (const [offset, values] of attributeInsertions) {
+    // appendLeft 保留开标签中原有属性的相对顺序，避免破坏 Vue AST 已解析的表达式。
     transformed.appendLeft(offset, ` ${values.join(' ')}`)
     changed = true
   }
@@ -666,6 +756,10 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
   }
 }
 
+/**
+ * 生成从 plugin.uts 导入私有桥接函数的替换片段。
+ * 任何部分占用私有别名都报错，防止生成代码与业务导入发生难以定位的重名。
+ */
 function buildImportReplacement(code) {
   const reservedAliases = ['_gioHandleAutoClick', '_gioHandleAutoChange']
   const presentAliasCount = reservedAliases.filter((alias) => code.includes(alias)).length
@@ -675,8 +769,9 @@ function buildImportReplacement(code) {
   if (presentAliasCount > 0) {
     throw new Error(`gio autotrack reserves generated imports: ${reservedAliases.join(', ')}`)
   }
-  const hasScript = /<script\b[^>]*>/i.test(code)
-  if (!hasScript) {
+  const script = findScriptBlock(code)
+  if (script == null) {
+    // 没有 script 时同时创建最小 Options API 脚本，保证模板桥接有可调用的 methods。
     const offset = findScriptInsertionOffset(code)
     return {
       start: offset,
@@ -684,8 +779,7 @@ function buildImportReplacement(code) {
       value: `\n<script lang="uts">\n${IMPORT_CODE}\nexport default {\n${buildBridgeMethodsObject('  ')}}\n</script>\n`,
     }
   }
-  const offset = findScriptInsertionOffset(code)
-  const script = findScriptBlock(code)
+  const offset = findScriptInsertionOffset(code, script)
   if (isSetupScript(script)) {
     return {
       start: offset,
@@ -700,6 +794,7 @@ function buildImportReplacement(code) {
   }
 }
 
+/** 将统一分发函数追加到 script setup 末尾，保证它在用户 handler 声明之后。 */
 function buildSetupDispatcherReplacement(code, cases) {
   if (cases.length === 0) {
     return null
@@ -719,6 +814,10 @@ function buildSetupDispatcherReplacement(code, cases) {
   }
 }
 
+/**
+ * 为 Options API 暴露桥接 methods。
+ * 已有 methods 时只插入条目；没有 export default 时补最小对象，避免覆盖业务对象。
+ */
 function buildOptionsBridgeExposureReplacement(code) {
   const script = findScriptBlock(code)
   if (script == null || isSetupScript(script)) {
@@ -741,6 +840,7 @@ function buildOptionsBridgeExposureReplacement(code) {
   if (objectStart < 0 || objectStart >= script.contentEnd) {
     return null
   }
+  // export default 对象可能含字符串和注释，使用状态机匹配而不是简单 lastIndexOf('}')。
   const objectEnd = findMatchingBrace(code, objectStart, script.contentEnd)
   if (objectEnd < 0) {
     return null
@@ -762,6 +862,10 @@ function buildOptionsBridgeExposureReplacement(code) {
   }
 }
 
+/**
+ * 从后向前应用替换，避免前面的插入改变后续原始坐标。
+ * 同一坐标处优先应用 priority 更高的片段，确保 import 位于 dispatcher 之前。
+ */
 function applyReplacements(code, replacements) {
   const ordered = replacements.slice().sort((a, b) => b.start - a.start || (b.priority ?? 0) - (a.priority ?? 0))
   let result = code
@@ -771,6 +875,7 @@ function applyReplacements(code, replacements) {
   return result
 }
 
+/** 创建 Vite pre 插件；pre 阶段保证 uni 编译器看到的是已经注入桥接的模板。 */
 export function gioUniappxAutoTrack() {
   return {
     name: 'gio-uniappx-autotracker:auto-track',
@@ -779,6 +884,7 @@ export function gioUniappxAutoTrack() {
       if (!isTargetFile(id)) {
         return null
       }
+      // setup 页面使用统一分发器；Options API 保留 methods 桥接，避免改变其 this 语义。
       const script = findScriptBlock(code)
       const transformResult = collectTemplateReplacements(code, {
         skipEventBindings: isUniLinkComponentFile(id),
@@ -793,6 +899,7 @@ export function gioUniappxAutoTrack() {
         if (importReplacement != null) {
           replacements.push(importReplacement)
         }
+        // 模板、import、script 尾部函数是三个独立替换，统一在原始坐标系中收集。
         const setupDispatcherReplacement = buildSetupDispatcherReplacement(code, transformResult.setupDispatcherCases ?? [])
         if (setupDispatcherReplacement != null) {
           replacements.push(setupDispatcherReplacement)
