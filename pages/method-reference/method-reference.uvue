@@ -1,0 +1,148 @@
+<template>
+	<scroll-view class="page">
+		<view class="intro">
+			<text class="title">方法引用事件参数验证</text>
+			<text class="description">Android 原生编译对函数参数个数要求严格。下面三组用例用于验证 AST 插桩既不会吞掉 $event，也不会给零参数方法强塞参数。</text>
+		</view>
+
+		<view class="case-card">
+			<text class="case-title">一参数方法引用</text>
+			<text class="code-text">@click="onEventMethod"</text>
+			<button
+				id="method_ref_event"
+				class="primary-button"
+				:data-index="1"
+				data-title="一参数方法引用"
+				data-src="/pages/method-reference/method-reference?case=event"
+				@click="onEventMethod"
+			>点击验证 $event</button>
+			<text id="method_ref_event_result" class="result-text">{{ eventResult }}</text>
+		</view>
+
+		<view class="case-card">
+			<text class="case-title">零参数方法引用</text>
+			<text class="code-text">@click="onZeroArgumentMethod"</text>
+			<button
+				id="method_ref_zero"
+				class="secondary-button"
+				:data-index="2"
+				data-title="零参数方法引用"
+				data-src="/pages/method-reference/method-reference?case=zero"
+				@click="onZeroArgumentMethod"
+			>点击验证零参数</button>
+			<text id="method_ref_zero_result" class="result-text">{{ zeroArgumentResult }}</text>
+		</view>
+
+		<view class="case-card">
+			<text class="case-title">对象成员方法引用</text>
+			<text class="code-text">@click="actions.onMemberEvent"</text>
+			<button
+				id="method_ref_member"
+				class="primary-button"
+				:data-index="3"
+				data-title="对象成员方法引用"
+				data-src="/pages/method-reference/method-reference?case=member"
+				@click="actions.onMemberEvent"
+			>点击验证成员 $event</button>
+			<text id="method_ref_member_result" class="result-text">{{ memberResult }}</text>
+		</view>
+	</scroll-view>
+</template>
+
+<script setup lang="uts">
+import { ref } from 'vue'
+
+type MethodActions = {
+	onMemberEvent: (event : any | null) => void
+}
+
+const eventResult = ref('等待点击')
+const zeroArgumentResult = ref('等待点击')
+const memberResult = ref('等待点击')
+
+function onEventMethod(event : any | null) {
+	eventResult.value = event != null ? '$event received' : '$event missing'
+}
+
+function onZeroArgumentMethod() {
+	zeroArgumentResult.value = 'zero argument called'
+}
+
+const actions : MethodActions = {
+	onMemberEvent: (event : any | null) : void => {
+		memberResult.value = event != null ? 'member $event received' : 'member $event missing'
+	},
+}
+</script>
+
+<style>
+.page {
+	flex: 1;
+	padding: 20px;
+}
+
+.intro {
+	padding: 20px;
+	background-color: #eef5ff;
+	border-radius: 12px;
+}
+
+.title {
+	font-size: 24px;
+	font-weight: 700;
+	color: #17233d;
+}
+
+.description {
+	margin-top: 10px;
+	font-size: 14px;
+	line-height: 22px;
+	color: #52627a;
+}
+
+.case-card {
+	margin-top: 16px;
+	padding: 18px;
+	background-color: #ffffff;
+	border-width: 1px;
+	border-style: solid;
+	border-color: #dfe6ef;
+	border-radius: 12px;
+}
+
+.case-title {
+	font-size: 18px;
+	font-weight: 600;
+	color: #17233d;
+}
+
+.code-text {
+	margin-top: 8px;
+	font-size: 13px;
+	color: #6b778c;
+}
+
+.primary-button {
+	margin-top: 16px;
+	background-color: #1677ff;
+	color: #ffffff;
+	font-size: 16px;
+}
+
+.secondary-button {
+	margin-top: 16px;
+	background-color: #ffffff;
+	border-width: 1px;
+	border-style: solid;
+	border-color: #1677ff;
+	color: #1677ff;
+	font-size: 16px;
+}
+
+.result-text {
+	margin-top: 12px;
+	font-size: 15px;
+	font-weight: 600;
+	color: #00875a;
+}
+</style>

@@ -141,6 +141,15 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 }
 
 {
+  const code = fs.readFileSync('pages/method-reference/method-reference.uvue', 'utf8')
+  const output = transformForPlatform(code, 'app-android', '/src/pages/method-reference/method-reference.uvue')
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, \d+\); onEventMethod\(\$event\)"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, \d+\); onZeroArgumentMethod\(\)"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, \d+\); actions\.onMemberEvent\(\$event\)"/)
+  assertSetupDispatcher(output)
+}
+
+{
   const code = `<template><uni-link id="doc_link" href="https://doc.dcloud.net.cn" data-title="文档">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
   assert.match(output, /data-src="https:\/\/doc\.dcloud\.net\.cn"/)

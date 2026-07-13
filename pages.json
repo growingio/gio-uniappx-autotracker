@@ -61,6 +61,12 @@
 			}
 		},
 		{
+			"path": "pages/method-reference/method-reference",
+			"style": {
+				"navigationBarTitleText": "方法引用事件参数"
+			}
+		},
+		{
 			"path": "uni_modules/uni-link-x/pages/link-webview",
 			"style": {
 				"navigationBarTitleText": "链接预览"
