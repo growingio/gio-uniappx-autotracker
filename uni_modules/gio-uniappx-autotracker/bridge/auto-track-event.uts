@@ -1,4 +1,4 @@
-import { readDynamicField } from './bridge-utils.uts'
+import { readDynamicField } from './utils.uts'
 
 function readStringValue(value : any | null) : string | null {
   if (value == null || typeof value != 'string') {

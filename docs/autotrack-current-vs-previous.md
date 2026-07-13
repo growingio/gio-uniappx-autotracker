@@ -17,7 +17,7 @@
   → Vite 编译期模板 AST 改写
   → script setup: _gioAutoTrackDispatch($event, action)
   → plugin.uts: gioHandleAutoClick / gioHandleAutoChange
-  → auto-track-bridge.uts: 构建稳定事件快照
+  → bridge/auto-track-event.uts: 构建稳定事件快照
   → GioEventAutoTrackingPlugin: 去重、忽略、脱敏、element 构建
   → VIEW_CLICK / VIEW_CHANGE
   → 执行原业务表达式
@@ -123,7 +123,7 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 
 ## 5. 事件快照与统一插件处理
 
-`plugin.uts` 将模板或 Web DOM 事件转成稳定快照；`auto-track-bridge.uts` 统一收集：
+`plugin.uts` 将模板或 Web DOM 事件转成稳定快照；`bridge/auto-track-event.uts` 统一收集：
 
 - action：`CLICK` 或 `CHANGE`
 - eventName
@@ -167,5 +167,6 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 
 - `uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs`
 - `uni_modules/gio-uniappx-autotracker/plugin.uts`
-- `uni_modules/gio-uniappx-autotracker/auto-track-bridge.uts`
+- `uni_modules/gio-uniappx-autotracker/bridge/auto-track-event.uts`
+- `uni_modules/gio-uniappx-autotracker/bridge/utils.uts`
 - `uni_modules/gio-uniappx-autotracker/utssdk/common/plugins/gio-event-autotracking.uts`

@@ -2,8 +2,9 @@
 // 这里只负责挂载 mixin、提取页面快照和启动参数快照，再把稳定对象转发给 utssdk；
 // 初始化、session、事件构建和上报都由 utssdk 内部处理。
 
-import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './auto-track-bridge.uts'
-import { copyJSONObject, readDynamicField } from './bridge-utils.uts'
+// bridge/ 保持在 JS 编译层：它将宿主事件对象裁剪为可安全传入 utssdk 的快照。
+import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './bridge/auto-track-event.uts'
+import { copyJSONObject, readDynamicField } from './bridge/utils.uts'
 
 // #ifdef MP-WEIXIN
 import {
