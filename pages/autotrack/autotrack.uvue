@@ -493,7 +493,32 @@
 			<text class="sectionTitle">tabBar</text>
 			<text class="hint">Web、微信小程序、HarmonyOS VDOM 点击底部 tabBar 的“无埋点”页签时，应通过 onTabItemTap 上报 VIEW_CLICK，xpath 为 #onTabItemTap；Android、iOS、HarmonyOS Vapor 不挂载该 hook。</text>
 		</view>
-
+		<view class="section">
+			<text class="sectionTitle">组件测试页面</text>
+			<text class="hint">这些页面用于验证复杂组件里的无埋点采集场景。</text>
+			<view class="caseRow">
+				<button
+					id="auto_go_list_view"
+					class="caseBtn"
+					:data-index="80"
+					data-title="进入 list-view 测试页"
+					data-src="/pages/list-view/list-view"
+					@click="goListView"
+				>list-view 长列表</button>
+				<text class="codeLine">验证 list-view / list-item、长列表点击、下拉刷新和触底追加。</text>
+			</view>
+			<view class="caseRow">
+				<button
+					id="auto_go_image"
+					class="caseBtnGreen"
+					:data-index="81"
+					data-title="进入 image 测试页"
+					data-src="/pages/image/image"
+					@click="goImage"
+				>image 图片组件</button>
+				<text class="codeLine">验证 image 的 mode、lazy-load、load/error 和图片点击采集。</text>
+			</view>
+		</view>
 		<view class="result">
 			<text class="label">最新页面动作：</text>
 			<text class="value">{{ lastAction }}</text>
@@ -690,6 +715,18 @@ function onChangeInvalidIndex() {
 function onIgnoredChange() {
 	ignoredChecked.value = !ignoredChecked.value
 	note('ignored change handler executed: ' + (ignoredChecked.value ? 'true' : 'false'))
+}
+
+function goListView() {
+	uni.navigateTo({
+		url: '/pages/list-view/list-view',
+	})
+}
+
+function goImage() {
+	uni.navigateTo({
+		url: '/pages/image/image',
+	})
 }
 </script>
 
