@@ -14,6 +14,20 @@ function transformOptional(code, id = '/src/pages/index/index.uvue') {
   return plugin.transform(code, id)
 }
 
+function transformForPlatform(code, platform, id = '/src/pages/index/index.uvue') {
+  const previousPlatform = process.env.UNI_PLATFORM ?? null
+  process.env.UNI_PLATFORM = platform
+  try {
+    return transform(code, id)
+  } finally {
+    if (previousPlatform == null) {
+      delete process.env.UNI_PLATFORM
+    } else {
+      process.env.UNI_PLATFORM = previousPlatform
+    }
+  }
+}
+
 function assertSetupDispatcher(output) {
   assert.match(output, /function _gioAutoTrackDispatch\(event : any \| null, action : number, condition : boolean \| null = null, alternateAction : number \| null = null\) : boolean/)
   assert.equal(output.match(/function _gioAutoTrackDispatch/g)?.length, 1)
@@ -26,10 +40,10 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 }
 
 {
-  const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts"></script>'
+  const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts">function onSimpleTrack(event : any | null) : void {}</script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick as _gioHandleAutoClick/)
-  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\); onSimpleTrack\(\)"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\); onSimpleTrack\(\$event\)"/)
   assert.match(output, /data-gio-auto-track-bound="true"/)
   assert.doesNotMatch(output, /data-gio-auto-track-action=/)
   assert.doesNotMatch(output, /function gioHandleAutoClick\(/)
@@ -37,6 +51,30 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   assert.doesNotMatch(output, /\(\$event\)\s*=>/)
   assertSetupDispatcher(output)
   assert.ok(output.indexOf('gioHandleAutoClick as _gioHandleAutoClick') < output.indexOf('function _gioAutoTrackDispatch'))
+}
+
+{
+  const code = '<template><view @click="onSimpleTrack"></view></template><script lang="uts">export default { methods: { onSimpleTrack(event : any | null) {} } }</script>'
+  const output = transform(code)
+  assert.match(output, /gioHandleAutoClick\(\$event, 'onSimpleTrack', null, null, null, null, null, null\); onSimpleTrack\(\$event\)/)
+}
+
+{
+  const code = '<template><view @click="actions.onSimpleTrack"></view></template><script setup lang="uts">const actions = { onSimpleTrack(event : any | null) : void {} }</script>'
+  const output = transform(code)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\); actions\.onSimpleTrack\(\$event\)"/)
+}
+
+{
+  const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts">function onSimpleTrack() : void {}</script>'
+  const output = transform(code)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\); onSimpleTrack\(\)"/)
+}
+
+{
+  const code = '<template><view @click="importedHandler"></view></template><script setup lang="uts">import { importedHandler } from \'./handlers.uts\'</script>'
+  const output = transformForPlatform(code, 'h5')
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\); importedHandler\(\$event\)"/)
 }
 
 {

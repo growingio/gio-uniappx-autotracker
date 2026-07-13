@@ -104,6 +104,160 @@ function isSetupScript(script) {
   return script != null && /\bsetup\b/i.test(script.openTag)
 }
 
+/** 去掉 TypeScript/UTS 的类型断言包装，读取真正的函数或对象表达式。 */
+function unwrapScriptExpression(node) {
+  let current = node
+  while (
+    current != null &&
+    (current.type === 'TSAsExpression' ||
+      current.type === 'TSTypeAssertion' ||
+      current.type === 'TSNonNullExpression' ||
+      current.type === 'ParenthesizedExpression')
+  ) {
+    current = current.expression
+  }
+  return current
+}
+
+/** 读取对象属性的静态名称；计算属性无法在编译期与模板方法引用可靠对应。 */
+function readStaticPropertyName(node) {
+  if (node == null || node.computed === true) {
+    return null
+  }
+  if (node.key.type === 'Identifier' || node.key.type === 'StringLiteral') {
+    return node.key.name ?? node.key.value
+  }
+  return null
+}
+
+/** 判断 AST 节点是否为具有明确参数个数的函数声明或表达式。 */
+function readFunctionParameterCount(node) {
+  const target = unwrapScriptExpression(node)
+  if (
+    target == null ||
+    (target.type !== 'FunctionDeclaration' &&
+      target.type !== 'FunctionExpression' &&
+      target.type !== 'ArrowFunctionExpression' &&
+      target.type !== 'ObjectMethod')
+  ) {
+    return null
+  }
+  return target.params.length
+}
+
+/** 收集 setup 顶层对象中的方法签名，例如 `actions.onClick`。 */
+function collectObjectMethodParameterCounts(result, objectNode, prefix) {
+  const target = unwrapScriptExpression(objectNode)
+  if (target == null || target.type !== 'ObjectExpression') {
+    return
+  }
+  for (const property of target.properties) {
+    if (property.type !== 'ObjectProperty' && property.type !== 'ObjectMethod') {
+      continue
+    }
+    const propertyName = readStaticPropertyName(property)
+    if (propertyName == null) {
+      continue
+    }
+    const path = `${prefix}.${propertyName}`
+    const parameterCount = readFunctionParameterCount(property.type === 'ObjectMethod' ? property : property.value)
+    if (parameterCount != null) {
+      result.set(path, parameterCount)
+      continue
+    }
+    if (property.type === 'ObjectProperty') {
+      collectObjectMethodParameterCounts(result, property.value, path)
+    }
+  }
+}
+
+/** 收集 script setup 暴露给模板的顶层函数签名。 */
+function collectSetupHandlerParameterCounts(result, programBody) {
+  for (const rawStatement of programBody) {
+    const statement = rawStatement.type === 'ExportNamedDeclaration' && rawStatement.declaration != null
+      ? rawStatement.declaration
+      : rawStatement
+    if (statement.type === 'FunctionDeclaration' && statement.id != null) {
+      result.set(statement.id.name, statement.params.length)
+      continue
+    }
+    if (statement.type !== 'VariableDeclaration') {
+      continue
+    }
+    for (const declaration of statement.declarations) {
+      if (declaration.id.type !== 'Identifier' || declaration.init == null) {
+        continue
+      }
+      const parameterCount = readFunctionParameterCount(declaration.init)
+      if (parameterCount != null) {
+        result.set(declaration.id.name, parameterCount)
+      } else {
+        collectObjectMethodParameterCounts(result, declaration.init, declaration.id.name)
+      }
+    }
+  }
+}
+
+/** 读取 Options API `methods` 对象中的方法签名。 */
+function collectOptionsHandlerParameterCounts(result, programBody) {
+  const exportStatement = programBody.find((statement) => statement.type === 'ExportDefaultDeclaration')
+  if (exportStatement == null) {
+    return
+  }
+  let options = unwrapScriptExpression(exportStatement.declaration)
+  if (options != null && options.type === 'CallExpression' && options.arguments.length > 0) {
+    options = unwrapScriptExpression(options.arguments[0])
+  }
+  if (options == null || options.type !== 'ObjectExpression') {
+    return
+  }
+  const methodsProperty = options.properties.find(
+    (property) =>
+      property.type === 'ObjectProperty' &&
+      readStaticPropertyName(property) === 'methods' &&
+      unwrapScriptExpression(property.value)?.type === 'ObjectExpression',
+  )
+  if (methodsProperty == null || methodsProperty.type !== 'ObjectProperty') {
+    return
+  }
+  const methods = unwrapScriptExpression(methodsProperty.value)
+  for (const property of methods.properties) {
+    if (property.type !== 'ObjectProperty' && property.type !== 'ObjectMethod') {
+      continue
+    }
+    const methodName = readStaticPropertyName(property)
+    const parameterCount = readFunctionParameterCount(property.type === 'ObjectMethod' ? property : property.value)
+    if (methodName != null && parameterCount != null) {
+      result.set(methodName, parameterCount)
+    }
+  }
+}
+
+/**
+ * 从当前 SFC 脚本收集模板可直接引用的方法参数个数。
+ * 解析失败时保持空映射，由平台回退规则决定外部/动态引用是否接收 `$event`。
+ */
+function readHandlerParameterCounts(code, script) {
+  const result = new Map()
+  if (script == null) {
+    return result
+  }
+  try {
+    const program = parseExpression(code.slice(script.contentStart, script.contentEnd), {
+      sourceType: 'module',
+      plugins: ['typescript'],
+    })
+    if (isSetupScript(script)) {
+      collectSetupHandlerParameterCounts(result, program.program.body)
+    } else {
+      collectOptionsHandlerParameterCounts(result, program.program.body)
+    }
+  } catch (_) {
+    return result
+  }
+  return result
+}
+
 /**
  * 在普通 Options API 脚本中寻找对象字面量的闭合花括号。
  * 需要跳过字符串、模板字符串及单双行注释，避免业务代码里的 `}` 干扰 methods 注入位置。
@@ -411,17 +565,35 @@ function buildStaticTargetArguments(metadata, attrQuote) {
   ].join(', ')
 }
 
-/** 判断表达式是否只是方法引用，如 `onTap` 或 `actions.onTap`。 */
-function isMethodReference(expression) {
+/** 读取纯方法引用路径，如 `onTap` 或 `actions.onTap`；其他表达式返回 null。 */
+function readMethodReferencePath(expression) {
   try {
     const program = parseExpression(expression.trim(), {
       sourceType: 'script',
       plugins: ['typescript'],
     })
-    return program.program.body.length === 1 && program.program.body[0].type === 'ExpressionStatement' && readMemberPath(program.program.body[0].expression) != null
+    if (program.program.body.length !== 1 || program.program.body[0].type !== 'ExpressionStatement') {
+      return null
+    }
+    return readMemberPath(program.program.body[0].expression)
   } catch (_) {
-    return false
+    return null
   }
+}
+
+/**
+ * Vue 只会对未改写的纯方法引用自动透传事件；插桩后必须显式补回调用。
+ * UTS 又要求参数个数严格匹配，因此本地签名优先，无法解析时仅 Web 按 JS 语义透传事件。
+ */
+function buildMethodReferenceCall(source, handlerParameterCounts, unresolvedMethodReferencesReceiveEvent) {
+  const handlerPath = readMethodReferencePath(source)
+  if (handlerPath == null) {
+    return null
+  }
+  const receivesEvent = handlerParameterCounts.has(handlerPath)
+    ? handlerParameterCounts.get(handlerPath) > 0
+    : unresolvedMethodReferencesReceiveEvent
+  return receivesEvent ? `${source}($event)` : `${source}()`
 }
 
 /** 判断表达式是否为内联回调；这类表达式需要显式传入事件才能保持原语义。 */
@@ -471,9 +643,9 @@ function readTopLevelConditionalParts(expression) {
 
 /**
  * 为 Options API 事件表达式拼接采集调用。
- * 普通方法引用必须补 `()`；内联回调必须立即以 `$event` 调用，不能只返回函数对象。
+ * 普通方法引用按已声明参数精确补回调用；内联回调必须立即以 `$event` 调用，不能只返回函数对象。
  */
-function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null, metadata) {
+function buildWrappedExpression(kind, expression, eventName, attrQuote, elementType = null, metadata, options) {
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
   const bridge = kind === 'change' ? 'gioHandleAutoChange' : 'gioHandleAutoClick'
@@ -482,9 +654,13 @@ function buildWrappedExpression(kind, expression, eventName, attrQuote, elementT
     ? `$event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}`
     : `$event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
   const trackCall = `${bridge}(${args})`
-  if (isMethodReference(source)) {
-    // 模板原本会自动调用方法引用，改写后需在表达式中显式保持这一语义。
-    return `${trackCall}; ${source}()`
+  const methodReferenceCall = buildMethodReferenceCall(
+    source,
+    options.handlerParameterCounts,
+    options.unresolvedMethodReferencesReceiveEvent,
+  )
+  if (methodReferenceCall != null) {
+    return `${trackCall}; ${methodReferenceCall}`
   }
   if (isCallbackExpression(source)) {
     return `${trackCall}; (${source})($event)`
@@ -508,11 +684,16 @@ function buildConditionalWrappedExpression(kind, parts, eventName, attrQuote, el
  * 为 script setup 事件表达式前置统一采集调用。
  * 原业务表达式必须留在模板上下文，让 Vue 编译器继续负责 Ref 自动解包等模板语义。
  */
-function buildSetupWrappedExpression(expression, action) {
+function buildSetupWrappedExpression(expression, action, options) {
   const source = expression.trim()
   const trackCall = `_gioAutoTrackDispatch($event, ${action})`
-  if (isMethodReference(source)) {
-    return `${trackCall}; ${source}()`
+  const methodReferenceCall = buildMethodReferenceCall(
+    source,
+    options.handlerParameterCounts,
+    options.unresolvedMethodReferencesReceiveEvent,
+  )
+  if (methodReferenceCall != null) {
+    return `${trackCall}; ${methodReferenceCall}`
   }
   if (isCallbackExpression(source)) {
     return `${trackCall}; (${source})($event)`
@@ -626,7 +807,12 @@ function getAttributeQuote(attribute) {
  * 基于模板 AST 收集所有改写，不立即修改整个 SFC。
  * 返回的坐标始终相对于原 SFC，最后由 applyReplacements 从后向前统一应用。
  */
-function collectTemplateReplacements(code, options = { skipEventBindings: false, useSetupDispatcher: false }) {
+function collectTemplateReplacements(code, options = {
+  skipEventBindings: false,
+  useSetupDispatcher: false,
+  handlerParameterCounts: new Map(),
+  unresolvedMethodReferencesReceiveEvent: false,
+}) {
   const template = findBlock(code, 'template')
   if (template == null || options.skipEventBindings) {
     return {
@@ -731,7 +917,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
           transformed.overwrite(
             binding.exp.loc.start.offset,
             binding.exp.loc.end.offset,
-            buildSetupWrappedExpression(expression, action),
+            buildSetupWrappedExpression(expression, action, options),
           )
         }
         markGeneratedBinding(element)
@@ -742,7 +928,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
           binding.exp.loc.end.offset,
           conditionalParts != null
             ? buildConditionalWrappedExpression(kind, conditionalParts, eventName, attributeQuote, elementType, metadata)
-            : buildWrappedExpression(kind, expression, eventName, attributeQuote, elementType, metadata),
+            : buildWrappedExpression(kind, expression, eventName, attributeQuote, elementType, metadata, options),
         )
         markGeneratedBinding(element)
       }
@@ -898,9 +1084,13 @@ export function gioUniappxAutoTrack() {
       }
       // setup 页面使用统一分发器；Options API 保留 methods 桥接，避免改变其 this 语义。
       const script = findScriptBlock(code)
+      const platform = `${process.env.UNI_PLATFORM ?? ''}`.toLowerCase()
       const transformResult = collectTemplateReplacements(code, {
         skipEventBindings: isUniLinkComponentFile(id),
         useSetupDispatcher: isSetupScript(script),
+        handlerParameterCounts: readHandlerParameterCounts(code, script),
+        // Web/JS 允许额外实参，无法解析的导入或动态成员仍应保持 Vue 的原始事件透传语义。
+        unresolvedMethodReferencesReceiveEvent: platform === 'web' || platform === 'h5',
       })
       const replacements = transformResult.replacements
       if (replacements.length === 0) {

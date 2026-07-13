@@ -548,8 +548,8 @@ function note(message : string) {
 	lastAction.value = message
 }
 
-function onMethodClick() {
-	note('method click')
+function onMethodClick(event : any | null) {
+	note(event != null ? 'method click event received' : 'method click event missing')
 }
 
 function onTapClick() {
