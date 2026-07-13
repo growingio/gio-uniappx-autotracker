@@ -25,14 +25,9 @@ export function readDynamicField(source : any | null, key : string) : any | null
   // #ifdef APP-ANDROID
   return readCopiedDynamicField(source, key)
   // #endif
-  // #ifdef APP-HARMONY
-  return readCopiedDynamicField(source, key)
-  // #endif
   // #ifndef APP-ANDROID
-  // #ifndef APP-HARMONY
   const value = source[key]
   return value != null ? value : null
-  // #endif
   // #endif
 }
 
