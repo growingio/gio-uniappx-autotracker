@@ -31,7 +31,7 @@ Web 端在上述模板桥接之外，还安装 `document` 级的 `click` / `chan
 | --- | --- | --- | --- | --- |
 | 模板识别 | 正则扫描事件属性和标签 | `@vue/compiler-dom` 模板 AST | 修饰符、单双引号、复杂属性和嵌套结构更可靠 | 增加编译期依赖 |
 | 事件表达式 | 字符串匹配函数名并拼接 | Babel 表达式 AST | 可处理成员调用、条件表达式、连续语句、`$event` | 表达式无法解析时会明确报编译错误 |
-| script setup 函数 | 每个绑定生成 `_gioAutoTrackHandlerN` | 每页一个 `_gioAutoTrackDispatch(event, action)` | 生成代码更少，避免 N 个 UTS 函数 | 大页面 action 分支按顺序判断，复杂度为 O(N) |
+| script setup 函数 | 每个绑定生成 `_gioAutoTrackHandlerN` | 每页一个 `_gioAutoTrackDispatch`；普通事件一个 action，三元表达式两个 action | 生成代码更少，并能按真实条件分支选择 handler | 大页面 action 分支按顺序判断，复杂度为 O(N) |
 | action 定位 | 中间方案从 dataset 和事件 type 反查 | 模板直接传入数值 action | 不依赖 `currentTarget`、dataset、type | 模板生成表达式中会多一个 action 参数 |
 | Ref / computed 条件 | 业务表达式移入脚本分发器后会失去模板自动解包 | 分发器只采集，原表达式留在模板 | 保留 Vue 的 Ref、computed 与模板作用域语义 | 模板事件属性会变成长一些的连续表达式 |
 | 自定义组件事件 | dataset/type 不完整时可能找不到 action 并提前返回 | action 已确定，照常进入对应分支 | 业务 handler 不再被吞掉 | 自定义组件仍需自行保证其事件参数符合业务需求 |
@@ -78,11 +78,22 @@ Web 端在上述模板桥接之外，还安装 `document` 级的 `click` / `chan
 脚本尾部追加单个分支：
 
 ```uts
-function _gioAutoTrackDispatch(event : any | null, action : number) : void {
-  if (action == 0) {
-    _gioHandleAutoClick(event, 'onTap', null, null, null, null, null, null)
-    return
+function _gioAutoTrackDispatch(
+  event : any | null,
+  action : number,
+  condition : boolean | null = null,
+  alternateAction : number | null = null
+) : boolean {
+  const resolvedCondition : boolean = condition != null ? condition : true
+  let selectedAction : number = action
+  if (!resolvedCondition && alternateAction != null) {
+    selectedAction = alternateAction as number
   }
+  if (selectedAction == 0) {
+    _gioHandleAutoClick(event, 'onTap', null, null, null, null, null, null)
+    return resolvedCondition
+  }
+  return resolvedCondition
 }
 ```
 
@@ -136,11 +147,13 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 
 ```vue
 <button
-  @click="_gioAutoTrackDispatch($event, 0); conditionEnabled ? onConditionalTrue() : onConditionalFalse()"
+  @click="_gioAutoTrackDispatch($event, 0, conditionEnabled, 1) ? onConditionalTrue() : onConditionalFalse()"
 />
 ```
 
-`conditionEnabled` 仍在模板上下文由 Vue 自动解包；`_gioAutoTrackDispatch` 内不会再复制该条件表达式。旧实现把条件搬进普通 UTS 函数后，判断对象本身会恒为真，导致 false 分支永远无法执行。
+`conditionEnabled` 在模板上下文只求值一次并由 Vue 自动解包。分发器在 true 时选择 action 0、上报 `onConditionalTrue`，在 false 时选择 action 1、上报 `onConditionalFalse`，然后把同一个布尔值返回给业务三元表达式。这样业务分支和上报 xpath 使用完全相同的条件结果。
+
+旧实现存在两层问题：第一层是把条件搬进普通 UTS 函数后，Ref 对象恒为真；第二层是即使业务表达式留在模板，若仍只有一个静态 action，xpath 也会固定为编译期找到的第一个 `onConditionalTrue`。当前两个问题都已消除。Options API 使用等价的条件桥接 method，同样根据一次条件求值选择真实 handler 名。
 
 ## 5. 事件快照与统一插件处理
 
@@ -239,7 +252,7 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 | 普通静态 `@tap` / `@click` | 支持 | 支持 | 支持 | 支持 | 模板 AST 写入固定 action；事件字段不完整也能归类为 CLICK。 |
 | `@change` / `@blur` / `@confirm` | 支持 | 支持 | 支持 | 支持 | 固定 action 归类为 CHANGE；仅 `data-growing-track` 时采集值，password 脱敏。 |
 | 自定义组件 `emit('click')` | 支持 | 支持 | 支持 | 支持 | 不再依赖 emit 参数存在 dataset/type；原业务 handler 仍需自己适配参数。 |
-| Ref / computed 条件表达式 | 支持 | 支持 | 支持 | 支持 | 原表达式留在模板上下文，不会因 Ref 对象恒 truthy 而固定进入 true 分支。 |
+| Ref / computed 条件表达式 | 支持 | 支持 | 支持 | 支持 | 条件只求值一次；true/false 分别映射独立 action，业务分支和上报 handler/xpath 保持一致。 |
 | `uni-link` | 支持 | 支持 | 支持 | 支持 | AST 补充 click 和静态 href 推导；跳过内部 `uni-link-x`。 |
 | 动态事件名 `v-on:[name]` | 不支持自动插桩 | 不支持自动插桩 | 不支持自动插桩 | 不支持自动插桩 | 编译期无法可靠决定 CLICK/CHANGE；需显式使用已支持的静态事件。 |
 | 无模板事件的原生节点 | 不支持 | 不支持 | 不支持 | 不支持 | 不会像 Web 一样由 document listener 兜底，属于覆盖边界。 |
@@ -248,7 +261,7 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 ### 7.7 移动端专属的成本与后续优化点
 
 1. `data-gio-auto-track-bound` 的唯一运行时消费者是 Web 的 document 监听，但当前模板转换会把它写入所有端的插桩节点。在移动端它没有行为作用，只会形成额外的静态 data 属性；若后续需要继续压缩移动端模板产物，可以将该标记限定为 Web 构建输出。
-2. 单 dispatcher 显著减少了生成函数数量，但 action 用顺序 `if` 匹配。一般页面影响可忽略；若存在数百个事件绑定的页面，可评估生成 `switch` 或按 action 直接索引的结构，前提是保持 UTS 五端生成代码兼容。
+2. 单 dispatcher 显著减少了生成函数数量，但 action 用顺序 `if` 匹配；一个三元表达式会占用两个 action。一般页面影响可忽略；若存在数百个事件绑定的页面，可评估生成 `switch` 或按 action 直接索引的结构，前提是保持 UTS 五端生成代码兼容。
 3. AST 插桩提升的是“已声明模板事件”的可靠性，不等同于原生端全量无埋点。移动端若要覆盖无事件绑定的可点击原生控件，需要框架/平台级事件能力，不能直接复用 Web DOM 方案。
 4. 所有移动端结论都需要以 HBuilderX 的 Android、iOS、Harmony、微信小程序真实编译和真机/模拟器交互为准；Vite 回归测试只能证明转换结果，不证明原生运行时事件形态。
 
