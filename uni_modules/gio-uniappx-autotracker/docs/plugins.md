@@ -40,7 +40,9 @@ export default defineConfig({
 })
 ```
 
-对于 `<script setup lang="uts">` 页面，插件会基于模板 AST 改写事件绑定，并只在页面中追加一个显式类型的 `_gioAutoTrackDispatch`。事件的静态采集信息写入当前组件的 `dataset`，分发时依据标准事件 `type` 选择对应业务表达式；不会按每个事件绑定生成额外 UTS 函数。原有业务函数仍保留在源代码位置，避免触发 UTS 的函数声明顺序问题。
+对于 `<script setup lang="uts">` 页面，插件会基于模板 AST 改写事件绑定，并只在页面中追加一个显式类型的 `_gioAutoTrackDispatch`。每个模板绑定把自己的静态 action 作为函数参数传入，因此不会依赖 `event.type`、`currentTarget` 或 `dataset` 来反查分支；自定义组件事件和不完整事件对象也不会吞掉原业务表达式。不会按每个事件绑定生成额外 UTS 函数，原有业务函数仍保留在源代码位置，避免触发 UTS 的函数声明顺序问题。
+
+Web 端还会安装 `document` 级的 `click` / `change` 监听，覆盖未声明模板事件的普通 DOM 节点。编译期已改写的模板节点会带内部 `data-gio-auto-track-bound` 标记，Web 全局监听会跳过这些节点，避免重复上报；该标记由插件保留，业务页面不要手工设置。
 
 ### 注册插件
 
@@ -67,7 +69,7 @@ gdp('registerPlugins', [
 
 变更事件是否上报不受输入类型影响，仍按统一的 change 触发和忽略规则执行。唯一的 password 特殊逻辑是：标记了 `data-growing-track` 的 `type="password"` 输入框即使触发 `VIEW_CHANGE`，也不会写入 `textValue`。
 
-tabBar 点击仅在 Web、微信小程序、HarmonyOS VDOM 挂载页面 `onTabItemTap` hook 并上报 `VIEW_CLICK`；Android、iOS、HarmonyOS Vapor 不挂载该 hook。事件字段中 `xpath` 固定为 `#onTabItemTap`，`textValue` 取 tab 文案，`index` 取 tab 下标加一，`hyperlink` 取 `pagePath`。
+tabBar 点击仅在 Web、微信小程序、HarmonyOS VDOM 挂载页面 `onTabItemTap` hook 并上报 `VIEW_CLICK`；Android、iOS、HarmonyOS Vapor 当前框架不提供等价 hook，因此 SDK 不会伪造 tab 点击事件。事件字段中 `xpath` 固定为 `#onTabItemTap`，`textValue` 取 tab 文案，`index` 取 tab 下标加一，`hyperlink` 取 `pagePath`。
 
 忽略规则：
 

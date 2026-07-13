@@ -15,10 +15,10 @@ function transformOptional(code, id = '/src/pages/index/index.uvue') {
 }
 
 function assertSetupDispatcher(output) {
-  assert.match(output, /function _gioAutoTrackDispatch\(event : any \| null\) : void/)
-  assert.match(output, /const action = _gioReadAutoTrackAction\(event\)/)
+  assert.match(output, /function _gioAutoTrackDispatch\(event : any \| null, action : number\) : void/)
   assert.equal(output.match(/function _gioAutoTrackDispatch/g)?.length, 1)
   assert.doesNotMatch(output, /_gioAutoTrackHandler\d+/)
+  assert.doesNotMatch(output, /gioReadAutoTrackAction/)
 }
 
 function assertSetupDispatcherAfterSource(output, sourceMarker) {
@@ -29,8 +29,9 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const code = '<template><view @click="onSimpleTrack"></view></template><script setup lang="uts"></script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick as _gioHandleAutoClick/)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
+  assert.match(output, /data-gio-auto-track-bound="true"/)
+  assert.doesNotMatch(output, /data-gio-auto-track-action=/)
   assert.doesNotMatch(output, /function gioHandleAutoClick\(/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onSimpleTrack', null, null, null, null, null, null\)\s*onSimpleTrack\(\)/)
   assert.doesNotMatch(output, /\(\$event\)\s*=>/)
@@ -63,8 +64,8 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
     <button id="press_button" data-title="button longpress" @longpress="onButtonLongPress"></button>
   </template><script setup lang="uts"></script>`
   const output = transform(code)
-  assert.match(output, /@longpress="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="longpress:0"/)
-  assert.match(output, /@longtap="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="longtap:1"/)
+  assert.match(output, /@longpress="_gioAutoTrackDispatch\(\$event, 0\)"/)
+  assert.match(output, /@longtap="_gioAutoTrackDispatch\(\$event, 1\)"/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onLongPress', 'press', null, 'longpress 区域', null, null, null\)\s*onLongPress\(\)/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onLongTap', 'tap', null, 'longtap 区域', null, null, null\)\s*onLongTap\(\)/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onButtonLongPress', 'press_button', null, 'button longpress', null, null, null\)\s*onButtonLongPress\(\)/)
@@ -86,7 +87,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 {
   const code = fs.readFileSync('pages/autotrack/autotrack.uvue', 'utf8')
   const output = transform(code, '/src/pages/autotrack/autotrack.uvue')
-  assert.match(output, /<view\s+id="auto_longpress_method"[\s\S]*@longpress="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="longpress:\d+"/)
+  assert.match(output, /<view\s+id="auto_longpress_method"[\s\S]*@longpress="_gioAutoTrackDispatch\(\$event, \d+\)"/)
   assertSetupDispatcher(output)
 }
 
@@ -94,8 +95,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const code = `<template><uni-link id="doc_link" href="https://doc.dcloud.net.cn" data-title="文档">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
   assert.match(output, /data-src="https:\/\/doc\.dcloud\.net\.cn"/)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.match(output, /_gioHandleAutoClick\(event, 'openURL', 'doc_link', null, '文档', 'https:\/\/doc\.dcloud\.net\.cn', null, null\)/)
 }
 
@@ -103,31 +103,27 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const code = `<template><uni-link id="dynamic_link" :href="docUrl">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
   assert.match(output, /:data-src="docUrl"/)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
 }
 
 {
   const code = `<template><uni-link id="custom_link" href="https://doc.dcloud.net.cn" data-src="https://example.com/custom">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
   assert.doesNotMatch(output, /data-src="https:\/\/doc\.dcloud\.net\.cn"/)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
 }
 
 {
   const code = `<template><uni-link id="dynamic_custom_link" href="https://doc.dcloud.net.cn" :data-src="customUrl">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
   assert.doesNotMatch(output, /data-src="https:\/\/doc\.dcloud\.net\.cn"/)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
 }
 
 {
   const code = `<template><uni-link id="explicit_link" href="https://doc.dcloud.net.cn" @click="onLinkClick">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onLinkClick', 'explicit_link', null, null, 'https:\/\/doc\.dcloud\.net\.cn', null, null\)\s*onLinkClick\(\)/)
   assert.match(output, /data-src="https:\/\/doc\.dcloud\.net\.cn"/)
   assertSetupDispatcher(output)
@@ -136,16 +132,14 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 {
   const code = `<template><uni-link id="explicit_custom_link" href="https://doc.dcloud.net.cn" data-src="https://example.com/custom" @click="onLinkClick">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.doesNotMatch(output, /data-src="https:\/\/doc\.dcloud\.net\.cn"/)
 }
 
 {
   const code = `<template><uni-link id="explicit_dynamic_custom_link" href="https://doc.dcloud.net.cn" :data-src="customUrl" @click="onLinkClick">文档</uni-link></template><script setup lang="uts"></script>`
   const output = transform(code)
-  assert.match(output, /@click="_gioAutoTrackDispatch"/)
-  assert.match(output, /data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.doesNotMatch(output, /data-src="https:\/\/doc\.dcloud\.net\.cn"/)
 }
 
@@ -166,7 +160,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 {
   const code = '<template><input type="password" @blur="onPasswordBlur($event)" /></template><script setup lang="uts"></script>'
   const output = transform(code)
-  assert.match(output, /@blur="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="blur:0"/)
+  assert.match(output, /@blur="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.match(output, /_gioHandleAutoChange\(event, 'onPasswordBlur', 'password', null, null, null, null, null, null\)\s*onPasswordBlur\(event\)/)
   assertSetupDispatcher(output)
 }
@@ -181,7 +175,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
     />
   </template><script setup lang="uts"></script>`
   const output = transform(code)
-  assert.match(output, /v-on:tap\.stop="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="tap:0"/)
+  assert.match(output, /v-on:tap\.stop="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onEventAndLabel', 'ast_event', '7', 'AST 事件', null, null, null\)\s*onEventAndLabel\(event, '\$event'\)/)
   assertSetupDispatcher(output)
 }
@@ -189,7 +183,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 {
   const code = `<template><input :type="'password'" @change="onDynamicLiteralType" /></template><script setup lang="uts"></script>`
   const output = transform(code)
-  assert.match(output, /@change="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="change:0"/)
+  assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.match(output, /_gioHandleAutoChange\(event, 'onDynamicLiteralType', 'password', null, null, null, null, null, null\)\s*onDynamicLiteralType\(\)/)
 }
 
@@ -210,7 +204,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 {
   const code = `<template><button id="auto_call_conditional" :data-index="16" data-title="条件表达式" data-src="/pages/autotrack/autotrack?case=conditional" @click="conditionEnabled ? onConditionalTrue() : onConditionalFalse()">条件表达式</button></template><script setup lang="uts"></script>`
   const output = transform(code)
-  assert.match(output, /@click="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="click:0"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onConditionalTrue', 'auto_call_conditional', '16', '条件表达式', '\/pages\/autotrack\/autotrack\?case=conditional', null, null\)/)
   assert.match(output, /conditionEnabled \? onConditionalTrue\(\) : onConditionalFalse\(\)/)
 }
@@ -221,7 +215,8 @@ function onClick() : void {}
 function onTap() : void {}
 </script>`
   const output = transform(code)
-  assert.match(output, /@click="_gioAutoTrackDispatch"\s+@tap="_gioAutoTrackDispatch"\s+data-gio-auto-track-action="click:0\|tap:1"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"\s+@tap="_gioAutoTrackDispatch\(\$event, 1\)"/)
+  assert.equal(output.match(/data-gio-auto-track-bound="true"/g)?.length, 1)
   assert.match(output, /if \(action == 0\) \{[\s\S]*_gioHandleAutoClick\(event, 'onClick'/)
   assert.match(output, /if \(action == 1\) \{[\s\S]*_gioHandleAutoClick\(event, 'onTap'/)
   assertSetupDispatcher(output)
@@ -234,8 +229,17 @@ function onTap() : void {}
 }
 
 {
-  const code = '<template><view data-gio-auto-track-action="" @click="onTap"></view></template><script setup lang="uts"></script>'
-  assert.throws(() => transform(code), /reserves data-gio-auto-track-action/)
+  const code = '<template><tracking-card data-gio-auto-track-action="external" @click="onCardClick"></tracking-card></template><script setup lang="uts"></script>'
+  const output = transform(code)
+  assert.match(output, /data-gio-auto-track-action="external"/)
+  assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0\)"/)
+  assert.match(output, /data-gio-auto-track-bound="true"/)
+  assert.match(output, /_gioHandleAutoClick\(event, 'onCardClick'/)
+}
+
+{
+  const code = '<template><view data-gio-auto-track-bound="true" @click="onTap"></view></template><script setup lang="uts"></script>'
+  assert.throws(() => transform(code), /reserves data-gio-auto-track-bound/)
 }
 
 {

@@ -13,8 +13,9 @@ const CLICK_EVENTS = new Set([
 ])
 
 const CHANGE_EVENTS = new Set(['blur', 'change', 'confirm'])
+const AUTO_TRACK_BOUND_ATTRIBUTE = 'data-gio-auto-track-bound="true"'
 const IMPORT_CODE =
-  "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange, gioReadAutoTrackAction as _gioReadAutoTrackAction } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
+  "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
 
 function isTargetFile(id) {
   const cleanId = id.split('?')[0]
@@ -482,7 +483,7 @@ function buildSetupTrackOnlyDispatchCase(eventName, attrQuote, metadata, action)
 }
 
 function buildSetupDispatcher(cases) {
-  return `\nfunction _gioAutoTrackDispatch(event : any | null) : void {\n  const action = _gioReadAutoTrackAction(event)\n  if (action == null) {\n    return\n  }\n${cases.join('')}}\n`
+  return `\nfunction _gioAutoTrackDispatch(event : any | null, action : number) : void {\n${cases.join('')}}\n`
 }
 
 function buildStaticClickExpression(eventName, attrQuote, metadata) {
@@ -560,6 +561,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
   const templateAst = parseTemplate(content, { comments: true })
   const transformed = new MagicString(content)
   const attributeInsertions = new Map()
+  const generatedBindingOffsets = new Set()
   const setupDispatcherCases = []
   let changed = false
   let needsBridge = false
@@ -577,10 +579,21 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
     attributeInsertions.set(offset, values)
   }
 
+  function markGeneratedBinding(element) {
+    const offset = findElementInsertionOffset(content, element)
+    if (offset < 0 || generatedBindingOffsets.has(offset)) {
+      return
+    }
+    if (hasAttribute(element, 'data-gio-auto-track-bound')) {
+      throw new Error('gio autotrack reserves data-gio-auto-track-bound for generated event bindings')
+    }
+    generatedBindingOffsets.add(offset)
+    addAttribute(element, AUTO_TRACK_BOUND_ATTRIBUTE)
+  }
+
   visitTemplateNodes(templateAst, (element) => {
     const bindings = getEventBindings(element)
     const hasClickBinding = bindings.some((binding) => getEventKind(binding.arg.content) === 'click')
-    const setupActions = []
     if (element.tag === 'uni-link') {
       if (hasHrefAttribute(element) && !hasDataSrcAttribute(element)) {
         addAttribute(element, buildHrefDatasetAttribute(element))
@@ -589,10 +602,11 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
         if (options.useSetupDispatcher) {
           const action = setupDispatcherCases.length
           setupDispatcherCases.push(buildSetupTrackOnlyDispatchCase('openURL', '"', readStaticTargetMetadata(element), action))
-          setupActions.push(`click:${action}`)
-          addAttribute(element, '@click="_gioAutoTrackDispatch"')
+          addAttribute(element, `@click="_gioAutoTrackDispatch($event, ${action})"`)
+          markGeneratedBinding(element)
         } else {
           addAttribute(element, `@click="${buildStaticClickExpression('openURL', '"', readStaticTargetMetadata(element))}"`)
+          markGeneratedBinding(element)
         }
         changed = true
         needsBridge = true
@@ -617,25 +631,24 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
       if (options.useSetupDispatcher) {
         const action = setupDispatcherCases.length
         setupDispatcherCases.push(buildSetupDispatchCase(kind, expression, eventName, attributeQuote, elementType, metadata, action))
-        setupActions.push(`${eventName}:${action}`)
-        transformed.overwrite(binding.exp.loc.start.offset, binding.exp.loc.end.offset, '_gioAutoTrackDispatch')
+        transformed.overwrite(
+          binding.exp.loc.start.offset,
+          binding.exp.loc.end.offset,
+          `_gioAutoTrackDispatch($event, ${action})`,
+        )
+        markGeneratedBinding(element)
       } else {
         transformed.overwrite(
           binding.exp.loc.start.offset,
           binding.exp.loc.end.offset,
           buildWrappedExpression(kind, expression, eventName, attributeQuote, elementType, metadata),
         )
+        markGeneratedBinding(element)
       }
       changed = true
       needsBridge = true
     }
 
-    if (setupActions.length > 0) {
-      if (hasAttribute(element, 'data-gio-auto-track-action')) {
-        throw new Error('gio autotrack reserves data-gio-auto-track-action for generated setup dispatch')
-      }
-      addAttribute(element, `data-gio-auto-track-action="${setupActions.join('|')}"`)
-    }
   })
 
   for (const [offset, values] of attributeInsertions) {
@@ -654,7 +667,7 @@ function collectTemplateReplacements(code, options = { skipEventBindings: false,
 }
 
 function buildImportReplacement(code) {
-  const reservedAliases = ['_gioHandleAutoClick', '_gioHandleAutoChange', '_gioReadAutoTrackAction']
+  const reservedAliases = ['_gioHandleAutoClick', '_gioHandleAutoChange']
   const presentAliasCount = reservedAliases.filter((alias) => code.includes(alias)).length
   if (presentAliasCount === reservedAliases.length) {
     return null

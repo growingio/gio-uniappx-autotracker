@@ -115,7 +115,8 @@ function copyEventTargetSnapshot(source : any | null) : UTSJSONObject | null {
   if (typeText != null) {
     copied['type'] = typeText
   }
-  const attr = copyScalarValue(readDynamicField(source, 'attr'))
+  const runtimeAttr = copyScalarValue(readDynamicField(source, 'attr'))
+  const attr = runtimeAttr != null ? runtimeAttr : copyScalarValue(source)
   if (attr != null) {
     copied['attr'] = attr
   }
@@ -274,7 +275,8 @@ export function buildAutoTrackEventSnapshot(
   staticTitle : string | null,
   staticSrc : string | null,
   staticGrowingTrack : string | null,
-  staticGrowingIgnore : string | null
+  staticGrowingIgnore : string | null,
+  preferOriginalTarget : boolean = false
 ) : UTSJSONObject | null {
   if (eventName.length == 0) {
     return null
@@ -306,13 +308,16 @@ export function buildAutoTrackEventSnapshot(
       copyEventTargetSnapshot(readDynamicField(event, 'currentTarget')),
       staticTarget
     )
-    if (currentTarget != null) {
-      snapshot['currentTarget'] = currentTarget
-    }
     const target = mergeStaticTargetSnapshot(
       copyEventTargetSnapshot(readDynamicField(event, 'target')),
       staticTarget
     )
+    const primaryTarget = preferOriginalTarget && target != null
+      ? target
+      : currentTarget
+    if (primaryTarget != null) {
+      snapshot['currentTarget'] = primaryTarget
+    }
     if (target != null) {
       snapshot['target'] = target
     }
