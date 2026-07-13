@@ -154,7 +154,83 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 | Harmony Vapor | 是 | 否 | 否 | 框架不挂载等价 tabBar hook |
 | 微信小程序 | 是 | 否 | 是 | 事件 target/currentTarget 的 dataset 可用于运行时快照 |
 
-## 7. 当前限制与使用建议
+## 7. 对移动端的具体影响
+
+### 7.1 影响范围与结论
+
+当前改造的主体是**编译期插桩方式**，不是把移动端改为 DOM 采集。因此 Android、iOS、Harmony 和微信小程序仍只采集可由模板事件到达的节点；不会因为本次 AST 改造而获得 Web 的 `document` 级“兜底采集”。
+
+对移动端而言，最重要的变化是：事件在编译期就已被归类为 `CLICK` 或 `CHANGE`，运行时不再依赖 `event.currentTarget.dataset` 与 `event.type` 推断应走哪个采集分支。原业务表达式仍在采集调用之后执行。
+
+| 维度 | 早期 / 中间方案 | 当前 AST 方案 | 对移动端的实际影响 |
+| --- | --- | --- | --- |
+| 编译时开销 | 正则扫描，或生成多个独立 handler | 解析模板与表达式 AST | 构建期略增加解析工作；不在点击热路径执行 |
+| 生成代码 | setup 页面可生成多个 `_gioAutoTrackHandlerN` | 每页单个 dispatcher 和多个 action 分支 | 减少函数数量与重复签名；超大页面仍会线性匹配 action |
+| 点击运行时定位 | 依赖 `currentTarget`、dataset、`event.type` | 数值 action 作为绑定参数直接传入 | 自定义组件、包装组件的事件形态不完整时更稳定 |
+| 事件快照 | 从原始宿主事件中读取字段 | 保持快照桥接，只改 action 的来源 | Android / iOS / Harmony 仍不会把页面、组件或原生句柄传进 `utssdk` |
+| 未绑定节点 | 无 | 无 | 移动端没有 Web 的全局 DOM fallback，未声明支持事件的节点仍不会自动采集 |
+| 业务行为 | 取决于原模板表达式 | 采集后执行原表达式 | 正常调用语义保持；依赖自动注入 `$event` 的纯方法引用应显式写出 `$event` |
+
+### 7.2 Android
+
+| 项目 | 影响 |
+| --- | --- |
+| 采集覆盖 | 仅模板中已支持的静态事件名；没有 DOM 全局监听。`click`、`tap`、`longpress`、`change` 等由模板插桩进入桥接。 |
+| 稳定性收益 | 原生事件对象的字段形态可能因组件不同而变化。当前 action 直接传入，避免因 `currentTarget`、dataset 或 `type` 缺失而无法决定 click/change 分支。 |
+| 快照边界 | `bridge/utils.uts` 在 Android 对动态字段使用序列化后的安全读取，随后只把纯 `UTSJSONObject` 快照传给 `utssdk`；不会把页面或原生事件实例跨层传递。 |
+| 性能 | AST 只影响编译期；运行时每次已插桩事件仍会创建快照、执行去重和忽略规则，这部分与原有采集模型相同。单 dispatcher 用 action 顺序判断，页面内绑定极多时存在很小的线性分支成本。 |
+| 仍需关注 | Android 没有框架等价的 tabBar 点击 hook，因此 tabBar 点击不属于本次无埋点覆盖范围；必须在真机/模拟器验证各组件事件的快照字段。 |
+
+### 7.3 iOS
+
+| 项目 | 影响 |
+| --- | --- |
+| 采集覆盖 | 与 Android 相同：由模板插桩提供事件入口，没有 Web DOM fallback，也不应调用 `document` 等 Web API。 |
+| 稳定性收益 | 直接 action 分发减少了对 iOS 事件对象内部字段的假设。原始事件会在 JS 桥接层被裁剪为快照，再进入 Swift 编译层，降低把 `Optional`、页面实例或原生对象带入核心层的风险。 |
+| UTS 约束 | 本次目录收拢不改变 iOS 平台入口；`app-ios/index.uts` 仍应保持纯 re-export，不能为无埋点注册加入文件顶层表达式。 |
+| 性能 | 不再为每个绑定生成一个独立 handler，生成的页面函数数量更可控；实际 Swift 产物大小、首屏和点击耗时仍需要真实 iOS 编译与设备侧测量确认。 |
+| 仍需关注 | iOS 不能以源码结构推断可用性。需验证 input 的 `detail.value` / `attr.value`、自定义组件 emit、页面跳转前采集以及后台切换等真实事件链路。 |
+
+### 7.4 Harmony（VDOM 与 Vapor）
+
+| 项目 | 影响 |
+| --- | --- |
+| 采集覆盖 | 两种渲染模式都依赖模板静态事件插桩；均没有 Web DOM fallback。 |
+| 稳定性收益 | Harmony 对动态对象和 `any` 的约束更严格。action 不再靠运行时 dataset/type 反查，减少了需要从宿主事件动态读取字段的步骤；桥接层仍负责将其余字段规范化。 |
+| tabBar | VDOM 支持页面 `onTabItemTap`，可采集 tabBar；Vapor 没有等价 hook，不能承诺 tab 点击自动采集。 |
+| 编译风险 | ArkTS 对动态字段、可空值及类型断言更严格。虽然此次主要是目录移动和模板输出形态调整，仍必须以 Harmony 真编译确认 import、条件编译分支与生成代码。 |
+| 仍需关注 | 自定义组件事件、`change` 的输入值、VDOM/Vapor 的 tabBar 差异都应分别回归，不能用另一种渲染模式替代验证。 |
+
+### 7.5 微信小程序
+
+| 项目 | 影响 |
+| --- | --- |
+| 采集覆盖 | 继续由模板事件插桩采集；不增加 Web DOM 全局监听。小程序 `target/currentTarget.dataset` 仍用于补充快照，而非确定 action。 |
+| 稳定性收益 | 旧的 dataset/type 反查失败时可能跳过目标采集分支；当前 action 已由模板写死，自定义组件 `emit` 的事件对象不完整也不会影响 click/change 的分类。 |
+| tabBar | 保留 `onTabItemTap` 自动采集能力。 |
+| 数据语义 | `data-index`、`data-src`、`data-growing-track` 与 `data-growing-ignore` 仍会被读取并进入统一插件规则；password 仍绝不写入变更内容。 |
+| 仍需关注 | 小程序宿主对象不是真正的 `UTSJSONObject`，读取必须留在小程序/桥接适配范围内，不能把这类读取方式下沉进 `utssdk/common`。 |
+
+### 7.6 移动端场景矩阵
+
+| 场景 | Android / iOS | Harmony VDOM | Harmony Vapor | 微信小程序 | 当前处理与影响 |
+| --- | --- | --- | --- | --- | --- |
+| 普通静态 `@tap` / `@click` | 支持 | 支持 | 支持 | 支持 | 模板 AST 写入固定 action；事件字段不完整也能归类为 CLICK。 |
+| `@change` / `@blur` / `@confirm` | 支持 | 支持 | 支持 | 支持 | 固定 action 归类为 CHANGE；仅 `data-growing-track` 时采集值，password 脱敏。 |
+| 自定义组件 `emit('click')` | 支持 | 支持 | 支持 | 支持 | 不再依赖 emit 参数存在 dataset/type；原业务 handler 仍需自己适配参数。 |
+| `uni-link` | 支持 | 支持 | 支持 | 支持 | AST 补充 click 和静态 href 推导；跳过内部 `uni-link-x`。 |
+| 动态事件名 `v-on:[name]` | 不支持自动插桩 | 不支持自动插桩 | 不支持自动插桩 | 不支持自动插桩 | 编译期无法可靠决定 CLICK/CHANGE；需显式使用已支持的静态事件。 |
+| 无模板事件的原生节点 | 不支持 | 不支持 | 不支持 | 不支持 | 不会像 Web 一样由 document listener 兜底，属于覆盖边界。 |
+| tabBar 点击 | 不支持 | 支持 | 不支持 | 支持 | 由框架是否提供 `onTabItemTap` 决定，与 AST 插桩无关。 |
+
+### 7.7 移动端专属的成本与后续优化点
+
+1. `data-gio-auto-track-bound` 的唯一运行时消费者是 Web 的 document 监听，但当前模板转换会把它写入所有端的插桩节点。在移动端它没有行为作用，只会形成额外的静态 data 属性；若后续需要继续压缩移动端模板产物，可以将该标记限定为 Web 构建输出。
+2. 单 dispatcher 显著减少了生成函数数量，但 action 用顺序 `if` 匹配。一般页面影响可忽略；若存在数百个事件绑定的页面，可评估生成 `switch` 或按 action 直接索引的结构，前提是保持 UTS 五端生成代码兼容。
+3. AST 插桩提升的是“已声明模板事件”的可靠性，不等同于原生端全量无埋点。移动端若要覆盖无事件绑定的可点击原生控件，需要框架/平台级事件能力，不能直接复用 Web DOM 方案。
+4. 所有移动端结论都需要以 HBuilderX 的 Android、iOS、Harmony、微信小程序真实编译和真机/模拟器交互为准；Vite 回归测试只能证明转换结果，不证明原生运行时事件形态。
+
+## 8. 当前限制与使用建议
 
 1. 只有静态事件名会被模板插桩；`v-on:[eventName]` 无法在编译期可靠分类。
 2. 只有已支持的点击类和变更类事件会生成模板桥接；未知事件不会被强行改写。
@@ -163,7 +239,7 @@ function _gioAutoTrackDispatch(event : any | null, action : number) : void {
 5. `data-gio-auto-track-bound` 是内部保留属性，业务页面不得手工设置。
 6. Android、iOS、Harmony、小程序的最终可信结论仍需要真实 HBuilderX 编译和设备/模拟器交互验证；源码与 Vite 回归测试不能替代真实平台验证。
 
-## 8. 相关实现
+## 9. 相关实现
 
 - `uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs`
 - `uni_modules/gio-uniappx-autotracker/plugin.uts`
