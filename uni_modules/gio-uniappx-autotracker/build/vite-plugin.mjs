@@ -15,7 +15,6 @@ const CLICK_EVENTS = new Set([
 ])
 
 const CHANGE_EVENTS = new Set(['blur', 'change', 'confirm'])
-const AUTO_TRACK_BOUND_ATTRIBUTE = 'data-gio-auto-track-bound="true"'
 const CHANGE_PAYLOAD_TYPE = 'any | null'
 const TARGET_ID_VALUE_TYPE = 'string | number | null'
 const TARGET_DATASET_VALUE_TYPE = 'string | number | boolean | null'
@@ -850,7 +849,6 @@ function collectTemplateReplacements(code, options = {
   const templateAst = parseTemplate(content, { comments: true })
   const transformed = new MagicString(content)
   const attributeInsertions = new Map()
-  const generatedBindingOffsets = new Set()
   const setupDispatcherCases = []
   let changed = false
   let needsBridge = false
@@ -864,24 +862,10 @@ function collectTemplateReplacements(code, options = {
     if (offset < 0) {
       return
     }
-    // 同一元素可能同时补 href、click 和去重标记，先聚合再一次插入。
+    // 同一元素可能同时补 href 和 click，先聚合再一次插入。
     const values = attributeInsertions.get(offset) ?? []
     values.push(value)
     attributeInsertions.set(offset, values)
-  }
-
-  /** 为已插桩节点添加 Web 全局监听去重标记；同一开标签只写入一次。 */
-  function markGeneratedBinding(element) {
-    const offset = findElementInsertionOffset(content, element)
-    if (offset < 0 || generatedBindingOffsets.has(offset)) {
-      return
-    }
-    if (hasAttribute(element, 'data-gio-auto-track-bound')) {
-      // 该标记是 Web document 监听去重协议，业务占用时直接失败，不能静默导致双发。
-      throw new Error('gio autotrack reserves data-gio-auto-track-bound for generated event bindings')
-    }
-    generatedBindingOffsets.add(offset)
-    addAttribute(element, AUTO_TRACK_BOUND_ATTRIBUTE)
   }
 
   visitTemplateNodes(templateAst, (element) => {
@@ -898,10 +882,8 @@ function collectTemplateReplacements(code, options = {
           // action 直接写入模板调用参数，不再从跨端事件对象反查 dataset/type。
           setupDispatcherCases.push(buildSetupTrackOnlyDispatchCase('openURL', '"', action))
           addAttribute(element, `@click="_gioAutoTrackDispatch($event, ${action}, null, ${buildTargetArguments(metadata, '"')})"`)
-          markGeneratedBinding(element)
         } else {
           addAttribute(element, `@click="${buildClickExpression('openURL', '"', metadata)}"`)
-          markGeneratedBinding(element)
         }
         changed = true
         needsBridge = true
@@ -946,7 +928,6 @@ function collectTemplateReplacements(code, options = {
             buildSetupWrappedExpression(kind, expression, action, attributeQuote, metadata, options),
           )
         }
-        markGeneratedBinding(element)
       } else {
         const conditionalParts = readTopLevelConditionalParts(expression)
         transformed.overwrite(
@@ -956,7 +937,6 @@ function collectTemplateReplacements(code, options = {
             ? buildConditionalWrappedExpression(kind, conditionalParts, eventName, attributeQuote, elementType, metadata)
             : buildWrappedExpression(kind, expression, eventName, attributeQuote, elementType, metadata, options),
         )
-        markGeneratedBinding(element)
       }
       changed = true
       needsBridge = true

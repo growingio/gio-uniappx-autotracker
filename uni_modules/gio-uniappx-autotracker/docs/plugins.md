@@ -44,7 +44,7 @@ export default defineConfig({
 
 模板上的 `id`、`data-index`、`data-title`、`data-src`、`data-growing-track`、`data-growing-ignore` 会在事件触发时直接求值并传入桥接层，包含 `v-for` 内的动态绑定。事件对象若已携带对应值则以事件对象为准；Android `list-item` 等事件对象缺少动态属性时，使用模板实参补齐。
 
-Web 端还会安装 `document` 级的 `click` / `change` 监听，覆盖未声明模板事件的普通 DOM 节点。编译期已改写的模板节点会带内部 `data-gio-auto-track-bound` 标记，Web 全局监听会跳过这些节点，避免重复上报；该标记由插件保留，业务页面不要手工设置。
+Web 与其他平台遵循相同的采集边界：只有模板中声明了受支持事件的节点才会被编译期插桩并触发无埋点采集。SDK 不安装 `document` 级监听，也不会采集未绑定事件的页面容器或普通节点。
 
 ### 注册插件
 

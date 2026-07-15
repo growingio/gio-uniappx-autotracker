@@ -4,7 +4,7 @@
 
 // bridge/ 保持在 JS 编译层：它将宿主事件对象裁剪为可安全传入 utssdk 的快照。
 import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './bridge/auto-track-event.uts'
-import { copyJSONObject, readDynamicField } from './bridge/utils.uts'
+import { copyJSONObject } from './bridge/utils.uts'
 
 type AutoTrackTemplateId = string | number | null
 type AutoTrackTemplateDatasetValue = string | number | boolean | null
@@ -291,130 +291,6 @@ export function gioHandleAutoChange(
   )
 }
 
-// #ifdef WEB
-let webDomAutoTrackInstalled = false
-
-function isWebAutoTrackMarker(value : any | null) : boolean {
-  if (value == null) {
-    return false
-  }
-  if (typeof value == 'boolean') {
-    return value as boolean
-  }
-  return typeof value == 'string' && (value as string) == 'true'
-}
-
-function readWebStringField(source : any | null, key : string) : string | null {
-  const value = readDynamicField(source, key)
-  if (value == null || typeof value != 'string') {
-    return null
-  }
-  const text = value as string
-  return text.length > 0 ? text : null
-}
-
-function isIgnoredWebRuntimeNode(node : any | null) : boolean {
-  let current = node
-  for (let index = 0; index < 64; index++) {
-    if (current == null) {
-      return false
-    }
-    const id = readWebStringField(current, 'id')
-    if (id != null && (id.indexOf('__vconsole') >= 0 || id.indexOf('__giokit') >= 0)) {
-      return true
-    }
-    const tagName = readWebStringField(current, 'tagName')
-    if (tagName != null) {
-      const normalized = tagName.toLowerCase()
-      if (normalized == 'circle-shape' || normalized == 'circle-page' || normalized == 'heatmap-page') {
-        return true
-      }
-    }
-    current = readDynamicField(current, 'parentElement')
-  }
-  return false
-}
-
-function findWebLink(node : any | null) : string | null {
-  let current = node
-  for (let index = 0; index < 64; index++) {
-    if (current == null) {
-      return null
-    }
-    const href = readWebStringField(current, 'href')
-    if (href != null) {
-      return href
-    }
-    current = readDynamicField(current, 'parentElement')
-  }
-  return null
-}
-
-function hasWebGeneratedAutoTrackMarker(event : any | null) : boolean {
-  let node = readDynamicField(event, 'target')
-  for (let index = 0; index < 64; index++) {
-    if (node == null) {
-      return false
-    }
-    const dataset = readDynamicField(node, 'dataset')
-    const marker = readDynamicField(dataset, 'gioAutoTrackBound')
-    if (isWebAutoTrackMarker(marker)) {
-      return true
-    }
-    node = readDynamicField(node, 'parentElement')
-  }
-  return false
-}
-
-function dispatchWebDomAutoTrack(action : string, event : any | null) : void {
-  const target = readDynamicField(event, 'target')
-  if (isIgnoredWebRuntimeNode(target)) {
-    return
-  }
-  const id = readWebStringField(target, 'id')
-  const text = readWebStringField(target, 'innerText')
-  const fallbackText = text != null ? text : readWebStringField(target, 'textContent')
-  const snapshot = buildAutoTrackEventSnapshot(
-    action,
-    event,
-    action == 'CHANGE' ? 'change' : 'click',
-    null,
-    id,
-    null,
-    fallbackText,
-    findWebLink(target),
-    null,
-    null,
-    null,
-    true
-  )
-  if (snapshot != null) {
-    dispatchAutoTrackEvent(snapshot)
-  }
-}
-
-function installWebDomAutoTrack() : void {
-  if (webDomAutoTrackInstalled) {
-    return
-  }
-  const documentRef = readDynamicField(globalThis, 'document')
-  if (documentRef == null) {
-    return
-  }
-  documentRef.addEventListener('click', (event : any | null) => {
-    if (!hasWebGeneratedAutoTrackMarker(event)) {
-      dispatchWebDomAutoTrack('CLICK', event)
-    }
-  })
-  documentRef.addEventListener('change', (event : any | null) => {
-    if (!hasWebGeneratedAutoTrackMarker(event)) {
-      dispatchWebDomAutoTrack('CHANGE', event)
-    }
-  })
-  webDomAutoTrackInstalled = true
-}
-// #endif
-
 // #ifdef MP-WEIXIN
 // uni-app x 的 MP-WEIXIN global mixin 会收到一轮带 App 入口参数的 onShow。
 // App 生命周期已由 uni.onAppShow/uni.onAppHide 显式桥接，这里只过滤掉这轮
@@ -606,9 +482,6 @@ export function installGioLifecycle(app : VueApp) : boolean {
   // #ifdef MP-WEIXIN
   installMpAppLifecycle()
   installMpShareAutoHook()
-  // #endif
-  // #ifdef WEB
-  installWebDomAutoTrack()
   // #endif
   app.mixin(lifecycle)
   lifecycleInstalled = true

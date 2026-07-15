@@ -45,6 +45,7 @@ function assertSetupDispatcher(output) {
   assert.equal(output.match(/function _gioAutoTrackDispatch/g)?.length, 1)
   assert.doesNotMatch(output, /_gioAutoTrackHandler\d+/)
   assert.doesNotMatch(output, /gioReadAutoTrackAction/)
+  assert.doesNotMatch(output, /data-gio-auto-track-bound/)
 }
 
 function assertSetupDispatcherAfterSource(output, sourceMarker) {
@@ -56,7 +57,6 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick as _gioHandleAutoClick/)
   assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0, null, null, null, null, null, null, null\); onSimpleTrack\(\$event\)"/)
-  assert.match(output, /data-gio-auto-track-bound="true"/)
   assert.doesNotMatch(output, /data-gio-auto-track-action=/)
   assert.doesNotMatch(output, /function gioHandleAutoClick\(/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onSimpleTrack', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore\)\s*return resolvedCondition/)
@@ -392,7 +392,6 @@ function onTap() : void {}
 </script>`
   const output = transform(code)
   assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0, null, null, null, null, null, null, null\); onClick\(\)"\s+@tap="_gioAutoTrackDispatch\(\$event, 1, null, null, null, null, null, null, null\); onTap\(\)"/)
-  assert.equal(output.match(/data-gio-auto-track-bound="true"/g)?.length, 1)
   assert.match(output, /if \(selectedAction == 0\) \{[\s\S]*_gioHandleAutoClick\(event, 'onClick'/)
   assert.match(output, /if \(selectedAction == 1\) \{[\s\S]*_gioHandleAutoClick\(event, 'onTap'/)
   assertSetupDispatcher(output)
@@ -409,13 +408,7 @@ function onTap() : void {}
   const output = transform(code)
   assert.match(output, /data-gio-auto-track-action="external"/)
   assert.match(output, /@click="_gioAutoTrackDispatch\(\$event, 0, null, null, null, null, null, null, null\); onCardClick\(\)"/)
-  assert.match(output, /data-gio-auto-track-bound="true"/)
   assert.match(output, /_gioHandleAutoClick\(event, 'onCardClick'/)
-}
-
-{
-  const code = '<template><view data-gio-auto-track-bound="true" @click="onTap"></view></template><script setup lang="uts"></script>'
-  assert.throws(() => transform(code), /reserves data-gio-auto-track-bound/)
 }
 
 {
@@ -439,6 +432,11 @@ function onTap() : void {}
 {
   const output = plugin.transform('<template><view @click="onTap"></view></template>', '/src/plain.ts')
   assert.equal(output, null)
+}
+
+{
+  const pluginSource = fs.readFileSync('uni_modules/gio-uniappx-autotracker/plugin.uts', 'utf8')
+  assert.doesNotMatch(pluginSource, /installWebDomAutoTrack|documentRef\.addEventListener/)
 }
 
 console.log('vite plugin tests passed')
