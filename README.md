@@ -112,11 +112,11 @@ npm run sdk:check
 npm run sdk:release
 ```
 
-推送 `v<version>` 格式的 tag 到 `origin` 后，GitHub Actions 会自动生成 SDK 发布包并上传到对应的 GitHub Release。tag 版本必须和 SDK `package.json` 版本一致，例如当前 `0.1.0` 对应：
+推送 `v<version>` 格式的 tag 到 `origin` 后，GitHub Actions 会自动生成 SDK 发布包并上传到对应的 GitHub Release。事件中的 `sdkVersion` 会在初始化时直接读取 SDK `package.json` 的 `version`；`sdk:check` 会校验这条版本注入链路没有被破坏。tag 版本必须和 SDK `package.json` 版本一致，例如当前 `1.0.0` 对应：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## 开源说明

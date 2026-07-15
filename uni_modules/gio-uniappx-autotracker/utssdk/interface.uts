@@ -4,6 +4,7 @@ export type GioInitOptions = {
   projectId : string
   dataSourceId : string
   appId : string
+  sdkVersion : string
   serverUrl : string
   appVersion : string | null
   dataCollect : boolean

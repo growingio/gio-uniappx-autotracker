@@ -41,8 +41,6 @@
     }
   },
   "uni_modules": {
-    "dependencies": [],
-    "encrypt": [],
     "platforms": {
       "client": {
         "uni-app-x": {

@@ -390,6 +390,8 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 其中 `sessionId` 按平台 session 策略从存储或内存态读取；`userId`、`userKey` 在 `GioUserStore` 首次取用时从存储恢复，随后通过内存缓存参与事件构建，避免高频事件反复读取存储。所有会改登录身份的公开入口都必须走 `GioUserStore.persistUser()` 这一集中路径，同步写存储和缓存，避免事件构建读到旧身份。
 
+`sdkVersion` 不在原生公共层硬编码。JS 编译层从插件根目录 `package.json` 读取 `version`，在 `gdp('init')` 时作为纯字符串注入初始化参数；事件构建统一使用归一化后的 `options.sdkVersion`，因此发布时只维护插件清单版本。
+
 `eventSequenceId` 当前按独立 SDK 的全局事件序号思路实现：普通事件从 `1` 开始递增并持久化到 `${projectId}_gdp_sequence_ids`；`LOGIN_USER_ATTRIBUTES` 和 `APP_CLOSED` 不带这个字段。
 
 同时，设备信息和网络信息不会在 `init` 后立即同步写死到内存事件模板中，而是先等待异步 API 回调完成，再参与事件构建。这样请求体里看到的字段值会更接近真实端能力返回结果。
@@ -515,7 +517,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
     "referralPage": "pages/index/index",
     "screenHeight": 844,
     "screenWidth": 390,
-    "sdkVersion": "0.1.0",
+    "sdkVersion": "1.0.0",
     "sessionId": "...",
     "timestamp": 1710000000000,
     "timezoneOffset": "-480",
@@ -542,7 +544,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
     "platformVersion": "18.0",
     "screenHeight": 844,
     "screenWidth": 390,
-    "sdkVersion": "0.1.0",
+    "sdkVersion": "1.0.0",
     "sessionId": "...",
     "timestamp": 1710000000200,
     "timezoneOffset": "-480",

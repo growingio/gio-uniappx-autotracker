@@ -5,7 +5,6 @@ import {
   GioPageContext,
   GioTrackEvent
 } from '../../../interface.uts'
-import { SDK_VERSION } from '../../config.uts'
 import { now, readTimezoneOffsetMinutes } from '../../utils/base.uts'
 import {
   resolvePageContext as resolveRuntimePageContext,
@@ -135,7 +134,7 @@ export class GioEventBuilder {
       referralPage: referralPageText,
       screenHeight: systemContext.screenHeight,
       screenWidth: systemContext.screenWidth,
-      sdkVersion: SDK_VERSION,
+      sdkVersion: options.sdkVersion,
       sessionId: context.sessionId,
       timestamp: timestamp,
       timezoneOffset: timezoneOffset,

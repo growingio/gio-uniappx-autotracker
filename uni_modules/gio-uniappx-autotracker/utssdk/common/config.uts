@@ -1,7 +1,6 @@
 // config.uts 负责初始化配置的读取、归一化和默认值收口。
 import { GioInitOptions } from '../interface.uts'
 
-export const SDK_VERSION = '0.1.0'
 export const DEFAULT_REQUEST_TIMEOUT_MS = 15 * 1000
 export const DEFAULT_APP_VERSION = '1.0.0'
 export const DEFAULT_SERVER_URL = 'https://napi.growingio.com'
@@ -22,6 +21,7 @@ export function normalizeInitOptions (raw : UTSJSONObject) : GioInitOptions {
     projectId: raw.getString('projectId', ''),
     dataSourceId: raw.getString('dataSourceId', ''),
     appId: raw.getString('appId', ''),
+    sdkVersion: raw.getString('sdkVersion', ''),
     serverUrl: serverUrl,
     appVersion: raw.getString('appVersion'),
     dataCollect: raw.getBoolean('dataCollect', true),

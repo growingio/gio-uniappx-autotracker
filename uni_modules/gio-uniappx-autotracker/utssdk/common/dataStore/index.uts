@@ -117,6 +117,7 @@ export class GioDataStore {
       projectId: '',
       dataSourceId: '',
       appId: '',
+      sdkVersion: '',
       serverUrl: '',
       appVersion: null,
       dataCollect: true,

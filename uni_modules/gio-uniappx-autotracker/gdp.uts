@@ -1,6 +1,7 @@
 // gdp.uts 是 SDK 的对外命令分发入口。
 // 该文件位于 utssdk 之外，属于 JS 编译层，只负责参数校验、命令分发和生命周期安装，
 // 不直接承接原生编译层的核心采集逻辑。
+import { version as SDK_VERSION } from './package.json'
 // #ifdef MP-WEIXIN
 import {
   clearLocation,
@@ -98,6 +99,7 @@ function handleInit(options : any | null) : boolean {
     return false
   }
   seedScreenSize(initOptions)
+  initOptions['sdkVersion'] = SDK_VERSION
   const initialized = initialize(initOptions)
   if (!initialized) {
     return false

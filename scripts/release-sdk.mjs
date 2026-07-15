@@ -24,6 +24,8 @@ const requiredFiles = [
   'gdp.uts',
   'utssdk/index.uts',
   'utssdk/interface.uts',
+  'utssdk/common/config.uts',
+  'utssdk/app-js/index.uts',
   'utssdk/web/index.uts',
   'utssdk/web/package.json',
   'utssdk/mp-weixin/index.uts',
@@ -117,6 +119,28 @@ function validatePackageJson(packageJson) {
   if (platforms.app?.harmony == null) fail('SDK package.json must declare app-harmony support')
 }
 
+function validateSdkVersionContract(packageJson) {
+  if (packageJson == null || typeof packageJson.version != 'string') return
+
+  const bridgePath = join(sdkDir, 'gdp.uts')
+  const bridgeSource = readFileSync(bridgePath, 'utf8')
+  const configPath = join(sdkDir, 'utssdk/common/config.uts')
+  const configSource = readFileSync(configPath, 'utf8')
+  const eventBuilderPath = join(sdkDir, 'utssdk/common/dataStore/eventBuilder/index.uts')
+  const eventBuilderSource = readFileSync(eventBuilderPath, 'utf8')
+  const requiredSnippets = [
+    [bridgeSource, "import { version as SDK_VERSION } from './package.json'"],
+    [bridgeSource, "initOptions['sdkVersion'] = SDK_VERSION"],
+    [configSource, "sdkVersion: raw.getString('sdkVersion', '')"],
+    [eventBuilderSource, 'sdkVersion: options.sdkVersion'],
+  ]
+  for (const [source, snippet] of requiredSnippets) {
+    if (!source.includes(snippet)) {
+      fail(`SDK version injection contract changed unexpectedly: ${snippet}`)
+    }
+  }
+}
+
 function validateSdkShape(baseDir) {
   for (const file of requiredFiles) {
     assertFile(baseDir, file)
@@ -202,6 +226,7 @@ function createArchive(version) {
 const packageJson = readSdkPackage()
 validatePackageJson(packageJson)
 validateSdkShape(sdkDir)
+validateSdkVersionContract(packageJson)
 validateIdentityCacheContract(sdkDir)
 
 if (!checkOnly && process.exitCode == null) {
