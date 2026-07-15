@@ -41,7 +41,7 @@ function transformForPlatform(code, platform, id = '/src/pages/index/index.uvue'
 }
 
 function assertSetupDispatcher(output) {
-  assert.match(output, /function _gioAutoTrackDispatch\(event : any \| null, action : number, eventValue : string \| number \| boolean \| null, templateId : string \| number \| null, templateIndex : string \| number \| boolean \| null, templateTitle : string \| number \| boolean \| null, templateSrc : string \| number \| boolean \| null, templateGrowingTrack : string \| number \| boolean \| null, templateGrowingIgnore : string \| number \| boolean \| null, condition : boolean \| null = null, alternateAction : number \| null = null\) : boolean/)
+  assert.match(output, /function _gioAutoTrackDispatch\(event : any \| null, action : number, changePayload : any \| null, templateId : string \| number \| null, templateIndex : string \| number \| boolean \| null, templateTitle : string \| number \| boolean \| null, templateSrc : string \| number \| boolean \| null, templateGrowingTrack : string \| number \| boolean \| null, templateGrowingIgnore : string \| number \| boolean \| null, condition : boolean \| null = null, alternateAction : number \| null = null\) : boolean/)
   assert.equal(output.match(/function _gioAutoTrackDispatch/g)?.length, 1)
   assert.doesNotMatch(output, /_gioAutoTrackHandler\d+/)
   assert.doesNotMatch(output, /gioReadAutoTrackAction/)
@@ -111,7 +111,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const code = '<template><button @click="foo(); bar()"></button></template><script lang="uts">export default {}</script>'
   const output = transform(code)
   assert.match(output, /gioHandleAutoClick\(\$event, 'foo', null, null, null, null, null, null\)/)
-  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick\(event : any \| null, eventName : string, templateId : string \| number \| null[\s\S]*return _gioHandleAutoClick\(event, eventName, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore\)[\s\S]*gioHandleAutoChange\(event : any \| null, eventName : string, elementType : string \| null, templateId : string \| number \| null[\s\S]*eventValue : string \| number \| boolean \| null[\s\S]*return _gioHandleAutoChange\(event, eventName, elementType, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue\)/)
+  assert.match(output, /methods\s*:\s*{\s*gioHandleAutoClick\(event : any \| null, eventName : string, templateId : string \| number \| null[\s\S]*return _gioHandleAutoClick\(event, eventName, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore\)[\s\S]*gioHandleAutoChange\(event : any \| null, eventName : string, elementType : string \| null, templateId : string \| number \| null[\s\S]*changePayload : any \| null[\s\S]*return _gioHandleAutoChange\(event, eventName, elementType, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
   assert.match(output, /foo\(\); bar\(\)/)
   assert.doesNotMatch(output, /return foo\(\);/)
   assert.doesNotMatch(output, /\(\$event\)\s*=>/)
@@ -150,7 +150,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const output = transform(code, '/src/pages/autotrack/autotrack.uvue')
   assert.match(output, /<view[\s\S]*id="auto_longpress_method"[\s\S]*@longpress="_gioAutoTrackDispatch\(\$event, \d+, null, 'auto_longpress_method', '3', 'longpress 区域', '[^']+', null, null\); onLongPress\(\)"/)
   assert.match(output, /<input[\s\S]*id="auto_blur_input"[\s\S]*@blur="_gioAutoTrackDispatch\(\$event, \d+, \$event\.detail\.value, 'auto_blur_input', '42', 'blur 输入框', '[^']+', 'true', null\); onInputBlur\(\$event\)"/)
-  assert.match(output, /_gioHandleAutoChange\(event, 'onInputBlur', null, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue\)/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onInputBlur', null, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
   assert.doesNotMatch(output.slice(0, output.indexOf('</template>')), /as UTSJSONObject/)
   assertSetupDispatcher(output)
 }
@@ -160,6 +160,40 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const output = transformForPlatform(code, 'app-android')
   assert.match(output, /@blur="_gioAutoTrackDispatch\(\$event, 0, \$event, null, null, null, null, null, null\); onBlur\(\$event\)"/)
   assert.doesNotMatch(output.slice(0, output.indexOf('</template>')), /detail|as UTSJSONObject/)
+  assertSetupDispatcher(output)
+}
+
+{
+  const code = `<template>
+    <switch
+      :id="item.id"
+      :data-title="item.title"
+      :data-growing-track="item.track"
+      @change="enabled ? onChangeTrue($event) : onChangeFalse($event)"
+    />
+  </template><script setup lang="uts"></script>`
+  const output = transformForPlatform(code, 'app-android')
+  assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 0, \$event, \(item\.id\), null, \(item\.title\), null, \(item\.track\), null, enabled, 1\) \? onChangeTrue\(\$event\) : onChangeFalse\(\$event\)"/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onChangeTrue', null, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onChangeFalse', null, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
+  assert.doesNotMatch(output.slice(0, output.indexOf('</template>')), /detail|as UTSJSONObject/)
+  const dispatcher = output.slice(output.indexOf('function _gioAutoTrackDispatch'))
+  assert.doesNotMatch(dispatcher, /item\.|enabled/)
+  assertSetupDispatcher(output)
+}
+
+{
+  const code = '<template><slider data-growing-track="true" @change="onSliderChange($event)" /></template><script setup lang="uts"></script>'
+  const output = transformForPlatform(code, 'mp-weixin')
+  assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 0, \$event\.detail\.value, null, null, null, null, 'true', null\); onSliderChange\(\$event\)"/)
+  assertSetupDispatcher(output)
+}
+
+{
+  const code = '<template><input @change="onChange($event)" /></template><script lang="uts">export default { methods: { onChange(event : any | null) {} } }</script>'
+  const output = transformForPlatform(code, 'app-android')
+  assert.match(output, /gioHandleAutoChange\(\$event, 'onChange', null, null, null, null, null, null, null, \$event\); onChange\(\$event\)/)
+  assert.match(output, /gioHandleAutoChange\(event : any \| null, eventName : string, elementType : string \| null,[\s\S]*changePayload : any \| null/)
 }
 
 {
@@ -241,7 +275,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const code = '<template><input type="password" @blur="onPasswordBlur($event)" /></template><script setup lang="uts"></script>'
   const output = transform(code)
   assert.match(output, /@blur="_gioAutoTrackDispatch\(\$event, 0, \$event\.detail\.value, null, null, null, null, null, null\); onPasswordBlur\(\$event\)"/)
-  assert.match(output, /_gioHandleAutoChange\(event, 'onPasswordBlur', 'password', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue\)\s*return/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onPasswordBlur', 'password', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)\s*return/)
   assertSetupDispatcher(output)
 }
 
@@ -300,7 +334,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const code = `<template><input :type="'password'" @change="onDynamicLiteralType" /></template><script setup lang="uts"></script>`
   const output = transform(code)
   assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 0, \$event\.detail\.value, null, null, null, null, null, null\); onDynamicLiteralType\(\)"/)
-  assert.match(output, /_gioHandleAutoChange\(event, 'onDynamicLiteralType', 'password', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue\)\s*return/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onDynamicLiteralType', 'password', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)\s*return/)
 }
 
 {

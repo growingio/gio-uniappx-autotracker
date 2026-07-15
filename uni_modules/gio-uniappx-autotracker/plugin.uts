@@ -181,14 +181,56 @@ function dispatchAutoTrackSnapshot(
   return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
 }
 
+function readAutoTrackChangeScalar(changePayload : any | null) : string | number | boolean | null {
+  if (typeof changePayload == 'string') {
+    return changePayload as string
+  }
+  if (typeof changePayload == 'number') {
+    return changePayload as number
+  }
+  if (typeof changePayload == 'boolean') {
+    return changePayload as boolean
+  }
+  // Android 的 $event 可能是标量或原生强类型事件；Any 不能安全地动态读取 detail。
+  // 在唯一入口按公开事件类型解包，避免模板层和后续快照层各自猜测 payload 形态。
+  // #ifdef APP-ANDROID
+  if (changePayload instanceof UniInputBlurEvent) {
+    return (changePayload as UniInputBlurEvent).detail.value
+  }
+  if (changePayload instanceof UniInputConfirmEvent) {
+    return (changePayload as UniInputConfirmEvent).detail.value
+  }
+  if (changePayload instanceof UniInputChangeEvent) {
+    return (changePayload as UniInputChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniTextareaBlurEvent) {
+    return (changePayload as UniTextareaBlurEvent).detail.value
+  }
+  if (changePayload instanceof UniSwitchChangeEvent) {
+    return (changePayload as UniSwitchChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniSliderChangeEvent) {
+    return (changePayload as UniSliderChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniRadioGroupChangeEvent) {
+    return (changePayload as UniRadioGroupChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniPickerChangeEvent) {
+    return readAutoTrackChangeScalar((changePayload as UniPickerChangeEvent).detail.value)
+  }
+  // #endif
+  return null
+}
+
 function buildAutoTrackDetailSnapshot(
-  eventValue : string | number | boolean | null
+  changePayload : any | null
 ) : UTSJSONObject | null {
-  if (eventValue == null) {
+  const value = readAutoTrackChangeScalar(changePayload)
+  if (value == null) {
     return null
   }
   const detail : UTSJSONObject = {}
-  detail['value'] = eventValue
+  detail['value'] = value
   return detail
 }
 
@@ -232,7 +274,7 @@ export function gioHandleAutoChange(
   templateSrc : AutoTrackTemplateDatasetValue,
   templateGrowingTrack : AutoTrackTemplateDatasetValue,
   templateGrowingIgnore : AutoTrackTemplateDatasetValue,
-  eventValue : string | number | boolean | null
+  changePayload : any | null
 ) : boolean {
   return dispatchAutoTrackSnapshot(
     'CHANGE',
@@ -245,7 +287,7 @@ export function gioHandleAutoChange(
     templateSrc,
     templateGrowingTrack,
     templateGrowingIgnore,
-    buildAutoTrackDetailSnapshot(eventValue)
+    buildAutoTrackDetailSnapshot(changePayload)
   )
 }
 
