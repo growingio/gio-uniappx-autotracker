@@ -644,9 +644,6 @@ registerRuntimePolicy({
   supportsLocation() : boolean {
     return false
   },
-  getPageReferralFallback(_options : GioInitOptions) : string {
-    return ''
-  },
   getUploadRequestTimeout(fallback : number) : number {
     return fallback
   },

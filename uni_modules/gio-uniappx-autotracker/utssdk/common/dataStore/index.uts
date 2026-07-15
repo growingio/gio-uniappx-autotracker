@@ -16,7 +16,6 @@ import {
 import { DEFAULT_DATA_VALIDITY_DAYS } from '../config.uts'
 import {
   resolvePageContext,
-  resolvePageReferralFallback,
   shouldWaitForNetworkState
 } from '../runtime/index.uts'
 import { GioUserStore } from '../userStore/index.uts'
@@ -67,7 +66,6 @@ export class GioDataStore {
       options.screenHeight,
       shouldWaitForNetworkState()
     )
-    this.pageStore.configure(resolvePageReferralFallback(options))
     this.resetOriginalSourceStateIfDisabled()
     this.bindSessionUpdateListener()
   }

@@ -21,15 +21,10 @@ export class GioPageStore {
   private currentPageTitle : string = ''
   private currentPageShowAt : number = 0
   private referralPage : string = ''
-  private appId : string = ''
   private entryReferralPage : string = ''
   private lastPageEvent : GioPageEventRecord | null = null
   private lastVisitEvent : GioPageEventRecord | null = null
   private queryOptions : Map<string, string> = new Map()
-
-  configure(appId : string) {
-    this.appId = appId
-  }
 
   setEntryReferralPage(referralPage : string | null) {
     this.entryReferralPage = referralPage != null ? referralPage : ''
@@ -177,9 +172,6 @@ export class GioPageStore {
     }
     if (this.entryReferralPage.length > 0) {
       return this.entryReferralPage
-    }
-    if (this.appId.length > 0) {
-      return this.appId
     }
     return null
   }

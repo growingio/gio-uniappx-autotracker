@@ -1,6 +1,5 @@
 // 微信小程序运行时策略注册。
 // common 只消费这些策略，不直接判断 mp-weixin 平台名。
-import { GioInitOptions } from '../interface.uts'
 import {
   registerNetworkStateProvider,
   registerRuntimePolicy,
@@ -46,9 +45,6 @@ registerRuntimePolicy({
   },
   supportsLocation() : boolean {
     return true
-  },
-  getPageReferralFallback(options : GioInitOptions) : string {
-    return options.appId
   },
   getUploadRequestTimeout(_fallback : number) : number {
     return MP_REQUEST_TIMEOUT_MS

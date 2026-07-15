@@ -63,7 +63,6 @@ type GioRuntimePolicy = {
   shouldEmitPageWithoutShow : () => boolean
   supportsAppState : () => boolean
   supportsLocation : () => boolean
-  getPageReferralFallback : (options : GioInitOptions) => string
   getUploadRequestTimeout : (fallback : number) => number
   getUploadMaxConcurrency : (fallback : number) => number
 }
@@ -241,11 +240,6 @@ export function supportsAppState() : boolean {
 export function supportsLocation() : boolean {
   const policy = registeredRuntimePolicy
   return policy != null ? policy.supportsLocation() : true
-}
-
-export function resolvePageReferralFallback(options : GioInitOptions) : string {
-  const policy = registeredRuntimePolicy
-  return policy != null ? policy.getPageReferralFallback(options) : ''
 }
 
 export function resolveUploadRequestTimeout(fallback : number) : number {

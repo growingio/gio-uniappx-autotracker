@@ -457,6 +457,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 路由解析统一走 `route.uts`
 - `onLoad`、`onShow`、`onHide`、`onUnload` 进入 `utssdk/` 时统一使用 JS 层快照对象，不直接传页面实例
 - `referralPage` 的切换判断不只看 `path`，而是看 `path + query` 组成的路由签名
+- `referralPage` 只记录真实上一页、入口来源应用或有效场景；无来源时归一化为 `null`，不能回填当前应用的 `appId`
 - 同一路径但 query 变化时，会被当成新的路由状态处理
 - 新页面如果暂时还没有标题，不会继续沿用上一个页面的标题
 
