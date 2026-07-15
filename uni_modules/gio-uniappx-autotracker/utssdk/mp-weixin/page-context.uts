@@ -34,6 +34,31 @@ function readMpRuntimeObject(key : string) : UTSJSONObject | null {
   return readObjectField(runtime, key)
 }
 
+function readMpRuntimeConfig() : UTSJSONObject | null {
+  try {
+    // 微信宿主把 __wxConfig 暴露为全局标识符，不保证挂到 globalThis。
+    // @ts-ignore
+    const directConfig = (__wxConfig as unknown) as UTSJSONObject
+    if (directConfig != null && typeof directConfig == 'object' && !Array.isArray(directConfig)) {
+      return directConfig
+    }
+  } catch (_error) {}
+  const config = readMpRuntimeObject('__wxConfig')
+  return config != null ? config : readMpRuntimeObject('__wxConfig__')
+}
+
+function readMpRuntimeAppCode() : UTSJSONObject | null {
+  try {
+    // 与独立小程序 SDK 保持一致，优先读取微信宿主的直接全局标识符。
+    // @ts-ignore
+    const directAppCode = (__wxAppCode__ as unknown) as UTSJSONObject
+    if (directAppCode != null && typeof directAppCode == 'object' && !Array.isArray(directAppCode)) {
+      return directAppCode
+    }
+  } catch (_error) {}
+  return readMpRuntimeObject('__wxAppCode__')
+}
+
 function getMpRuntimeObject() : UTSJSONObject {
   return (globalThis as unknown) as UTSJSONObject
 }
@@ -302,7 +327,7 @@ function resolveMiniProgramTitle(route : string) : string | null {
       return dataTitle
     }
   }
-  const config = readMpRuntimeObject('__wxConfig__')
+  const config = readMpRuntimeConfig()
   const pageTitle = readMpTitleFromPagesConfig(config, route)
   if (pageTitle != null) {
     cacheMpPageTitle(route, pageTitle)
@@ -313,7 +338,7 @@ function resolveMiniProgramTitle(route : string) : string | null {
     cacheMpPageTitle(route, pageObjectTitle)
     return pageObjectTitle
   }
-  const appCode = readMpRuntimeObject('__wxAppCode__')
+  const appCode = readMpRuntimeAppCode()
   const appCodeTitle = readMpTitleFromAppCode(appCode, route)
   if (appCodeTitle != null) {
     cacheMpPageTitle(route, appCodeTitle)
