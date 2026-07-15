@@ -78,6 +78,7 @@
 - iOS 对 `index.uts` 的二次 re-export 更敏感；公共导出尽量扁平，避免多层转发。
 - Kotlin/Swift 对数组引用语义不同，跨模块共享可变数组时优先使用显式包装类，避免长期直接传裸数组。
 - 小程序端 `globalThis`、`getCurrentPages()` 等宿主对象不是真 `UTSJSONObject`，不能调 `getString`/`getJSON`/`getArray` 等 typed getter；必须用 `source[key]` + `typeof` 分支直取。此类安全读取逻辑收敛在小程序平台文件内部（如 `page-context.uts` 的 `readStringProperty`），不要抽象到 `common`。
+- Vite 插桩改写 `blur` / `change` / `confirm` 时，禁止在模板事件表达式里内联 `({ value: ... } as UTSJSONObject)`；Android 会先报 `Unexpected token`，且 App Android 模板中的 `$event` 本身就是 `string | number | boolean` 标量，读取 `$event.detail.value` 会报 `找不到名称“detail”`。编译期必须用 `UNI_PLATFORM == 'app' && UNI_APP_PLATFORM == 'android'` 识别 Android：Android 直接传 `$event`，其他端传 `$event.detail.value`，再由 JS 编译层桥接入口构造 `UTSJSONObject` 快照。
 
 ## UTS 知识库
 

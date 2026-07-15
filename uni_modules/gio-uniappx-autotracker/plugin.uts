@@ -159,7 +159,8 @@ function dispatchAutoTrackSnapshot(
   staticTitle : string | null,
   staticSrc : string | null,
   staticGrowingTrack : string | null,
-  staticGrowingIgnore : string | null
+  staticGrowingIgnore : string | null,
+  eventDetail : UTSJSONObject | null
 ) : boolean {
   const snapshot = buildAutoTrackEventSnapshot(
     action,
@@ -171,9 +172,21 @@ function dispatchAutoTrackSnapshot(
     staticTitle,
     staticSrc,
     staticGrowingTrack,
-    staticGrowingIgnore
+    staticGrowingIgnore,
+    eventDetail
   )
   return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
+}
+
+function buildAutoTrackDetailSnapshot(
+  eventValue : string | number | boolean | null
+) : UTSJSONObject | null {
+  if (eventValue == null) {
+    return null
+  }
+  const detail : UTSJSONObject = {}
+  detail['value'] = eventValue
+  return detail
 }
 
 function dispatchAutoTrackTabItemSnapshot(item : any | null) : boolean {
@@ -201,7 +214,8 @@ export function gioHandleAutoClick(
     staticTitle,
     staticSrc,
     staticGrowingTrack,
-    staticGrowingIgnore
+    staticGrowingIgnore,
+    null
   )
 }
 
@@ -214,7 +228,8 @@ export function gioHandleAutoChange(
   staticTitle : string | null,
   staticSrc : string | null,
   staticGrowingTrack : string | null,
-  staticGrowingIgnore : string | null
+  staticGrowingIgnore : string | null,
+  eventValue : string | number | boolean | null
 ) : boolean {
   return dispatchAutoTrackSnapshot(
     'CHANGE',
@@ -226,7 +241,8 @@ export function gioHandleAutoChange(
     staticTitle,
     staticSrc,
     staticGrowingTrack,
-    staticGrowingIgnore
+    staticGrowingIgnore,
+    buildAutoTrackDetailSnapshot(eventValue)
   )
 }
 
@@ -322,6 +338,7 @@ function dispatchWebDomAutoTrack(action : string, event : any | null) : void {
     null,
     fallbackText,
     findWebLink(target),
+    null,
     null,
     null,
     true
