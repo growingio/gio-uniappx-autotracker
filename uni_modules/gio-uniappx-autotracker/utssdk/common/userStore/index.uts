@@ -1,7 +1,10 @@
 // userStore 是设备标识、登录身份和 session 状态的单一事实来源。
 import { GioContext, GioInitOptions, GioStorage } from '../../interface.uts'
 import {
-  GioEventCenter
+  GioEventCenter,
+  GioSessionIdUpdatePayload,
+  GioUserIdUpdatePayload,
+  GioUserKeyUpdatePayload
 } from '../events.uts'
 import {
   guid,
@@ -201,30 +204,33 @@ export class GioUserStore {
     if (newSessionId == oldSessionId) {
       return
     }
-    GioEventCenter.emitSessionIdUpdate({
+    const payload : GioSessionIdUpdatePayload = {
       newSessionId: newSessionId,
       oldSessionId: oldSessionId
-    })
+    }
+    GioEventCenter.emitSessionIdUpdate(payload)
   }
 
   private emitUserIdUpdate(newUserId : string, oldUserId : string) {
     if (newUserId == oldUserId) {
       return
     }
-    GioEventCenter.emitUserIdUpdate({
+    const payload : GioUserIdUpdatePayload = {
       newUserId: newUserId,
       oldUserId: oldUserId
-    })
+    }
+    GioEventCenter.emitUserIdUpdate(payload)
   }
 
   private emitUserKeyUpdate(newUserKey : string, oldUserKey : string) {
     if (newUserKey == oldUserKey) {
       return
     }
-    GioEventCenter.emitUserKeyUpdate({
+    const payload : GioUserKeyUpdatePayload = {
       newUserKey: newUserKey,
       oldUserKey: oldUserKey
-    })
+    }
+    GioEventCenter.emitUserKeyUpdate(payload)
   }
 
   private resolveSessionId() : string {
