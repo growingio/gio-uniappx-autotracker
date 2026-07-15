@@ -215,9 +215,6 @@ function readAutoTrackChangeScalar(changePayload : any | null) : string | number
   if (changePayload instanceof UniRadioGroupChangeEvent) {
     return (changePayload as UniRadioGroupChangeEvent).detail.value
   }
-  if (changePayload instanceof UniPickerChangeEvent) {
-    return readAutoTrackChangeScalar((changePayload as UniPickerChangeEvent).detail.value)
-  }
   // #endif
   return null
 }
