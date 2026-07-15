@@ -193,6 +193,43 @@ function validateIdentityCacheContract(baseDir) {
   }
 }
 
+function validateUploadSanitizationContract(baseDir) {
+  const uploaderPath = join(baseDir, 'utssdk/common/core/uploader.uts')
+  if (!existsSync(uploaderPath)) {
+    fail(`missing uploader: ${relative(rootDir, uploaderPath)}`)
+    return
+  }
+
+  const source = readFileSync(uploaderPath, 'utf8')
+  const requiredSnippets = [
+    "if (typeof value == 'string')",
+    'return value.length > 0 ? value : null',
+    'const sanitizedItem = this.sanitizeValue(value[i])',
+    'const sanitizedValue = this.sanitizeValue(raw[key])',
+    'return UTSJSONObject.keys(sanitized).length > 0 ? sanitized : null',
+  ]
+  for (const snippet of requiredSnippets) {
+    if (!source.includes(snippet)) {
+      fail(`upload empty-value sanitization changed unexpectedly: ${snippet}`)
+    }
+  }
+
+  const sanitizeEventStart = source.indexOf('private sanitizeEvent(')
+  const sanitizeEventEnd = source.indexOf('private buildRequestHeader(', sanitizeEventStart)
+  if (sanitizeEventStart < 0 || sanitizeEventEnd < 0) {
+    fail('upload sanitizer contract changed unexpectedly: sanitizeEvent() not found')
+    return
+  }
+
+  const sanitizeEventSource = source.slice(sanitizeEventStart, sanitizeEventEnd)
+  if (!sanitizeEventSource.includes('const sanitizedValue = this.sanitizeValue(raw[key])')) {
+    fail('every upload field must pass through sanitizeValue()')
+  }
+  if (/if\s*\(\s*key\s*==/.test(sanitizeEventSource)) {
+    fail('upload sanitizer must not bypass empty-value filtering for named fields')
+  }
+}
+
 function stagePackage() {
   rmSync(stagedSdkDir, { recursive: true, force: true })
   mkdirSync(distUniModulesDir, { recursive: true })
@@ -228,11 +265,13 @@ validatePackageJson(packageJson)
 validateSdkShape(sdkDir)
 validateSdkVersionContract(packageJson)
 validateIdentityCacheContract(sdkDir)
+validateUploadSanitizationContract(sdkDir)
 
 if (!checkOnly && process.exitCode == null) {
   stagePackage()
   validateSdkShape(stagedSdkDir)
   validateIdentityCacheContract(stagedSdkDir)
+  validateUploadSanitizationContract(stagedSdkDir)
   const archivePath = createArchive(packageJson.version)
   if (archivePath != null) {
     console.log(`[sdk-release] staged: ${relative(rootDir, stagedSdkDir)}`)

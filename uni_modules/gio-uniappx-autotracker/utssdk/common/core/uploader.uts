@@ -203,14 +203,9 @@ export class GioUploader {
     const sanitized = {} as UTSJSONObject
     const raw = eventToJSONObject(event)
     const keys = UTSJSONObject.keys(raw)
+    // 上报边界统一清洗所有字段，禁止按字段名绕过空值过滤。
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
-      if (key == 'title') {
-        if (raw[key] != null) {
-          sanitized[key] = raw[key]
-        }
-        continue
-      }
       const sanitizedValue = this.sanitizeValue(raw[key])
       if (sanitizedValue == null) {
         continue
