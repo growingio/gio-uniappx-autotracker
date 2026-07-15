@@ -4,8 +4,8 @@
   "private": true,
   "description": "Minimal feature showcase for gio-uniappx-autotracker SDK",
   "engines": {
-    "HBuilderX": ">=5.07",
-    "uni-app-x": ">=5.07"
+    "HBuilderX": ">=5.08",
+    "uni-app-x": ">=5.08"
   },
   "scripts": {
     "demo:open": "open -a HBuilderX .",

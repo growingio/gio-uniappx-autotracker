@@ -580,12 +580,14 @@ function buildTargetArguments(metadata, attrQuote) {
   ].join(', ')
 }
 
-/** Android 模板统一透传原始 payload，由桥接层按标量或明确事件类型归一化。 */
+/**
+ * 模板统一透传原始事件，由 JS 桥接层归一化 detail.value。
+ * 不同内置组件的 change 结构并不一致：input/switch 是标量、checkbox-group/picker-view
+ * 是数组、swiper 则只有 current/source。模板层直接读取 detail.value 会让不含 value 的组件
+ * 在 UTS 生成阶段报错，也会把平台事件差异扩散到每个改写点。
+ */
 function buildChangeEventValueArgument() {
-  const platform = `${process.env.UNI_PLATFORM ?? ''}`.toLowerCase()
-  const appPlatform = `${process.env.UNI_APP_PLATFORM ?? ''}`.toLowerCase()
-  const isAppAndroid = platform === 'app-android' || (platform === 'app' && appPlatform === 'android')
-  return isAppAndroid ? '$event' : '$event.detail.value'
+  return '$event'
 }
 
 /** 读取纯方法引用路径，如 `onTap` 或 `actions.onTap`；其他表达式返回 null。 */

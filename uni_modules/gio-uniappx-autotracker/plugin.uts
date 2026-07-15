@@ -4,7 +4,7 @@
 
 // bridge/ 保持在 JS 编译层：它将宿主事件对象裁剪为可安全传入 utssdk 的快照。
 import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './bridge/auto-track-event.uts'
-import { copyJSONObject } from './bridge/utils.uts'
+import { copyJSONObject, readDynamicField } from './bridge/utils.uts'
 
 type AutoTrackTemplateId = string | number | null
 type AutoTrackTemplateDatasetValue = string | number | boolean | null
@@ -182,6 +182,10 @@ function dispatchAutoTrackSnapshot(
 }
 
 function readAutoTrackChangeScalar(changePayload : any | null) : string | number | boolean | null {
+  // 这里仅以 null 表示缺失；0 与 false 是 slider、picker、switch 的合法组件值。
+  if (changePayload == null) {
+    return null
+  }
   if (typeof changePayload == 'string') {
     return changePayload as string
   }
@@ -190,6 +194,10 @@ function readAutoTrackChangeScalar(changePayload : any | null) : string | number
   }
   if (typeof changePayload == 'boolean') {
     return changePayload as boolean
+  }
+  if (Array.isArray(changePayload)) {
+    const text = JSON.stringify(changePayload)
+    return text != null && text.length > 0 ? text : null
   }
   // Android 的 $event 可能是标量或原生强类型事件；Any 不能安全地动态读取 detail。
   // 在唯一入口按公开事件类型解包，避免模板层和后续快照层各自猜测 payload 形态。
@@ -215,11 +223,22 @@ function readAutoTrackChangeScalar(changePayload : any | null) : string | number
   if (changePayload instanceof UniRadioGroupChangeEvent) {
     return (changePayload as UniRadioGroupChangeEvent).detail.value
   }
+  if (changePayload instanceof UniCheckboxGroupChangeEvent) {
+    return readAutoTrackChangeScalar((changePayload as UniCheckboxGroupChangeEvent).detail.value)
+  }
+  if (changePayload instanceof UniPickerViewChangeEvent) {
+    return readAutoTrackChangeScalar((changePayload as UniPickerViewChangeEvent).detail.value)
+  }
   if (changePayload instanceof UniPickerChangeEvent) {
     return readAutoTrackChangeScalar((changePayload as UniPickerChangeEvent).detail.value)
   }
   // #endif
-  return null
+  // Web、iOS、Harmony、小程序和自定义组件通常传入普通事件对象；Android 未命中
+  // 上方公开强类型事件时也使用这条纯数据兜底。嵌套读取直接作为函数实参，避免
+  // Harmony 产生隐式 any 局部变量。
+  return readAutoTrackChangeScalar(
+    readDynamicField(readDynamicField(changePayload, 'detail'), 'value')
+  )
 }
 
 function buildAutoTrackDetailSnapshot(

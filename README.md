@@ -31,11 +31,11 @@ SDK 包入口 README：
 
 ## Demo 工程
 
-根目录 demo 主要用于 SDK 开发和联调，包含最小初始化、常用 API 页面、ABTest 页面和微信小程序分享采集示例。
+根目录 demo 主要用于 SDK 开发和联调，包含最小初始化、常用 API 页面、ABTest 页面和微信小程序分享采集示例。无埋点相关用例统一收在 `pages/autotrack/autotrack`：可在同一页连续验证点击/变更事件、element 字段、忽略规则、方法引用、官方值组件、list-view、image 与 navigator。
 
 运行要求：
 
-- 根目录 demo 包含 `uni-link-x` 示例组件，需使用 HBuilderX / uni-app x `5.07` 或更高版本打开和编译。
+- 根目录 demo 包含 `uni-link-x` 与 Android/iOS `picker` 示例，需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译。
 - SDK 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 和 `uni-link-x` / `uts-openSchema` 示例依赖；业务工程接入 SDK 时以 SDK 包内 `package.json` 声明的版本范围为准。
 
 打开 demo：

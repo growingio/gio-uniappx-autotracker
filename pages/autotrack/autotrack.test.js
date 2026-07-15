@@ -1,6 +1,6 @@
-const PAGE_PATH = '/pages/method-reference/method-reference'
+const PAGE_PATH = '/pages/autotrack/autotrack'
 
-describe('method reference event forwarding', () => {
+describe('autotrack method reference event forwarding', () => {
   let page
 
   beforeAll(async () => {

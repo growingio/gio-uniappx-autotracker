@@ -1,5 +1,11 @@
 <template>
 	<scroll-view class="page">
+		<view class="hero">
+			<text class="heroTitle">无埋点完整演示</text>
+			<text class="heroDescription">一个页面连续验证 VIEW_CLICK / VIEW_CHANGE、element 字段、忽略规则、方法引用、官方组件、list-view 与 image。</text>
+			<text class="heroNotice">操作后先看页面底部“最新页面动作”，再对照 GrowingIO 请求。带 data-growing-track 的值组件应携带 textValue，密码输入框除外。</text>
+		</view>
+
 		<view class="section">
 			<text class="sectionTitle">点击事件</text>
 			<text class="hint">覆盖 click / tap / longpress、方法引用、显式 $event 和内联表达式。</text>
@@ -53,6 +59,53 @@
 				data-src="/pages/autotrack/autotrack?case=inline-arg"
 				@click="onInlineArgument('inline argument click')"
 			>内联参数调用</button>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">方法引用与事件参数</text>
+			<text class="hint">Android 原生编译会严格检查参数个数。下面验证一参数、零参数和对象成员方法引用在插桩后仍按原签名调用。</text>
+			<view class="caseRow">
+				<button
+					id="method_ref_event"
+					class="caseBtn"
+					:data-index="70"
+					data-title="一参数方法引用"
+					data-src="/pages/autotrack/autotrack?case=method-event"
+					@click="onEventMethod"
+				>一参数引用</button>
+				<view class="caseResult">
+					<text class="codeLine">&#64;click="onEventMethod"</text>
+					<text id="method_ref_event_result" class="resultText">{{ eventResult }}</text>
+				</view>
+			</view>
+			<view class="caseRow">
+				<button
+					id="method_ref_zero"
+					class="caseBtnGreen"
+					:data-index="71"
+					data-title="零参数方法引用"
+					data-src="/pages/autotrack/autotrack?case=method-zero"
+					@click="onZeroArgumentMethod"
+				>零参数引用</button>
+				<view class="caseResult">
+					<text class="codeLine">&#64;click="onZeroArgumentMethod"</text>
+					<text id="method_ref_zero_result" class="resultText">{{ zeroArgumentResult }}</text>
+				</view>
+			</view>
+			<view class="caseRow">
+				<button
+					id="method_ref_member"
+					class="caseBtnOrange"
+					:data-index="72"
+					data-title="对象成员方法引用"
+					data-src="/pages/autotrack/autotrack?case=method-member"
+					@click="actions.onMemberEvent"
+				>成员方法引用</button>
+				<view class="caseResult">
+					<text class="codeLine">&#64;click="actions.onMemberEvent"</text>
+					<text id="method_ref_member_result" class="resultText">{{ memberResult }}</text>
+				</view>
+			</view>
 		</view>
 
 		<view class="section">
@@ -487,6 +540,80 @@
 				</view>
 				<text class="codeLine">发送：否；growingIgnore=true；不产生 VIEW_CHANGE</text>
 			</view>
+
+			<text class="subsectionTitle">标量值组件</text>
+			<text class="hint">textarea / radio-group / picker 的 detail.value 由桥接层统一归一化，模板插桩只传原始 $event。</text>
+			<textarea
+				id="component_textarea_confirm"
+				class="demoTextarea"
+				v-model="textareaValue"
+				data-title="textarea confirm"
+				data-growing-track="true"
+				confirm-type="done"
+				@confirm="recordComponentAction('textarea confirm')"
+			/>
+			<radio-group
+				id="component_radio_group_change"
+				class="choiceRow"
+				data-title="radio group change"
+				data-growing-track="true"
+				@change="recordComponentAction('radio-group change')"
+			>
+				<label class="choiceItem"><radio value="alpha" /><text class="choiceText">Alpha</text></label>
+				<label class="choiceItem"><radio value="beta" /><text class="choiceText">Beta</text></label>
+			</radio-group>
+			<picker
+				id="component_picker_change"
+				class="demoPicker"
+				:range="pickerItems"
+				:value="0"
+				data-title="picker change"
+				data-growing-track="true"
+				@change="recordComponentAction('picker change')"
+			>
+				<view class="pickerTrigger"><text class="pickerTriggerText">打开 picker（HBuilderX 5.08+）</text></view>
+			</picker>
+
+			<text class="subsectionTitle">数组值组件</text>
+			<text class="hint">checkbox-group 与 picker-view 的 value 是数组，应序列化为稳定 textValue。</text>
+			<checkbox-group
+				id="component_checkbox_group_change"
+				class="choiceRow"
+				data-title="checkbox group change"
+				data-growing-track="true"
+				@change="recordComponentAction('checkbox-group change')"
+			>
+				<label class="choiceItem"><checkbox value="red" /><text class="choiceText">Red</text></label>
+				<label class="choiceItem"><checkbox value="blue" /><text class="choiceText">Blue</text></label>
+			</checkbox-group>
+			<picker-view
+				id="component_picker_view_change"
+				class="pickerView"
+				:value="pickerValue"
+				data-title="picker view change"
+				data-growing-track="true"
+				@change="recordComponentAction('picker-view change')"
+			>
+				<picker-view-column class="pickerColumn">
+					<view class="pickerItem" v-for="(item, index) in pickerItems" :key="index">
+						<text class="pickerText">{{ item }}</text>
+					</view>
+				</picker-view-column>
+			</picker-view>
+
+			<text class="subsectionTitle">非 value 型 change</text>
+			<text class="hint">swiper 只有 current / source，不能读取不存在的 detail.value；手势滑动可上报 VIEW_CHANGE，autoplay 仍按既有规则忽略。</text>
+			<swiper
+				id="component_swiper_change"
+				class="demoSwiper"
+				:autoplay="false"
+				:circular="false"
+				data-title="swiper change"
+				@change="recordComponentAction('swiper change')"
+			>
+				<swiper-item><view class="swiperItem swiperBlue"><text class="swiperText">Swipe A</text></view></swiper-item>
+				<swiper-item><view class="swiperItem swiperGreen"><text class="swiperText">Swipe B</text></view></swiper-item>
+			</swiper>
 		</view>
 
 		<view class="section">
@@ -494,29 +621,101 @@
 			<text class="hint">Web、微信小程序、HarmonyOS VDOM 点击底部 tabBar 的“无埋点”页签时，应通过 onTabItemTap 上报 VIEW_CLICK，xpath 为 #onTabItemTap；Android、iOS、HarmonyOS Vapor 不挂载该 hook。</text>
 		</view>
 		<view class="section">
-			<text class="sectionTitle">组件测试页面</text>
-			<text class="hint">这些页面用于验证复杂组件里的无埋点采集场景。</text>
-			<view class="caseRow">
-				<button
-					id="auto_go_list_view"
-					class="caseBtn"
-					:data-index="80"
-					data-title="进入 list-view 测试页"
-					data-src="/pages/list-view/list-view"
-					@click="goListView"
-				>list-view 长列表</button>
-				<text class="codeLine">验证 list-view / list-item、长列表点击、下拉刷新和触底追加。</text>
+			<text class="sectionTitle">导航组件</text>
+			<text class="hint">navigator 点击应上报 VIEW_CLICK，同时跳转路由页验证后续 PAGE、query 与 referralPage。</text>
+			<navigator
+				id="component_navigator_click"
+				class="navigatorCard"
+				url="/pages/route/route?from=autotrack"
+				:data-index="79"
+				data-title="navigator click"
+				data-src="/pages/route/route"
+				@click="recordComponentAction('navigator click')"
+			>
+				<text class="navigatorText">navigator · 去路由验证页</text>
+			</navigator>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">list-view / list-item</text>
+			<text class="hint">在固定高度列表中验证复用节点、动态 dataset、列表项 VIEW_CLICK、下拉刷新与触底追加。</text>
+			<view class="listActions">
+				<button class="smallButton" @click="scrollToFirstItem">到顶部</button>
+				<button class="smallButton smallButtonGhost" @click="scrollToLastItem">到底部</button>
 			</view>
-			<view class="caseRow">
-				<button
-					id="auto_go_image"
-					class="caseBtnGreen"
+			<list-view
+				class="demoList"
+				direction="vertical"
+				:show-scrollbar="true"
+				:scroll-with-animation="true"
+				:scroll-into-view="scrollIntoView"
+				:refresher-enabled="true"
+				:refresher-triggered="refresherTriggered"
+				refresher-default-style="black"
+				@refresherrefresh="onRefresherRefresh"
+				@scrolltolower="onScrollToLower"
+			>
+				<list-item
+					v-for="item in listItems"
+					:id="item.id"
+					:key="item.id"
+					class="demoListItem"
+					:data-index="item.index"
+					:data-title="item.title"
+					:data-src="item.src"
+					@click="onListItemClick(item)"
+				>
+					<view class="listItemMain">
+						<view class="listBadge"><text class="listBadgeText">{{ item.index }}</text></view>
+						<view class="listContent">
+							<text class="listTitle">{{ item.title }}</text>
+							<text class="listDescription">{{ item.description }}</text>
+						</view>
+					</view>
+				</list-item>
+			</list-view>
+		</view>
+
+		<view class="section">
+			<text class="sectionTitle">image 图片组件</text>
+			<text class="hint">验证动态 mode、lazy-load、load/error 与图片 VIEW_CLICK；点击成功图片还会发送 image_demo_click 供对照。</text>
+			<view class="imagePreview">
+				<image
+					id="image_mode_preview"
+					class="previewImage"
+					:src="imageSrc"
+					:mode="currentImageMode"
+					:lazy-load="true"
+					:fade-show="true"
+					:data-index="80"
+					:data-title="'image mode=' + currentImageMode"
+					data-src="https://qiniu-web-assets.dcloud.net.cn/unidoc/zh/uni-app.png"
+					@load="onImageLoad"
+					@error="onImageError"
+					@click="onImageClick(currentImageMode)"
+				/>
+			</view>
+			<text class="imageModeLabel">当前 mode：{{ currentImageMode }}</text>
+			<view class="imageModeRow">
+				<button v-for="mode in imageModes" :key="mode" class="imageModeButton" @click="setImageMode(mode)">{{ mode }}</button>
+			</view>
+			<view class="imageResultRow">
+				<image
+					id="image_error"
+					class="smallImage errorImage"
+					:src="brokenImageSrc"
+					mode="aspectFit"
 					:data-index="81"
-					data-title="进入 image 测试页"
-					data-src="/pages/image/image"
-					@click="goImage"
-				>image 图片组件</button>
-				<text class="codeLine">验证 image 的 mode、lazy-load、load/error 和图片点击采集。</text>
+					data-title="image error case"
+					data-src="https://example.invalid/not-found.png"
+					@load="onImageLoad"
+					@error="onImageError"
+					@click="onImageClick('error')"
+				/>
+				<view class="imageResultText">
+					<text class="resultText">load：{{ imageLoadInfo }}</text>
+					<text class="resultText">error：{{ imageErrorInfo }}</text>
+				</view>
 			</view>
 		</view>
 		<view class="result">
@@ -528,6 +727,19 @@
 
 <script setup lang="uts">
 import { ref } from 'vue'
+import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
+
+type MethodActions = {
+	onMemberEvent: (event : any | null) => void
+}
+
+type DemoListItem = {
+	id: string
+	index: number
+	title: string
+	description: string
+	src: string
+}
 
 const changeValue = ref('change_value')
 const blurValue = ref('blur_value')
@@ -543,13 +755,62 @@ const invalidChangeChecked = ref(false)
 const ignoredChecked = ref(false)
 const lastAction = ref('(none)')
 const conditionEnabled = ref(true)
+const eventResult = ref('等待点击')
+const zeroArgumentResult = ref('等待点击')
+const memberResult = ref('等待点击')
+const textareaValue = ref('textarea value')
+const pickerValue = ref<Array<number>>([0])
+const pickerItems = ['Alpha', 'Beta', 'Gamma']
+const refresherTriggered = ref(false)
+const scrollIntoView = ref('')
+const imageSrc: string.ImageURIString = 'https://qiniu-web-assets.dcloud.net.cn/unidoc/zh/uni-app.png'
+const brokenImageSrc: string.ImageURIString = 'https://example.invalid/gio-image-demo-not-found.png'
+const imageModes = ['scaleToFill', 'aspectFit', 'aspectFill', 'widthFix']
+const currentImageMode = ref('aspectFit')
+const imageLoadInfo = ref('(waiting)')
+const imageErrorInfo = ref('(waiting)')
+
+function buildListItems(startIndex : number, count : number) : Array<DemoListItem> {
+	const result : Array<DemoListItem> = []
+	for (let i = 0; i < count; i++) {
+		const index = startIndex + i
+		result.push({
+			id: 'autotrack_list_item_' + index.toString(),
+			index: index,
+			title: '列表项 #' + index.toString(),
+			description: '动态 dataset 与复用节点点击采集',
+			src: '/pages/autotrack/autotrack?item=' + index.toString(),
+		})
+	}
+	return result
+}
+
+const listItems = ref<Array<DemoListItem>>(buildListItems(1, 12))
+let nextListIndex = 13
 
 function note(message : string) {
 	lastAction.value = message
 }
 
+const actions : MethodActions = {
+	onMemberEvent: (event : any | null) : void => {
+		memberResult.value = event != null ? 'member $event received' : 'member $event missing'
+		note(memberResult.value)
+	},
+}
+
 function onMethodClick(event : any | null) {
 	note(event != null ? 'method click event received' : 'method click event missing')
+}
+
+function onEventMethod(event : any | null) {
+	eventResult.value = event != null ? '$event received' : '$event missing'
+	note(eventResult.value)
+}
+
+function onZeroArgumentMethod() {
+	zeroArgumentResult.value = 'zero argument called'
+	note(zeroArgumentResult.value)
 }
 
 function onTapClick() {
@@ -717,23 +978,99 @@ function onIgnoredChange() {
 	note('ignored change handler executed: ' + (ignoredChecked.value ? 'true' : 'false'))
 }
 
-function goListView() {
-	uni.navigateTo({
-		url: '/pages/list-view/list-view',
-	})
+function recordComponentAction(message : string) {
+	note(message)
 }
 
-function goImage() {
-	uni.navigateTo({
-		url: '/pages/image/image',
-	})
+function appendListItems(count : number) {
+	const more = buildListItems(nextListIndex, count)
+	for (let i = 0; i < more.length; i++) {
+		listItems.value.push(more[i])
+	}
+	nextListIndex += count
+}
+
+function prependListItems(count : number) {
+	const more = buildListItems(nextListIndex, count)
+	for (let i = more.length - 1; i >= 0; i--) {
+		listItems.value.unshift(more[i])
+	}
+	nextListIndex += count
+}
+
+function onRefresherRefresh() {
+	refresherTriggered.value = true
+	note('list-view 下拉刷新中')
+	setTimeout(() => {
+		prependListItems(2)
+		refresherTriggered.value = false
+		note('list-view 刷新完成，当前 ' + (listItems.value.length as number).toString() + ' 条')
+	}, 600)
+}
+
+function onScrollToLower() {
+	appendListItems(4)
+	note('list-view 触底追加 4 条，当前 ' + (listItems.value.length as number).toString() + ' 条')
+}
+
+function scrollToFirstItem() {
+	if ((listItems.value.length as number) == 0) {
+		return
+	}
+	scrollIntoView.value = listItems.value[0].id
+	note('list-view 滚动到顶部')
+}
+
+function scrollToLastItem() {
+	const count = listItems.value.length as number
+	if (count == 0) {
+		return
+	}
+	scrollIntoView.value = listItems.value[count - 1].id
+	note('list-view 滚动到底部')
+}
+
+function onListItemClick(item : DemoListItem) {
+	const properties = {} as UTSJSONObject
+	properties['itemIndex'] = item.index
+	properties['itemTitle'] = item.title
+	gdp('track', 'list_view_item_click', properties)
+	note('点击 ' + item.title + '，已发送 list_view_item_click')
+}
+
+function setImageMode(mode : string) {
+	currentImageMode.value = mode
+	note('image mode：' + mode)
+}
+
+function onImageClick(scene : string) {
+	const properties = {} as UTSJSONObject
+	properties['scene'] = scene
+	properties['mode'] = currentImageMode.value
+	gdp('track', 'image_demo_click', properties)
+	note('点击图片：' + scene + '，已发送 image_demo_click')
+}
+
+function onImageLoad(event : ImageLoadEvent) {
+	const width = event.detail.width
+	const height = event.detail.height
+	imageLoadInfo.value = 'width=' + `${width as number}` + ', height=' + `${height as number}`
+}
+
+function onImageError(event : ImageErrorEvent) {
+	imageErrorInfo.value = event.detail.errMsg
 }
 </script>
 
 <style>
-.page { padding: 20rpx; flex: 1; }
+.page { padding: 20rpx; flex: 1; background-color: #f3f5f8; }
+.hero { padding: 28rpx; margin-bottom: 20rpx; border-radius: 14rpx; background-color: #172554; }
+.heroTitle { color: #ffffff; font-size: 38rpx; font-weight: bold; }
+.heroDescription { margin-top: 12rpx; color: #dbeafe; font-size: 25rpx; line-height: 38rpx; }
+.heroNotice { margin-top: 16rpx; padding: 16rpx; border-radius: 10rpx; color: #fef3c7; background-color: #713f12; font-size: 22rpx; line-height: 34rpx; }
 .section { background: #fff; padding: 20rpx; margin-bottom: 20rpx; border-radius: 10rpx; }
 .sectionTitle { font-size: 30rpx; font-weight: bold; color: #20242a; margin-bottom: 8rpx; }
+.subsectionTitle { margin-top: 24rpx; margin-bottom: 6rpx; font-size: 26rpx; font-weight: bold; color: #344054; }
 .hint { font-size: 22rpx; color: #667085; padding: 4rpx 0 12rpx; }
 .fieldLabel { font-size: 22rpx; color: #475467; margin: 10rpx 2rpx 6rpx; }
 .btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
@@ -744,6 +1081,7 @@ function goImage() {
 .btnDanger { background: #ef4444; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btnGhost { background: #eef5ff; color: #1677ff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; border: 1rpx solid #9ec5ff; }
 .caseRow { flex-direction: row; align-items: stretch; margin-bottom: 12rpx; }
+.caseResult { flex: 1; }
 .caseBtn { width: 220rpx; background: #1677ff; color: #fff; font-size: 24rpx; padding: 14rpx 8rpx; border-radius: 8rpx; margin-right: 12rpx; }
 .caseBtnGreen { width: 220rpx; background: #13a67a; color: #fff; font-size: 24rpx; padding: 14rpx 8rpx; border-radius: 8rpx; margin-right: 12rpx; }
 .caseBtnOrange { width: 220rpx; background: #fa8c16; color: #fff; font-size: 24rpx; padding: 14rpx 8rpx; border-radius: 8rpx; margin-right: 12rpx; }
@@ -754,6 +1092,45 @@ function goImage() {
 .changeControl { width: 300rpx; margin-right: 12rpx; justify-content: center; }
 .changeSlider { width: 300rpx; margin-right: 12rpx; }
 .linkControl { width: 300rpx; margin-right: 12rpx; justify-content: center; }
+.resultText { margin-top: 8rpx; font-size: 23rpx; color: #00875a; }
+.demoTextarea { height: 150rpx; padding: 14rpx; margin-bottom: 12rpx; border-width: 1rpx; border-style: solid; border-color: #d0d5dd; border-radius: 8rpx; font-size: 24rpx; }
+.choiceRow { flex-direction: row; flex-wrap: wrap; padding-top: 8rpx; padding-bottom: 12rpx; }
+.choiceItem { flex-direction: row; align-items: center; margin-right: 28rpx; margin-bottom: 8rpx; }
+.choiceText { margin-left: 8rpx; color: #344054; font-size: 24rpx; }
+.demoPicker { margin-bottom: 10rpx; }
+.pickerTrigger { padding: 18rpx; border-width: 1rpx; border-style: solid; border-color: #93c5fd; border-radius: 8rpx; align-items: center; background-color: #eff6ff; }
+.pickerTriggerText { color: #1d4ed8; font-size: 24rpx; }
+.pickerView { height: 240rpx; border-width: 1rpx; border-style: solid; border-color: #d0d5dd; border-radius: 8rpx; }
+.pickerColumn { height: 240rpx; }
+.pickerItem { height: 80rpx; align-items: center; justify-content: center; }
+.pickerText { color: #344054; font-size: 24rpx; text-align: center; }
+.demoSwiper { height: 240rpx; border-radius: 8rpx; }
+.swiperItem { flex: 1; align-items: center; justify-content: center; }
+.swiperBlue { background-color: #dbeafe; }
+.swiperGreen { background-color: #d1fae5; }
+.swiperText { color: #1f2937; font-size: 28rpx; font-weight: bold; }
+.navigatorCard { padding: 22rpx; border-radius: 8rpx; align-items: center; background-color: #7c3aed; }
+.navigatorText { color: #ffffff; font-size: 25rpx; }
+.listActions { flex-direction: row; margin-bottom: 12rpx; }
+.smallButton { margin-right: 12rpx; padding: 10rpx 22rpx; border-radius: 8rpx; background-color: #1677ff; color: #ffffff; font-size: 22rpx; }
+.smallButtonGhost { background-color: #ffffff; color: #1677ff; border-width: 1rpx; border-style: solid; border-color: #1677ff; }
+.demoList { height: 620rpx; border-width: 1rpx; border-style: solid; border-color: #e4e7ec; border-radius: 10rpx; background-color: #f8fafc; }
+.demoListItem { margin: 12rpx; border-radius: 8rpx; background-color: #ffffff; border-width: 1rpx; border-style: solid; border-color: #e4e7ec; }
+.listItemMain { flex-direction: row; align-items: center; padding: 18rpx; }
+.listBadge { width: 56rpx; height: 56rpx; margin-right: 16rpx; border-radius: 8rpx; align-items: center; justify-content: center; background-color: #e6f4ff; }
+.listBadgeText { color: #1677ff; font-size: 22rpx; font-weight: bold; }
+.listContent { flex: 1; }
+.listTitle { color: #20242a; font-size: 25rpx; font-weight: 500; }
+.listDescription { margin-top: 6rpx; color: #667085; font-size: 21rpx; }
+.imagePreview { height: 300rpx; margin-top: 10rpx; border-radius: 10rpx; align-items: center; justify-content: center; overflow: hidden; background-color: #eef5ff; }
+.previewImage { width: 100%; height: 300rpx; }
+.imageModeLabel { margin-top: 12rpx; color: #344054; font-size: 23rpx; }
+.imageModeRow { flex-direction: row; flex-wrap: wrap; margin-top: 10rpx; }
+.imageModeButton { margin-right: 8rpx; margin-bottom: 8rpx; padding: 8rpx 14rpx; border-radius: 6rpx; background-color: #eef5ff; color: #1677ff; font-size: 20rpx; }
+.imageResultRow { flex-direction: row; align-items: center; margin-top: 12rpx; }
+.smallImage { width: 180rpx; height: 130rpx; margin-right: 14rpx; border-radius: 8rpx; background-color: #f0f5ff; }
+.errorImage { border-width: 1rpx; border-style: solid; border-color: #ffa39e; background-color: #fff1f0; }
+.imageResultText { flex: 1; }
 .nestBox { padding: 20rpx; border: 1rpx solid #9ec5ff; border-radius: 10rpx; background: #eef5ff; }
 .nestTitle { font-size: 26rpx; color: #1677ff; margin-bottom: 12rpx; }
 .nestChild { margin-top: 12rpx; padding: 18rpx; border-radius: 8rpx; background: #fff; border: 1rpx solid #d0d5dd; }

@@ -106,6 +106,14 @@ function _gioAutoTrackDispatch(
 
 变更事件只有在 `data-growing-track` 为真时才会读取输入内容；`type="password"` 即使被标记采集，也不会写入 `textValue`。
 
+模板改写只传入完整 `$event`，不在模板表达式里展开 `$event.detail.value`。桥接层统一处理：
+
+- input、textarea、switch、slider、radio-group 等标量值；
+- checkbox-group、picker-view 等数组值，序列化为 JSON 字符串；
+- swiper 等没有 `detail.value` 的 change，仍可产生 `VIEW_CHANGE`，但不会写入 `textValue`；autoplay 继续遵守既有忽略规则。
+
+值读取按“是否缺失”而不是 JavaScript truthy 语义判断，因此 picker/slider 的 `0` 与 switch 的 `false` 都会作为有效 `textValue` 保留。
+
 读取优先级为：
 
 1. `detail.value`
@@ -246,7 +254,7 @@ function _gioAutoTrackDispatch(
 | 场景 | Android / iOS | Harmony VDOM | Harmony Vapor | 微信小程序 | 当前处理与影响 |
 | --- | --- | --- | --- | --- | --- |
 | 普通静态 `@tap` / `@click` | 支持 | 支持 | 支持 | 支持 | 模板 AST 写入固定 action；事件字段不完整也能归类为 CLICK。 |
-| `@change` / `@blur` / `@confirm` | 支持 | 支持 | 支持 | 支持 | 固定 action 归类为 CHANGE；仅 `data-growing-track` 时采集值，password 脱敏。 |
+| `@change` / `@blur` / `@confirm` | 支持 | 支持 | 支持 | 支持 | 固定 action 归类为 CHANGE；模板透传完整事件，桥接层处理标量/数组值；仅 `data-growing-track` 时采集值，password 脱敏。 |
 | 自定义组件 `emit('click')` | 支持 | 支持 | 支持 | 支持 | 不再依赖 emit 参数存在 dataset/type；原业务 handler 仍需自己适配参数。 |
 | Ref / computed 条件表达式 | 支持 | 支持 | 支持 | 支持 | 条件只求值一次；true/false 分别映射独立 action，业务分支和上报 handler/xpath 保持一致。 |
 | `uni-link` | 支持 | 支持 | 支持 | 支持 | AST 补充 click 和静态 href 推导；跳过内部 `uni-link-x`。 |

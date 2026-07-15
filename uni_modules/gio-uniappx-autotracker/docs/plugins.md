@@ -42,6 +42,8 @@ export default defineConfig({
 
 对于 `<script setup lang="uts">` 页面，插件会基于模板 AST 改写事件绑定，并只在页面中追加一个显式类型的 `_gioAutoTrackDispatch`。每个模板绑定把自己的静态 action 作为函数参数传入，因此不会依赖 `event.type`、`currentTarget` 或 `dataset` 来反查分支；自定义组件事件和不完整事件对象也不会吞掉原业务表达式。不会按每个事件绑定生成额外 UTS 函数，原有业务函数仍保留在源代码位置，避免触发 UTS 的函数声明顺序问题。
 
+变更类事件在模板中统一透传原始 `$event`，不会直接展开 `$event.detail.value`。桥接层再按组件事件类型读取标量或数组值，因此 `checkbox-group`、`picker-view` 以及没有 `detail.value` 的 `swiper` 都不会因为模板插桩本身导致 UTS 编译失败。
+
 模板上的 `id`、`data-index`、`data-title`、`data-src`、`data-growing-track`、`data-growing-ignore` 会在事件触发时直接求值并传入桥接层，包含 `v-for` 内的动态绑定。事件对象若已携带对应值则以事件对象为准；Android `list-item` 等事件对象缺少动态属性时，使用模板实参补齐。
 
 Web 与其他平台遵循相同的采集边界：只有模板中声明了受支持事件的节点才会被编译期插桩并触发无埋点采集。SDK 不安装 `document` 级监听，也不会采集未绑定事件的页面容器或普通节点。
@@ -66,10 +68,12 @@ gdp('registerPlugins', [
 | --- | --- |
 | `xpath` | `id#handlerName` |
 | `index` | `data-index`，必须是大于 `0` 且小于 `2147483647` 的整数 |
-| `textValue` | 点击事件读取 `data-title`；变更事件仅在 `data-growing-track` 为真时按 `detail.value || target.attr.value` 读取；标记了 `data-growing-track` 的 `type="password"` 输入框强制不采集输入内容 |
+| `textValue` | 点击事件读取 `data-title`；变更事件仅在 `data-growing-track` 为真时优先读取 `detail.value`、缺失时回退 `target.attr.value`，数组值序列化为 JSON 字符串，合法的 `0` / `false` 会保留；没有 value 的 change 事件不写入；标记了 `data-growing-track` 的 `type="password"` 输入框强制不采集输入内容 |
 | `hyperlink` | `data-src` |
 
 变更事件是否上报不受输入类型影响，仍按统一的 change 触发和忽略规则执行。唯一的 password 特殊逻辑是：标记了 `data-growing-track` 的 `type="password"` 输入框即使触发 `VIEW_CHANGE`，也不会写入 `textValue`。
+
+根目录 demo 的 `pages/autotrack/autotrack` 是统一的无埋点回归页，覆盖基础组件 click/tap/longpress、方法引用、input/textarea/switch/slider/radio-group/picker 标量值、checkbox-group/picker-view 数组值、swiper 非 value 型 change，以及 list-view、image、navigator 等组件场景。由于 picker 的 Android/iOS 支持从 5.08 开始，根 demo 的 engines 以 HBuilderX / uni-app x 5.08 为最低版本；该示例页不随 SDK 发布包分发，因此不改变 SDK 包自身的最低版本。
 
 tabBar 点击仅在 Web、微信小程序、HarmonyOS VDOM 挂载页面 `onTabItemTap` hook 并上报 `VIEW_CLICK`；Android、iOS、HarmonyOS Vapor 当前框架不提供等价 hook，因此 SDK 不会伪造 tab 点击事件。事件字段中 `xpath` 固定为 `#onTabItemTap`，`textValue` 取 tab 文案，`index` 取 tab 下标加一，`hyperlink` 取 `pagePath`。
 

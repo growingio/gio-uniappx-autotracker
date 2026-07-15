@@ -144,7 +144,7 @@ export class GioEventAutoTrackingPlugin {
     return indexValue
   }
 
-  private readTruthyDetailValue(source : UTSJSONObject | null) : string | null {
+  private readDetailValue(source : UTSJSONObject | null) : string | null {
     if (source == null) {
       return null
     }
@@ -154,12 +154,11 @@ export class GioEventAutoTrackingPlugin {
     }
     const numberValue = source.getNumber('value')
     if (numberValue != null) {
-      const value = numberValue as number
-      return value != 0 ? `${value}` : null
+      return `${numberValue as number}`
     }
     const booleanValue = source.getBoolean('value')
     if (booleanValue != null) {
-      return (booleanValue as boolean) ? 'true' : null
+      return (booleanValue as boolean) ? 'true' : 'false'
     }
     return null
   }
@@ -209,8 +208,8 @@ export class GioEventAutoTrackingPlugin {
     return this.isPasswordTarget(originalTarget) || this.isPasswordTarget(currentTarget)
   }
 
-  private readTruthyChangeValue(snapshot : UTSJSONObject) : string | null {
-    const detailValue = this.readTruthyDetailValue(this.readSnapshotObject(snapshot, 'detail'))
+  private readChangeValue(snapshot : UTSJSONObject) : string | null {
+    const detailValue = this.readDetailValue(this.readSnapshotObject(snapshot, 'detail'))
     if (detailValue != null) {
       return detailValue
     }
@@ -255,7 +254,7 @@ export class GioEventAutoTrackingPlugin {
     const element = {} as UTSJSONObject
     element['xpath'] = this.buildXpath(target, eventName)
     if (this.hasGrowingTrack(dataset) && !this.isPasswordChange(snapshot)) {
-      const value = this.readTruthyChangeValue(snapshot)
+      const value = this.readChangeValue(snapshot)
       if (value != null) {
         element['textValue'] = stringifyScalar(value)
       }

@@ -15,7 +15,7 @@
 		</view>
 
 		<view class="section">
-			<text class="section-title">功能演示（9 个子页）</text>
+			<text class="section-title">功能演示（7 个主题页）</text>
 			<view class="card-list">
 				<view
 					id="home_entry_custom_event"
@@ -59,7 +59,7 @@
 					@click="go('autotrack')"
 				>
 					<text class="card-title">④ 无埋点 / VIEW_CLICK / VIEW_CHANGE</text>
-					<text class="card-desc">覆盖 click、change、dataset、growingTrack、growingIgnore、tabBar 等触发面。</text>
+					<text class="card-desc">一个页面覆盖 click/change、组件矩阵、方法引用、list-view、image、dataset、忽略规则和 tabBar。</text>
 				</view>
 				<view
 					id="home_entry_route"
@@ -94,33 +94,11 @@
 					<text class="card-title">⑦ 数据采集开关 / setOptions</text>
 					<text class="card-desc">动态切换 dataCollect，控制 SDK 是否采集数据。关闭后事件不上报，开启后恢复。</text>
 				</view>
-				<view
-					id="home_entry_list_view"
-					class="card"
-					:data-index="8"
-					data-title="进入 list-view 长列表演示页"
-					data-src="/pages/list-view/list-view"
-					@click="go('list-view')"
-				>
-					<text class="card-title">⑧ list-view 长列表 / 滚动与点击采集</text>
-					<text class="card-desc">验证长列表、下拉刷新、触底追加、定位滚动和列表项点击采集。</text>
-				</view>
-				<view
-					id="home_entry_method_reference"
-					class="card"
-					:data-index="9"
-					data-title="进入方法引用事件参数演示页"
-					data-src="/pages/method-reference/method-reference"
-					@click="go('method-reference')"
-				>
-					<text class="card-title">⑨ 方法引用 / $event 参数透传</text>
-					<text class="card-desc">对照验证一参数、零参数和对象成员方法引用在 AST 插桩后的 Android 行为。</text>
-				</view>
 				<!-- #ifdef MP-WEIXIN -->
 				<view
 					id="home_entry_share"
 					class="card"
-					:data-index="10"
+					:data-index="8"
 					data-title="进入微信分享演示页"
 					data-src="/pages/share/share"
 					@click="go('share')"
