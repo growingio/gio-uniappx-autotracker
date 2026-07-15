@@ -42,6 +42,8 @@ export default defineConfig({
 
 对于 `<script setup lang="uts">` 页面，插件会基于模板 AST 改写事件绑定，并只在页面中追加一个显式类型的 `_gioAutoTrackDispatch`。每个模板绑定把自己的静态 action 作为函数参数传入，因此不会依赖 `event.type`、`currentTarget` 或 `dataset` 来反查分支；自定义组件事件和不完整事件对象也不会吞掉原业务表达式。不会按每个事件绑定生成额外 UTS 函数，原有业务函数仍保留在源代码位置，避免触发 UTS 的函数声明顺序问题。
 
+模板上的 `id`、`data-index`、`data-title`、`data-src`、`data-growing-track`、`data-growing-ignore` 会在事件触发时直接求值并传入桥接层，包含 `v-for` 内的动态绑定。事件对象若已携带对应值则以事件对象为准；Android `list-item` 等事件对象缺少动态属性时，使用模板实参补齐。
+
 Web 端还会安装 `document` 级的 `click` / `change` 监听，覆盖未声明模板事件的普通 DOM 节点。编译期已改写的模板节点会带内部 `data-gio-auto-track-bound` 标记，Web 全局监听会跳过这些节点，避免重复上报；该标记由插件保留，业务页面不要手工设置。
 
 ### 注册插件

@@ -17,6 +17,8 @@ const CLICK_EVENTS = new Set([
 const CHANGE_EVENTS = new Set(['blur', 'change', 'confirm'])
 const AUTO_TRACK_BOUND_ATTRIBUTE = 'data-gio-auto-track-bound="true"'
 const CHANGE_VALUE_TYPE = 'string | number | boolean | null'
+const TARGET_ID_VALUE_TYPE = 'string | number | null'
+const TARGET_DATASET_VALUE_TYPE = 'string | number | boolean | null'
 const IMPORT_CODE =
   "import { gioHandleAutoClick as _gioHandleAutoClick, gioHandleAutoChange as _gioHandleAutoChange } from '@/uni_modules/gio-uniappx-autotracker/plugin.uts'\n"
 
@@ -439,16 +441,21 @@ function quoteNullableString(value, attrQuote) {
   return value != null && value.length > 0 ? quoteString(value, attrQuote) : 'null'
 }
 
+/** 把其他属性上的动态表达式安全嵌入当前事件属性，避免引号截断模板。 */
+function escapeBoundExpression(value, attrQuote) {
+  return attrQuote === '"' ? value.replace(/"/g, '&quot;') : value.replace(/'/g, '&#39;')
+}
+
 /** 为 Options API 新建 export default 时生成完整的桥接 methods 对象。 */
 function buildBridgeMethodsObject(indent = '  ') {
-  return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore, eventValue)\n${indent}  },\n${indent}  gioHandleAutoConditionalClick(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}    _gioHandleAutoClick(event, condition ? consequentEventName : alternateEventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}    return condition\n${indent}  },\n${indent}  gioHandleAutoConditionalChange(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}    _gioHandleAutoChange(event, condition ? consequentEventName : alternateEventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore, eventValue)\n${indent}    return condition\n${indent}  },\n${indent}},\n`
+  return `${indent}methods: {\n${indent}  gioHandleAutoClick(event : any | null, eventName : string, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}) : boolean {\n${indent}    return _gioHandleAutoClick(event, eventName, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore)\n${indent}  },\n${indent}  gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}    return _gioHandleAutoChange(event, eventName, elementType, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue)\n${indent}  },\n${indent}  gioHandleAutoConditionalClick(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}) : boolean {\n${indent}    _gioHandleAutoClick(event, condition ? consequentEventName : alternateEventName, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore)\n${indent}    return condition\n${indent}  },\n${indent}  gioHandleAutoConditionalChange(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, elementType : string | null, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}    _gioHandleAutoChange(event, condition ? consequentEventName : alternateEventName, elementType, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue)\n${indent}    return condition\n${indent}  },\n${indent}},\n`
 }
 
 /** 为已有 Options API methods 块生成待插入的方法条目。 */
 function buildBridgeMethodsEntries(indent = '    ') {
-  return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore, eventValue)\n${indent}},\n${indent}gioHandleAutoConditionalClick(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null) : boolean {\n${indent}  _gioHandleAutoClick(event, condition ? consequentEventName : alternateEventName, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore)\n${indent}  return condition\n${indent}},\n${indent}gioHandleAutoConditionalChange(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, elementType : string | null, staticId : string | null, staticIndex : string | null, staticTitle : string | null, staticSrc : string | null, staticGrowingTrack : string | null, staticGrowingIgnore : string | null, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}  _gioHandleAutoChange(event, condition ? consequentEventName : alternateEventName, elementType, staticId, staticIndex, staticTitle, staticSrc, staticGrowingTrack, staticGrowingIgnore, eventValue)\n${indent}  return condition\n${indent}},`
+  return `\n${indent}gioHandleAutoClick(event : any | null, eventName : string, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}) : boolean {\n${indent}  return _gioHandleAutoClick(event, eventName, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore)\n${indent}},\n${indent}gioHandleAutoChange(event : any | null, eventName : string, elementType : string | null, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}  return _gioHandleAutoChange(event, eventName, elementType, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue)\n${indent}},\n${indent}gioHandleAutoConditionalClick(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}) : boolean {\n${indent}  _gioHandleAutoClick(event, condition ? consequentEventName : alternateEventName, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore)\n${indent}  return condition\n${indent}},\n${indent}gioHandleAutoConditionalChange(event : any | null, condition : boolean, consequentEventName : string, alternateEventName : string, elementType : string | null, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}, eventValue : ${CHANGE_VALUE_TYPE}) : boolean {\n${indent}  _gioHandleAutoChange(event, condition ? consequentEventName : alternateEventName, elementType, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue)\n${indent}  return condition\n${indent}},`
 }
-/** 仅接受可在编译期确定的字面量绑定值；动态变量交由运行时事件快照读取。 */
+/** 识别可在编译期确定的字面量绑定值；其余表达式保留到模板运行时求值。 */
 function normalizeStaticBoundValue(value) {
   const trimmed = value.trim()
   if (trimmed.length === 0) {
@@ -490,27 +497,24 @@ function hasAttribute(node, name) {
   )
 }
 
-/**
- * 读取 data-* 元数据：静态值直接使用，绑定值只接受能在编译期归一化的字面量。
- * 动态值不会被错误固化，运行时快照仍会从实际 target.dataset 读取。
- */
-function readStaticDatasetAttribute(node, name) {
-  const staticValue = readStaticAttribute(node, `data-${name}`)
+/** 读取模板属性，静态/字面量值保存文本，动态绑定保留原表达式。 */
+function readTemplateAttribute(node, name) {
+  const staticValue = readStaticAttribute(node, name)
   if (staticValue != null) {
-    return staticValue
+    return { kind: 'static', value: staticValue }
   }
-  const boundValue = readBoundAttribute(node, `data-${name}`)
-  return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
-}
-
-/** 读取 href 的静态或字面量绑定值，供 uni-link 补充 data-src 使用。 */
-function readStaticHrefAttribute(node) {
-  const staticValue = readStaticAttribute(node, 'href')
-  if (staticValue != null) {
-    return staticValue
+  const boundValue = readBoundAttribute(node, name)
+  if (boundValue == null) {
+    return null
   }
-  const boundValue = readBoundAttribute(node, 'href')
-  return boundValue != null ? normalizeStaticBoundValue(boundValue) : null
+  const expression = boundValue.trim()
+  if (expression.length === 0) {
+    return null
+  }
+  const normalized = normalizeStaticBoundValue(boundValue)
+  return normalized != null
+    ? { kind: 'static', value: normalized }
+    : { kind: 'expression', value: expression }
 }
 
 /** 为没有 data-src 的 uni-link 生成等价属性，保留静态/绑定两种写法。 */
@@ -536,16 +540,16 @@ function hasDataSrcAttribute(node) {
   return hasAttribute(node, 'data-src')
 }
 
-/** 汇总一个模板节点可静态得到的 id、dataset 与链接元数据。 */
-function readStaticTargetMetadata(node) {
-  const datasetSrc = readStaticDatasetAttribute(node, 'src')
+/** 汇总模板节点的 id、dataset 与链接元数据，动态绑定在点击时直接求值。 */
+function readTargetMetadata(node) {
+  const datasetSrc = readTemplateAttribute(node, 'data-src')
   return {
-    id: readStaticAttribute(node, 'id'),
-    index: readStaticDatasetAttribute(node, 'index'),
-    title: readStaticDatasetAttribute(node, 'title'),
-    src: datasetSrc ?? (hasDataSrcAttribute(node) ? null : readStaticHrefAttribute(node)),
-    growingTrack: readStaticDatasetAttribute(node, 'growing-track'),
-    growingIgnore: readStaticDatasetAttribute(node, 'growing-ignore'),
+    id: readTemplateAttribute(node, 'id'),
+    index: readTemplateAttribute(node, 'data-index'),
+    title: readTemplateAttribute(node, 'data-title'),
+    src: datasetSrc ?? (hasDataSrcAttribute(node) ? null : readTemplateAttribute(node, 'href')),
+    growingTrack: readTemplateAttribute(node, 'data-growing-track'),
+    growingIgnore: readTemplateAttribute(node, 'data-growing-ignore'),
   }
 }
 
@@ -554,15 +558,26 @@ function buildChangeElementTypeArgument(elementType, attrQuote) {
   return elementType != null ? quoteString(elementType, attrQuote) : 'null'
 }
 
-/** 按 plugin.uts 的固定参数顺序构造静态 target 参数，防止调用点自行拼错位置。 */
-function buildStaticTargetArguments(metadata, attrQuote) {
+/** 把单个模板元数据转成桥接实参；动态表达式仍在 v-for 等模板作用域内求值。 */
+function buildTargetArgument(metadata, attrQuote) {
+  if (metadata == null) {
+    return 'null'
+  }
+  if (metadata.kind === 'static') {
+    return quoteNullableString(metadata.value, attrQuote)
+  }
+  return `(${escapeBoundExpression(metadata.value, attrQuote)})`
+}
+
+/** 按 plugin.uts 的固定参数顺序构造模板 target 参数，防止调用点自行拼错位置。 */
+function buildTargetArguments(metadata, attrQuote) {
   return [
-    quoteNullableString(metadata.id, attrQuote),
-    quoteNullableString(metadata.index, attrQuote),
-    quoteNullableString(metadata.title, attrQuote),
-    quoteNullableString(metadata.src, attrQuote),
-    quoteNullableString(metadata.growingTrack, attrQuote),
-    quoteNullableString(metadata.growingIgnore, attrQuote),
+    buildTargetArgument(metadata.id, attrQuote),
+    buildTargetArgument(metadata.index, attrQuote),
+    buildTargetArgument(metadata.title, attrQuote),
+    buildTargetArgument(metadata.src, attrQuote),
+    buildTargetArgument(metadata.growingTrack, attrQuote),
+    buildTargetArgument(metadata.growingIgnore, attrQuote),
   ].join(', ')
 }
 
@@ -658,10 +673,10 @@ function buildWrappedExpression(kind, expression, eventName, attrQuote, elementT
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
   const bridge = kind === 'change' ? 'gioHandleAutoChange' : 'gioHandleAutoClick'
-  const staticTargetArgs = buildStaticTargetArguments(metadata, attrQuote)
+  const targetArgs = buildTargetArguments(metadata, attrQuote)
   const args = kind === 'change'
-    ? `$event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}, ${buildChangeEventValueArgument()}`
-    : `$event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
+    ? `$event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${targetArgs}, ${buildChangeEventValueArgument()}`
+    : `$event, ${quoteString(handlerName, attrQuote)}, ${targetArgs}`
   const trackCall = `${bridge}(${args})`
   const methodReferenceCall = buildMethodReferenceCall(
     source,
@@ -682,10 +697,10 @@ function buildConditionalWrappedExpression(kind, parts, eventName, attrQuote, el
   const bridge = kind === 'change' ? 'gioHandleAutoConditionalChange' : 'gioHandleAutoConditionalClick'
   const consequentName = inferHandlerName(parts.consequent, eventName)
   const alternateName = inferHandlerName(parts.alternate, eventName)
-  const staticTargetArgs = buildStaticTargetArguments(metadata, attrQuote)
+  const targetArgs = buildTargetArguments(metadata, attrQuote)
   const args = kind === 'change'
-    ? `$event, ${parts.test}, ${quoteString(consequentName, attrQuote)}, ${quoteString(alternateName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}, ${buildChangeEventValueArgument()}`
-    : `$event, ${parts.test}, ${quoteString(consequentName, attrQuote)}, ${quoteString(alternateName, attrQuote)}, ${staticTargetArgs}`
+    ? `$event, ${parts.test}, ${quoteString(consequentName, attrQuote)}, ${quoteString(alternateName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${targetArgs}, ${buildChangeEventValueArgument()}`
+    : `$event, ${parts.test}, ${quoteString(consequentName, attrQuote)}, ${quoteString(alternateName, attrQuote)}, ${targetArgs}`
   return `${bridge}(${args}) ? ${parts.consequent} : ${parts.alternate}`
 }
 
@@ -693,10 +708,10 @@ function buildConditionalWrappedExpression(kind, parts, eventName, attrQuote, el
  * 为 script setup 事件表达式前置统一采集调用。
  * 原业务表达式必须留在模板上下文，让 Vue 编译器继续负责 Ref 自动解包等模板语义。
  */
-function buildSetupWrappedExpression(kind, expression, action, options) {
+function buildSetupWrappedExpression(kind, expression, action, attrQuote, metadata, options) {
   const source = expression.trim()
   const eventValue = kind === 'change' ? buildChangeEventValueArgument() : 'null'
-  const trackCall = `_gioAutoTrackDispatch($event, ${action}, ${eventValue})`
+  const trackCall = `_gioAutoTrackDispatch($event, ${action}, ${eventValue}, ${buildTargetArguments(metadata, attrQuote)})`
   const methodReferenceCall = buildMethodReferenceCall(
     source,
     options.handlerParameterCounts,
@@ -715,36 +730,35 @@ function buildSetupWrappedExpression(kind, expression, action, options) {
  * 条件值只在模板上下文求值一次：分发器据此选择真实 action，并把同一布尔值返回给业务三元表达式。
  * 这样既保留 Ref 自动解包，也不会把 false 分支错误上报为 true handler。
  */
-function buildSetupConditionalWrappedExpression(kind, parts, consequentAction, alternateAction) {
+function buildSetupConditionalWrappedExpression(kind, parts, consequentAction, alternateAction, attrQuote, metadata) {
   const eventValue = kind === 'change' ? buildChangeEventValueArgument() : 'null'
-  return `_gioAutoTrackDispatch($event, ${consequentAction}, ${eventValue}, ${parts.test}, ${alternateAction}) ? ${parts.consequent} : ${parts.alternate}`
+  return `_gioAutoTrackDispatch($event, ${consequentAction}, ${eventValue}, ${buildTargetArguments(metadata, attrQuote)}, ${parts.test}, ${alternateAction}) ? ${parts.consequent} : ${parts.alternate}`
 }
 
 /** 生成 script setup 统一分发器中的一个 action 分支；这里只采集，不执行原业务表达式。 */
-function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementType, metadata, action) {
+function buildSetupDispatchCase(kind, expression, eventName, attrQuote, elementType, action) {
   const source = expression.trim()
   const handlerName = inferHandlerName(source, eventName)
   const bridge = kind === 'change' ? '_gioHandleAutoChange' : '_gioHandleAutoClick'
-  const staticTargetArgs = buildStaticTargetArguments(metadata, attrQuote)
   const args = kind === 'change'
-    ? `event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, ${staticTargetArgs}, eventValue`
-    : `event, ${quoteString(handlerName, attrQuote)}, ${staticTargetArgs}`
+    ? `event, ${quoteString(handlerName, attrQuote)}, ${buildChangeElementTypeArgument(elementType, attrQuote)}, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, eventValue`
+    : `event, ${quoteString(handlerName, attrQuote)}, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore`
   return `  if (selectedAction == ${action}) {\n    ${bridge}(${args})\n    return resolvedCondition\n  }\n`
 }
 
 /** 为没有显式 click 的 uni-link 生成仅采集、不执行业务回调的分发分支。 */
-function buildSetupTrackOnlyDispatchCase(eventName, attrQuote, metadata, action) {
-  return `  if (selectedAction == ${action}) {\n    _gioHandleAutoClick(event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})\n    return resolvedCondition\n  }\n`
+function buildSetupTrackOnlyDispatchCase(eventName, attrQuote, action) {
+  return `  if (selectedAction == ${action}) {\n    _gioHandleAutoClick(event, ${quoteString(eventName, attrQuote)}, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore)\n    return resolvedCondition\n  }\n`
 }
 
 /** 将所有 setup 采集分支收敛为一个显式类型的 UTS 函数。 */
 function buildSetupDispatcher(cases) {
-  return `\nfunction _gioAutoTrackDispatch(event : any | null, action : number, eventValue : ${CHANGE_VALUE_TYPE}, condition : boolean | null = null, alternateAction : number | null = null) : boolean {\n  const resolvedCondition : boolean = condition != null ? condition : true\n  let selectedAction : number = action\n  if (!resolvedCondition && alternateAction != null) {\n    selectedAction = alternateAction as number\n  }\n${cases.join('')}  return resolvedCondition\n}\n`
+  return `\nfunction _gioAutoTrackDispatch(event : any | null, action : number, eventValue : ${CHANGE_VALUE_TYPE}, templateId : ${TARGET_ID_VALUE_TYPE}, templateIndex : ${TARGET_DATASET_VALUE_TYPE}, templateTitle : ${TARGET_DATASET_VALUE_TYPE}, templateSrc : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingTrack : ${TARGET_DATASET_VALUE_TYPE}, templateGrowingIgnore : ${TARGET_DATASET_VALUE_TYPE}, condition : boolean | null = null, alternateAction : number | null = null) : boolean {\n  const resolvedCondition : boolean = condition != null ? condition : true\n  let selectedAction : number = action\n  if (!resolvedCondition && alternateAction != null) {\n    selectedAction = alternateAction as number\n  }\n${cases.join('')}  return resolvedCondition\n}\n`
 }
 
 /** 为 Options API 的自动 uni-link click 生成内联采集表达式。 */
-function buildStaticClickExpression(eventName, attrQuote, metadata) {
-  return `gioHandleAutoClick($event, ${quoteString(eventName, attrQuote)}, ${buildStaticTargetArguments(metadata, attrQuote)})`
+function buildClickExpression(eventName, attrQuote, metadata) {
+  return `gioHandleAutoClick($event, ${quoteString(eventName, attrQuote)}, ${buildTargetArguments(metadata, attrQuote)})`
 }
 
 /** 筛选具有静态事件名和表达式的 v-on 指令；动态事件名无法在编译期可靠分类。 */
@@ -878,14 +892,15 @@ function collectTemplateReplacements(code, options = {
         addAttribute(element, buildHrefDatasetAttribute(element))
       }
       if (!hasClickBinding) {
+        const metadata = readTargetMetadata(element)
         if (options.useSetupDispatcher) {
           const action = setupDispatcherCases.length
           // action 直接写入模板调用参数，不再从跨端事件对象反查 dataset/type。
-          setupDispatcherCases.push(buildSetupTrackOnlyDispatchCase('openURL', '"', readStaticTargetMetadata(element), action))
-          addAttribute(element, `@click="_gioAutoTrackDispatch($event, ${action}, null)"`)
+          setupDispatcherCases.push(buildSetupTrackOnlyDispatchCase('openURL', '"', action))
+          addAttribute(element, `@click="_gioAutoTrackDispatch($event, ${action}, null, ${buildTargetArguments(metadata, '"')})"`)
           markGeneratedBinding(element)
         } else {
-          addAttribute(element, `@click="${buildStaticClickExpression('openURL', '"', readStaticTargetMetadata(element))}"`)
+          addAttribute(element, `@click="${buildClickExpression('openURL', '"', metadata)}"`)
           markGeneratedBinding(element)
         }
         changed = true
@@ -908,27 +923,27 @@ function collectTemplateReplacements(code, options = {
       }
       const attributeQuote = getAttributeQuote(binding)
       const elementType = normalizeStaticBoundValue(readBoundAttribute(element, 'type') ?? '') ?? readStaticAttribute(element, 'type')
-      const metadata = readStaticTargetMetadata(element)
+      const metadata = readTargetMetadata(element)
       if (options.useSetupDispatcher) {
         const conditionalParts = readTopLevelConditionalParts(expression)
         if (conditionalParts != null) {
           const consequentAction = setupDispatcherCases.length
-          setupDispatcherCases.push(buildSetupDispatchCase(kind, conditionalParts.consequent, eventName, attributeQuote, elementType, metadata, consequentAction))
+          setupDispatcherCases.push(buildSetupDispatchCase(kind, conditionalParts.consequent, eventName, attributeQuote, elementType, consequentAction))
           const alternateAction = setupDispatcherCases.length
-          setupDispatcherCases.push(buildSetupDispatchCase(kind, conditionalParts.alternate, eventName, attributeQuote, elementType, metadata, alternateAction))
+          setupDispatcherCases.push(buildSetupDispatchCase(kind, conditionalParts.alternate, eventName, attributeQuote, elementType, alternateAction))
           transformed.overwrite(
             binding.exp.loc.start.offset,
             binding.exp.loc.end.offset,
-            buildSetupConditionalWrappedExpression(kind, conditionalParts, consequentAction, alternateAction),
+            buildSetupConditionalWrappedExpression(kind, conditionalParts, consequentAction, alternateAction, attributeQuote, metadata),
           )
         } else {
           const action = setupDispatcherCases.length
-          setupDispatcherCases.push(buildSetupDispatchCase(kind, expression, eventName, attributeQuote, elementType, metadata, action))
+          setupDispatcherCases.push(buildSetupDispatchCase(kind, expression, eventName, attributeQuote, elementType, action))
           // 采集由统一分发器完成，原表达式留在模板上下文，避免破坏 Ref 自动解包等语义。
           transformed.overwrite(
             binding.exp.loc.start.offset,
             binding.exp.loc.end.offset,
-            buildSetupWrappedExpression(kind, expression, action, options),
+            buildSetupWrappedExpression(kind, expression, action, attributeQuote, metadata, options),
           )
         }
         markGeneratedBinding(element)

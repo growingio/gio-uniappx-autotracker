@@ -6,6 +6,9 @@
 import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './bridge/auto-track-event.uts'
 import { copyJSONObject, readDynamicField } from './bridge/utils.uts'
 
+type AutoTrackTemplateId = string | number | null
+type AutoTrackTemplateDatasetValue = string | number | boolean | null
+
 // #ifdef MP-WEIXIN
 import {
   dispatchAutoTrackEvent,
@@ -154,12 +157,12 @@ function dispatchAutoTrackSnapshot(
   event : any | null,
   eventName : string,
   elementType : string | null,
-  staticId : string | null,
-  staticIndex : string | null,
-  staticTitle : string | null,
-  staticSrc : string | null,
-  staticGrowingTrack : string | null,
-  staticGrowingIgnore : string | null,
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue,
   eventDetail : UTSJSONObject | null
 ) : boolean {
   const snapshot = buildAutoTrackEventSnapshot(
@@ -167,12 +170,12 @@ function dispatchAutoTrackSnapshot(
     event,
     eventName,
     elementType,
-    staticId,
-    staticIndex,
-    staticTitle,
-    staticSrc,
-    staticGrowingTrack,
-    staticGrowingIgnore,
+    templateId,
+    templateIndex,
+    templateTitle,
+    templateSrc,
+    templateGrowingTrack,
+    templateGrowingIgnore,
     eventDetail
   )
   return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
@@ -197,24 +200,24 @@ function dispatchAutoTrackTabItemSnapshot(item : any | null) : boolean {
 export function gioHandleAutoClick(
   event : any | null,
   eventName : string,
-  staticId : string | null,
-  staticIndex : string | null,
-  staticTitle : string | null,
-  staticSrc : string | null,
-  staticGrowingTrack : string | null,
-  staticGrowingIgnore : string | null
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue
 ) : boolean {
   return dispatchAutoTrackSnapshot(
     'CLICK',
     event,
     eventName,
     null,
-    staticId,
-    staticIndex,
-    staticTitle,
-    staticSrc,
-    staticGrowingTrack,
-    staticGrowingIgnore,
+    templateId,
+    templateIndex,
+    templateTitle,
+    templateSrc,
+    templateGrowingTrack,
+    templateGrowingIgnore,
     null
   )
 }
@@ -223,12 +226,12 @@ export function gioHandleAutoChange(
   event : any | null,
   eventName : string,
   elementType : string | null,
-  staticId : string | null,
-  staticIndex : string | null,
-  staticTitle : string | null,
-  staticSrc : string | null,
-  staticGrowingTrack : string | null,
-  staticGrowingIgnore : string | null,
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue,
   eventValue : string | number | boolean | null
 ) : boolean {
   return dispatchAutoTrackSnapshot(
@@ -236,12 +239,12 @@ export function gioHandleAutoChange(
     event,
     eventName,
     elementType,
-    staticId,
-    staticIndex,
-    staticTitle,
-    staticSrc,
-    staticGrowingTrack,
-    staticGrowingIgnore,
+    templateId,
+    templateIndex,
+    templateTitle,
+    templateSrc,
+    templateGrowingTrack,
+    templateGrowingIgnore,
     buildAutoTrackDetailSnapshot(eventValue)
   )
 }
