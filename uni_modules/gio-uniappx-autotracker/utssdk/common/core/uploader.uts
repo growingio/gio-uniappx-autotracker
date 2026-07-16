@@ -152,7 +152,7 @@ export class GioUploader {
     this.continueFlush()
   }
 
-  enqueue(event : GioTrackEvent, maxQueueSize : number) {
+  enqueue(event : GioTrackEvent) {
     const queue = this.forceLogin ? this.hoarding : this.pending
     const requestId = guid()
     const queued : GioQueuedEvent = {
@@ -167,9 +167,6 @@ export class GioUploader {
       this.persistence.persist(key, event)
     }
     queue.push(queued)
-    if (queue.length > maxQueueSize) {
-      queue.shift()
-    }
     if (!this.forceLogin) {
       this.continueFlush()
     }
@@ -179,7 +176,7 @@ export class GioUploader {
     this.forceLogin = forceLogin
   }
 
-  releaseHoarding(deviceId : string, maxQueueSize : number) {
+  releaseHoarding(deviceId : string) {
     for (let i = 0; i < this.hoarding.length; i++) {
       const queued = this.hoarding.get(i as number)
       if (queued != null) {
@@ -190,9 +187,6 @@ export class GioUploader {
           this.persistence.persist(key, queued.event)
         }
         this.pending.push(queued)
-        if (this.pending.length > maxQueueSize) {
-          this.pending.shift()
-        }
       }
     }
     this.hoarding = new BoxArray()

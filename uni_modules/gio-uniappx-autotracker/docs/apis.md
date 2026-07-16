@@ -192,6 +192,7 @@ gdp('identify', 'openid-or-unionid')
 
 - 返回 `true`：SDK 将 `assignmentId` 写为设备 ID，设置 `forceLogin` 为 `false`，释放暂停的上报队列，并触发 flush。
 - 返回 `false`：不修改设备 ID，不释放队列。
+- 等待队列不设置长度上限，也不会因队列长度静默淘汰事件；业务应及时调用 `identify`，避免长时间积压占用内存。
 
 失败条件：
 

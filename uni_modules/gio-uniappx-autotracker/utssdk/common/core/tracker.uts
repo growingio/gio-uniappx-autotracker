@@ -34,7 +34,6 @@ import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
 import { GioEventAutoTrackingPlugin } from '../plugins/gio-event-autotracking.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
-import { MAX_PERSISTED_EVENTS } from './event-persistence.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import {
   clearVisitSessionSnapshot,
@@ -42,7 +41,6 @@ import {
   recordVisitSessionSnapshot,
   resolveInitCompleteMessage,
   resolveInitStartMessage,
-  resolveMaxQueueSize,
   resolveSessionTimeoutMs,
   scheduleVisitAndPage,
   shouldEmitPageWithoutShow,
@@ -58,6 +56,7 @@ import { GioStorageContainer } from '../storage/index.uts'
 import { resolvePageRoute } from '../route.uts'
 
 type GioPageReadyCallback = () => void
+type GioSystemReadyEventCallback = () => void
 
 export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEventAutoTrackingHost {
   static sharedInstance : GioTracker | null = null
@@ -82,6 +81,9 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
   private pendingPageReadyCallbacks : Array<GioPageReadyCallback> = []
   private firstPageDispatchWaiting : boolean = false
+  private pendingSystemReadyCallbacks : Array<GioSystemReadyEventCallback> = []
+  private systemReadyDispatchWaiting : boolean = false
+  private flushPendingEventsWaiting : boolean = false
   private shareTrackingEnabled : boolean = false
   private entryEnabled : boolean = false
   private entryResolver : GioEntryResolver | null = null
@@ -229,10 +231,6 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
 
   private getSessionTimeoutMs() : number {
     return resolveSessionTimeoutMs(30 * 1000)
-  }
-
-  private getMaxQueueSize() : number {
-    return resolveMaxQueueSize(MAX_PERSISTED_EVENTS)
   }
 
   private isEntryResolverReady() : boolean {
@@ -421,6 +419,27 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
     }
   }
 
+  private enqueueSystemReadyEvent(callback : GioSystemReadyEventCallback) {
+    if (this.dataStore.isSystemReady()) {
+      callback()
+      return
+    }
+    this.pendingSystemReadyCallbacks.push(callback)
+    if (this.systemReadyDispatchWaiting) {
+      return
+    }
+    this.systemReadyDispatchWaiting = true
+    this.dataStore.ensureSystemReady(() => {
+      this.systemReadyDispatchWaiting = false
+      const pendingCallbacks = this.pendingSystemReadyCallbacks.slice()
+      this.pendingSystemReadyCallbacks = []
+      for (let i = 0; i < pendingCallbacks.length; i++) {
+        const pendingCallback = pendingCallbacks[i]
+        pendingCallback()
+      }
+    })
+  }
+
   private emitVisitEvent(pageContext : GioPageContext | null, flushAfter : boolean = false) {
     if (this.shouldWaitForReadyPageContext(pageContext, 'VISIT')) {
       this.enqueuePageReadyCallback(() => {
@@ -561,12 +580,12 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
     }
     // 所有事件都必须等异步系统上下文 ready 后才能真正构建；
     // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
-    this.dataStore.ensureSystemReady(() => {
+    this.enqueueSystemReadyEvent(() => {
       const event = this.applyLastPageEventContext(
         this.buildEvent(name, eventType, properties, pageContext, element)
       )
       this.recordEventContext(eventType, event)
-      this.uploader.enqueue(event, this.getMaxQueueSize())
+      this.uploader.enqueue(event)
       if (flushAfter) {
         if (eventType == 'APP_CLOSED') {
           this.uploader.flush(null, null)
@@ -906,7 +925,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
     options.forceLogin = false
     this.identified = true
     this.uploader.setForceLogin(false)
-    this.uploader.releaseHoarding(deviceId, this.getMaxQueueSize())
+    this.uploader.releaseHoarding(deviceId)
     this.uploader.flush(null, null)
     return true
   }
@@ -948,7 +967,16 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
   }
 
   private flushPendingEvents() {
+    if (this.dataStore.isSystemReady()) {
+      this.uploader.flush(null, null)
+      return
+    }
+    if (this.flushPendingEventsWaiting) {
+      return
+    }
+    this.flushPendingEventsWaiting = true
     this.dataStore.ensureSystemReady(() => {
+      this.flushPendingEventsWaiting = false
       this.uploader.flush(null, null)
     })
   }

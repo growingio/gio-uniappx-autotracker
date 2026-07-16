@@ -33,7 +33,6 @@ const VISIT_SENT_SUFFIX = '_gdp_session_id_sent'
 const DEFAULT_STORAGE_TYPE = 'cookie'
 const LOCAL_STORAGE_TYPE = 'localStorage'
 const WEB_SESSION_TIMEOUT_MS = 30 * 60 * 1000
-const WEB_MAX_QUEUE_SIZE = 100
 
 const SPECIAL_TOP_DOMAIN_PREFIXES = [
   '.ac.',
@@ -629,9 +628,6 @@ registerRuntimePolicy({
   },
   shouldRenewSessionOnTimeout() : boolean {
     return true
-  },
-  getMaxQueueSize(_fallback : number) : number {
-    return WEB_MAX_QUEUE_SIZE
   },
   shouldPersistSessionId() : boolean {
     return true

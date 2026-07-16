@@ -222,9 +222,9 @@ gdp('identify', 'openid-or-unionid')
 
 生效条件：`identify` 仅在 `forceLogin: true` 时生效。调用成功后，SDK 将 `forceLogin` 状态改为 `false`。
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
-生效行为：默认值为 `false`。设置为 `false` 时，SDK 按正常流程上报事件。设置为 `true` 时，SDK 暂停上报队列，直到 `identify` 调用成功后释放队列。
+生效行为：默认值为 `false`。设置为 `false` 时，SDK 按正常流程上报事件。设置为 `true` 时，SDK 暂停上报队列，直到 `identify` 调用成功后释放队列。Web、App 和微信小程序均不限制等待队列长度，也不会因队列长度静默淘汰事件；业务应及时调用 `identify`，避免长时间积压占用内存。
 
 ### originalSource
 
