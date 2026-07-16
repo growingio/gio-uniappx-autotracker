@@ -1,5 +1,6 @@
 // event-codec.uts 统一维护 GioTrackEvent 与 UTSJSONObject 的字段映射。
 import { GioTrackEvent } from '../../interface.uts'
+import { limitTextValue } from '../utils/validate.uts'
 
 export function eventToJSONObject(event : GioTrackEvent) : UTSJSONObject {
   const payload = {
@@ -59,7 +60,10 @@ function flattenFirstElement(payload : UTSJSONObject, elements : Array<UTSJSONOb
   }
   const textValue = element.getString('textValue')
   if (textValue != null) {
-    payload['textValue'] = textValue
+    const limitedTextValue = limitTextValue(textValue)
+    if (limitedTextValue != null) {
+      payload['textValue'] = limitedTextValue
+    }
   }
   const hyperlink = element.getString('hyperlink')
   if (hyperlink != null) {
@@ -79,6 +83,15 @@ function copyElementItem(item : any | null) : UTSJSONObject | null {
   if (copied == null || UTSJSONObject.keys(copied).length == 0) {
     return null
   }
+  const textValue = copied.getString('textValue')
+  if (textValue != null) {
+    const limitedTextValue = limitTextValue(textValue)
+    if (limitedTextValue != null) {
+      copied['textValue'] = limitedTextValue
+    } else {
+      copied['textValue'] = null
+    }
+  }
   return copied
 }
 
@@ -94,7 +107,10 @@ function readFlattenedElement(raw : UTSJSONObject) : UTSJSONObject | null {
   }
   const textValue = raw.getString('textValue')
   if (textValue != null) {
-    element['textValue'] = textValue
+    const limitedTextValue = limitTextValue(textValue)
+    if (limitedTextValue != null) {
+      element['textValue'] = limitedTextValue
+    }
   }
   const hyperlink = raw.getString('hyperlink')
   if (hyperlink != null) {

@@ -5,6 +5,7 @@ export function isBlank (value : string | null) : boolean {
 }
 
 const INVALID_ID_VALUES = ['-', 'null', 'undefined']
+const TEXT_VALUE_MAX_LENGTH = 100
 
 export function verifyId (value : string | null) : boolean {
   if (isBlank(value)) {
@@ -27,6 +28,19 @@ export function isValidEventName (eventName : string | null) : boolean {
     return false
   }
   return (eventName as string).match(EVENT_NAME_REG) != null
+}
+
+export function limitTextValue (value : string | null) : string | null {
+  if (value == null) {
+    return null
+  }
+  const trimmed = (value as string).trim()
+  if (trimmed.length == 0) {
+    return null
+  }
+  return trimmed.length > TEXT_VALUE_MAX_LENGTH
+    ? trimmed.slice(0, TEXT_VALUE_MAX_LENGTH)
+    : trimmed
 }
 
 // 把标量按真实类型解包成字符串。iOS 上对 any 直接 `${value}` 会渲染出 "Optional(...)"。
