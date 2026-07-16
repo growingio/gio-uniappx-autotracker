@@ -410,6 +410,63 @@ function validateUploadSanitizationContract(baseDir) {
   }
 }
 
+function validateUnboundedWaitingQueueContract(baseDir) {
+  const paths = {
+    uploader: join(baseDir, 'utssdk/common/core/uploader.uts'),
+    tracker: join(baseDir, 'utssdk/common/core/tracker.uts'),
+    runtime: join(baseDir, 'utssdk/common/runtime/index.uts'),
+  }
+  for (const path of Object.values(paths)) {
+    if (!existsSync(path)) {
+      fail(`missing waiting queue contract source: ${relative(rootDir, path)}`)
+      return
+    }
+  }
+
+  const sources = Object.fromEntries(
+    Object.entries(paths).map(([name, path]) => [name, readFileSync(path, 'utf8')]),
+  )
+  const enqueueStart = sources.uploader.indexOf('enqueue(event : GioTrackEvent)')
+  const enqueueEnd = sources.uploader.indexOf('setForceLogin(', enqueueStart)
+  const releaseStart = sources.uploader.indexOf('releaseHoarding(deviceId : string)')
+  const releaseEnd = sources.uploader.indexOf('private sanitizeEvent(', releaseStart)
+  if (enqueueStart < 0 || enqueueEnd < 0 || releaseStart < 0 || releaseEnd < 0) {
+    fail('unbounded uploader queue methods changed unexpectedly')
+    return
+  }
+  const waitingQueueSource =
+    sources.uploader.slice(enqueueStart, enqueueEnd) +
+    sources.uploader.slice(releaseStart, releaseEnd)
+  if (!waitingQueueSource.includes('queue.push(queued)')) {
+    fail('forceLogin events must remain in the hoarding queue until identify')
+  }
+  if (!waitingQueueSource.includes('this.pending.push(queued)')) {
+    fail('identify must release every hoarded event into the pending queue')
+  }
+  if (waitingQueueSource.includes('.shift()') || waitingQueueSource.includes('enforceQueueLimit')) {
+    fail('forceLogin and identify waiting queues must not evict events by length')
+  }
+  const forbiddenLimitSnippets = [
+    'MAX_EVENT_QUEUE_SIZE',
+    'resolveMaxQueueSize',
+    'getMaxQueueSize',
+    'DroppedCount',
+    '队列超限',
+  ]
+  const waitingSources = `${sources.uploader}\n${sources.tracker}\n${sources.runtime}`
+  for (const snippet of forbiddenLimitSnippets) {
+    if (waitingSources.includes(snippet)) {
+      fail(`waiting event queues must remain unbounded: found ${snippet}`)
+    }
+  }
+  if (!sources.tracker.includes('this.enqueueSystemReadyEvent(() => {')) {
+    fail('event construction must wait for the system-ready event queue')
+  }
+  if (!sources.tracker.includes('if (this.flushPendingEventsWaiting)')) {
+    fail('repeated pre-ready flush requests must be deduplicated')
+  }
+}
+
 function validateWebReferralContract(baseDir) {
   const runtimePath = join(baseDir, 'utssdk/web/runtime.uts')
   if (!existsSync(runtimePath)) {
@@ -461,6 +518,38 @@ function validateWebReferralContract(baseDir) {
   }
 }
 
+function validateCommonReferralContract(baseDir) {
+  const pageStorePath = join(
+    baseDir,
+    'utssdk/common/dataStore/page/page-store.uts',
+  )
+  if (!existsSync(pageStorePath)) {
+    fail(`missing common page store: ${relative(rootDir, pageStorePath)}`)
+    return
+  }
+
+  const source = readFileSync(pageStorePath, 'utf8')
+  const resolverStart = source.indexOf('private resolveReferralPage(')
+  const resolverEnd = source.indexOf('getQueryFromLastEvent(', resolverStart)
+  if (resolverStart < 0 || resolverEnd < 0) {
+    fail('common referral contract changed unexpectedly: resolver not found')
+    return
+  }
+
+  const resolverSource = source.slice(resolverStart, resolverEnd)
+  const replayRequiredSnippets = [
+    'lastPage.path == path && lastPage.query == query',
+    'lastPage.referralPage.length > 0',
+    '? lastPage.referralPage',
+    'return lastPage.path',
+  ]
+  for (const snippet of replayRequiredSnippets) {
+    if (!resolverSource.includes(snippet)) {
+      fail(`same-page common PAGE replay must preserve its prior referral: missing ${snippet}`)
+    }
+  }
+}
+
 function validateWebUploadTerminationContract(baseDir) {
   const runtimePath = join(baseDir, 'utssdk/web/runtime.uts')
   if (!existsSync(runtimePath)) {
@@ -491,6 +580,64 @@ function validateWebUploadTerminationContract(baseDir) {
   }
   if (countOccurrences(senderSource, 'if (settled)') != 2) {
     fail('web XHR sender must settle success and failure exactly once')
+  }
+}
+
+function validateWebSessionActivityContract(baseDir) {
+  const paths = {
+    runtime: join(baseDir, 'utssdk/common/runtime/index.uts'),
+    userStore: join(baseDir, 'utssdk/common/userStore/index.uts'),
+    tracker: join(baseDir, 'utssdk/common/core/tracker.uts'),
+    webRuntime: join(baseDir, 'utssdk/web/runtime.uts'),
+    mpRuntime: join(baseDir, 'utssdk/mp-weixin/runtime.uts'),
+  }
+  for (const path of Object.values(paths)) {
+    if (!existsSync(path)) {
+      fail(`missing session activity contract source: ${relative(rootDir, path)}`)
+      return
+    }
+  }
+
+  const sources = Object.fromEntries(
+    Object.entries(paths).map(([name, path]) => [name, readFileSync(path, 'utf8')]),
+  )
+  const commonRequiredSnippets = [
+    [sources.runtime, 'shouldRefreshSessionOnSuccess : () => boolean'],
+    [sources.runtime, 'export function shouldRefreshSessionOnUploadSuccess () : boolean'],
+    [sources.userStore, 'if (!timedOut) {'],
+    [sources.userStore, 'touchSessionIfCurrent(sessionId : string, timeoutMs : number) : boolean'],
+    [sources.userStore, 'currentSessionId.length == 0 || currentSessionId != sessionId'],
+    [sources.tracker, 'this.userStore.touchSessionIfCurrent('],
+  ]
+  for (const [source, snippet] of commonRequiredSnippets) {
+    if (!source.includes(snippet)) {
+      fail(`successful-upload session activity contract changed unexpectedly: missing ${snippet}`)
+    }
+  }
+  if (sources.tracker.includes('this.userStore.touchSession(')) {
+    fail('lifecycle callbacks must not refresh Web session activity')
+  }
+
+  const webUploadPolicy = sources.webRuntime.slice(
+    sources.webRuntime.indexOf('registerUploadPolicy({'),
+    sources.webRuntime.indexOf('registerEventSender({'),
+  )
+  const mpUploadPolicy = sources.mpRuntime.slice(
+    sources.mpRuntime.indexOf('registerUploadPolicy({'),
+  )
+  if (!webUploadPolicy.includes('shouldRefreshSessionOnSuccess() : boolean {\n    return true')) {
+    fail('Web must refresh session activity only after a successful upload')
+  }
+  if (!mpUploadPolicy.includes('shouldRefreshSessionOnSuccess() : boolean {\n    return false')) {
+    fail('mp-weixin upload success must not refresh lifecycle-owned session activity')
+  }
+
+  const webSender = sources.webRuntime.slice(sources.webRuntime.indexOf('registerEventSender({'))
+  if (!webSender.includes('if (xhr.status == 204)')) {
+    fail('Web XHR session activity must require status 204')
+  }
+  if (webSender.includes('xhr.status == 204 || xhr.status == 200')) {
+    fail('Web XHR status 200 must not refresh session activity')
   }
 }
 
@@ -531,8 +678,11 @@ validateSdkVersionContract(packageJson)
 validateIdentityStorageContract(sdkDir)
 validateOriginalSourceContract(sdkDir)
 validateUploadSanitizationContract(sdkDir)
+validateUnboundedWaitingQueueContract(sdkDir)
+validateCommonReferralContract(sdkDir)
 validateWebReferralContract(sdkDir)
 validateWebUploadTerminationContract(sdkDir)
+validateWebSessionActivityContract(sdkDir)
 
 if (!checkOnly && process.exitCode == null) {
   stagePackage()
@@ -540,8 +690,11 @@ if (!checkOnly && process.exitCode == null) {
   validateIdentityStorageContract(stagedSdkDir)
   validateOriginalSourceContract(stagedSdkDir)
   validateUploadSanitizationContract(stagedSdkDir)
+  validateUnboundedWaitingQueueContract(stagedSdkDir)
+  validateCommonReferralContract(stagedSdkDir)
   validateWebReferralContract(stagedSdkDir)
   validateWebUploadTerminationContract(stagedSdkDir)
+  validateWebSessionActivityContract(stagedSdkDir)
   const archivePath = createArchive(packageJson.version)
   if (archivePath != null) {
     console.log(`[sdk-release] staged: ${relative(rootDir, stagedSdkDir)}`)
