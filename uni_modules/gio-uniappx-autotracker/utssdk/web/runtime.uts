@@ -783,6 +783,9 @@ registerUploadPolicy({
   shouldScheduleFlush() : boolean {
     return true
   },
+  shouldRefreshSessionOnSuccess() : boolean {
+    return true
+  },
   getFlushDelay() : number {
     return 0
   },
@@ -839,7 +842,7 @@ registerEventSender({
       xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8')
       xhr.timeout = resolveUploadRequestTimeout(DEFAULT_REQUEST_TIMEOUT_MS)
       xhr.onload = function() {
-        if (xhr.status == 204 || xhr.status == 200) {
+        if (xhr.status == 204) {
           finishSuccess()
         } else {
           finishFail()

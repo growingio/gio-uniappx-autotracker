@@ -61,6 +61,9 @@ registerUploadPolicy({
   shouldScheduleFlush() : boolean {
     return true
   },
+  shouldRefreshSessionOnSuccess() : boolean {
+    return false
+  },
   getFlushDelay() : number {
     return MP_UPLOAD_DELAY_MS
   },

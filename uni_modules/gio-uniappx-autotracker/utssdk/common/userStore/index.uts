@@ -13,6 +13,7 @@ import {
 import {
   shouldPersistSessionId,
   shouldReadIdentityFromStorage,
+  shouldRefreshSessionOnUploadSuccess,
   shouldRenewSessionOnTimeout
 } from '../runtime/index.uts'
 import { stringifyScalar, numberifyScalar } from '../utils/validate.uts'
@@ -262,9 +263,23 @@ export class GioUserStore {
           (legacyExpiresAt > 0 && legacyExpiresAt <= ts)
         )
       )
-    if (timedOut) {
-      sessionId = guid()
+    if (!timedOut) {
+      // 旧版把过期时间单独保存。迁移时沿用原截止时间，不能因为读取事件
+      // 就把 session 重新延长一个完整超时周期。
+      if (renewOnTimeout && legacyExpiresAt > 0) {
+        this.writeStoredSessionId(sessionId, legacyExpiresAt)
+        if (lastActiveAt <= 0) {
+          const migratedLastActiveAt = legacyExpiresAt - timeoutMs
+          if (migratedLastActiveAt > 0) {
+            this.persistLastActiveAt(migratedLastActiveAt)
+          }
+        }
+        this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+      }
+      return null
     }
+
+    sessionId = guid()
     if (shouldPersistSessionId()) {
       this.writeStoredSessionId(
         sessionId,
@@ -277,17 +292,30 @@ export class GioUserStore {
       this.persistLastActiveAt(ts)
       this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
     }
-    if (timedOut) {
-      this.emitSessionIdUpdate(sessionId, previousSessionId)
-      return previousSessionId
-    }
-    return null
+    this.emitSessionIdUpdate(sessionId, previousSessionId)
+    return previousSessionId
   }
 
-  touchSession(_timeoutMs : number) {
-    if (shouldRenewSessionOnTimeout()) {
-      this.persistLastActiveAt(now())
+  touchSessionIfCurrent(sessionId : string, timeoutMs : number) : boolean {
+    if (
+      !shouldRefreshSessionOnUploadSuccess() ||
+      !shouldRenewSessionOnTimeout() ||
+      !shouldPersistSessionId() ||
+      sessionId.length == 0
+    ) {
+      return false
     }
+    // Web 每次都从持久化存储重读，避免旧标签页的迟到请求复活已经切换
+    // 或过期的 session。
+    const currentSessionId = this.resolveSessionId()
+    if (currentSessionId.length == 0 || currentSessionId != sessionId) {
+      return false
+    }
+    const ts = now()
+    this.writeStoredSessionId(currentSessionId, ts + timeoutMs)
+    this.persistLastActiveAt(ts)
+    this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+    return true
   }
 
   setUserId(userId : string) {

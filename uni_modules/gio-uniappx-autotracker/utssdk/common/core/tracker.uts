@@ -347,6 +347,16 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
   }
 
   private handleFlushSuccess(events : Array<GioTrackEvent>) {
+    for (let i = 0; i < events.length; i++) {
+      if (
+        this.userStore.touchSessionIfCurrent(
+          events[i].sessionId,
+          this.getSessionTimeoutMs()
+        )
+      ) {
+        break
+      }
+    }
     this.dataStore.handleFlushSuccess(events)
   }
 
@@ -1093,7 +1103,6 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
     if (shouldTrackAppClosed()) {
       this.lastAppHideAt = now()
       this.lastEntryScene = this.entryScene
-      this.userStore.touchSession(this.getSessionTimeoutMs())
       this.pushInternalEvent(
         'close',
         'APP_CLOSED',
