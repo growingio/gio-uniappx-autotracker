@@ -154,14 +154,27 @@ function countOccurrences(text, pattern) {
   return text.split(pattern).length - 1
 }
 
-function validateIdentityCacheContract(baseDir) {
+function validateIdentityStorageContract(baseDir) {
   const userStorePath = join(baseDir, 'utssdk/common/userStore/index.uts')
   if (!existsSync(userStorePath)) {
     fail(`missing user store: ${relative(rootDir, userStorePath)}`)
     return
   }
 
+  const runtimePath = join(baseDir, 'utssdk/common/runtime/index.uts')
+  const webRuntimePath = join(baseDir, 'utssdk/web/runtime.uts')
+  const mpRuntimePath = join(baseDir, 'utssdk/mp-weixin/runtime.uts')
+  for (const path of [runtimePath, webRuntimePath, mpRuntimePath]) {
+    if (!existsSync(path)) {
+      fail(`missing identity runtime policy source: ${relative(rootDir, path)}`)
+      return
+    }
+  }
+
   const source = readFileSync(userStorePath, 'utf8')
+  const runtimeSource = readFileSync(runtimePath, 'utf8')
+  const webRuntimeSource = readFileSync(webRuntimePath, 'utf8')
+  const mpRuntimeSource = readFileSync(mpRuntimePath, 'utf8')
   const requiredSnippets = [
     'private cachedUserId : string',
     'private cachedUserKey : string',
@@ -181,6 +194,31 @@ function validateIdentityCacheContract(baseDir) {
     }
   }
 
+  const userIdResolverStart = source.indexOf('private resolveUserId() : string')
+  const userKeyResolverStart = source.indexOf('private resolveUserKey() : string', userIdResolverStart)
+  const nextResolverStart = source.indexOf('private readStoredGioId() : string', userKeyResolverStart)
+  if (userIdResolverStart < 0 || userKeyResolverStart < 0 || nextResolverStart < 0) {
+    fail('identity storage contract changed unexpectedly: identity resolvers not found')
+    return
+  }
+  const userIdResolverSource = source.slice(userIdResolverStart, userKeyResolverStart)
+  const userKeyResolverSource = source.slice(userKeyResolverStart, nextResolverStart)
+  const resolverContracts = [
+    [userIdResolverSource, 'return this.readStoredUserId()', 'return this.cachedUserId'],
+    [userKeyResolverSource, 'return this.readStoredUserKey()', 'return this.cachedUserKey'],
+  ]
+  for (const [resolverSource, storageRead, cacheRead] of resolverContracts) {
+    if (!resolverSource.includes('if (shouldReadIdentityFromStorage())')) {
+      fail('identity resolver must branch through the platform storage-read policy')
+    }
+    if (!resolverSource.includes(storageRead)) {
+      fail(`web identity resolver must read storage directly: ${storageRead}`)
+    }
+    if (!resolverSource.includes('this.ensureIdentityLoaded()') || !resolverSource.includes(cacheRead)) {
+      fail(`non-web identity resolver must retain the in-memory cache: ${cacheRead}`)
+    }
+  }
+
   if (countOccurrences(source, 'setItem(this.getUserIdKey()') != 1) {
     fail('userId storage writes must stay centralized in persistUser()')
   }
@@ -189,6 +227,23 @@ function validateIdentityCacheContract(baseDir) {
   }
   if (countOccurrences(source, 'this.getMainStorage().removeItem(this.getUserKeyKey())') != 1) {
     fail('userKey storage removal must stay limited to idMapping=false hydration cleanup')
+  }
+
+  const runtimeRequiredSnippets = [
+    'shouldReadIdentityFromStorage : () => boolean',
+    'export function shouldReadIdentityFromStorage() : boolean',
+    'return policy != null ? policy.shouldReadIdentityFromStorage() : false',
+  ]
+  for (const snippet of runtimeRequiredSnippets) {
+    if (!runtimeSource.includes(snippet)) {
+      fail(`identity runtime policy changed unexpectedly: ${snippet}`)
+    }
+  }
+  if (!webRuntimeSource.includes('shouldReadIdentityFromStorage() : boolean {\n    return true')) {
+    fail('web identity must be read from storage for every event context')
+  }
+  if (!mpRuntimeSource.includes('shouldReadIdentityFromStorage() : boolean {\n    return false')) {
+    fail('mp-weixin identity must keep using the in-memory cache')
   }
 }
 
@@ -229,6 +284,90 @@ function validateUploadSanitizationContract(baseDir) {
   }
 }
 
+function validateWebReferralContract(baseDir) {
+  const runtimePath = join(baseDir, 'utssdk/web/runtime.uts')
+  if (!existsSync(runtimePath)) {
+    fail(`missing web runtime: ${relative(rootDir, runtimePath)}`)
+    return
+  }
+
+  const source = readFileSync(runtimePath, 'utf8')
+  const resolverStart = source.indexOf('function resolveBrowserPageContext(')
+  const resolverEnd = source.indexOf('function readRawConfigField(', resolverStart)
+  if (resolverStart < 0 || resolverEnd < 0) {
+    fail('web referral contract changed unexpectedly: page resolver not found')
+    return
+  }
+
+  const resolverSource = source.slice(resolverStart, resolverEnd)
+  if (resolverSource.includes('lastCommittedPageFullUrl =')) {
+    fail('web page resolver must not advance the committed referral state')
+  }
+  const replayRequiredSnippets = [
+    'currentHref == lastCommittedPageFullUrl',
+    '? lastCommittedReferralPage',
+    ': lastCommittedPageFullUrl',
+  ]
+  for (const snippet of replayRequiredSnippets) {
+    if (!resolverSource.includes(snippet)) {
+      fail(`same-page PAGE replay must preserve its prior referral: missing ${snippet}`)
+    }
+  }
+  if (countOccurrences(source, 'lastCommittedPageFullUrl = currentHref') != 1) {
+    fail('web referral state must advance exactly once after PAGE is formed')
+  }
+  if (countOccurrences(source, 'lastCommittedReferralPage = event.referralPage') != 1) {
+    fail('web referral state must preserve the committed PAGE referral exactly once')
+  }
+
+  const shaperStart = source.indexOf('registerEventShaper({')
+  const shaperEnd = source.indexOf('function isBeaconSupported()', shaperStart)
+  if (shaperStart < 0 || shaperEnd < 0) {
+    fail('web referral contract changed unexpectedly: event shaper not found')
+    return
+  }
+  const shaperSource = source.slice(shaperStart, shaperEnd)
+  if (!shaperSource.includes("if (event.eventType == 'PAGE')")) {
+    fail('web referral state must only advance for PAGE events')
+  }
+  if (!shaperSource.includes('lastCommittedPageFullUrl = currentHref')) {
+    fail('web referral state must advance in the PAGE event shaper')
+  }
+}
+
+function validateWebUploadTerminationContract(baseDir) {
+  const runtimePath = join(baseDir, 'utssdk/web/runtime.uts')
+  if (!existsSync(runtimePath)) {
+    fail(`missing web runtime: ${relative(rootDir, runtimePath)}`)
+    return
+  }
+
+  const source = readFileSync(runtimePath, 'utf8')
+  const senderStart = source.indexOf('registerEventSender({')
+  if (senderStart < 0) {
+    fail('web upload termination contract changed unexpectedly: event sender not found')
+    return
+  }
+
+  const senderSource = source.slice(senderStart)
+  const requiredSnippets = [
+    'let settled : boolean = false',
+    'xhr.timeout = resolveUploadRequestTimeout(DEFAULT_REQUEST_TIMEOUT_MS)',
+    'xhr.onerror = finishFail',
+    'xhr.ontimeout = finishFail',
+    'xhr.onabort = finishFail',
+    'catch (_error) {\n      finishFail()',
+  ]
+  for (const snippet of requiredSnippets) {
+    if (!senderSource.includes(snippet)) {
+      fail(`web XHR sender must preserve terminal handling: missing ${snippet}`)
+    }
+  }
+  if (countOccurrences(senderSource, 'if (settled)') != 2) {
+    fail('web XHR sender must settle success and failure exactly once')
+  }
+}
+
 function stagePackage() {
   rmSync(stagedSdkDir, { recursive: true, force: true })
   mkdirSync(distUniModulesDir, { recursive: true })
@@ -263,14 +402,18 @@ const packageJson = readSdkPackage()
 validatePackageJson(packageJson)
 validateSdkShape(sdkDir)
 validateSdkVersionContract(packageJson)
-validateIdentityCacheContract(sdkDir)
+validateIdentityStorageContract(sdkDir)
 validateUploadSanitizationContract(sdkDir)
+validateWebReferralContract(sdkDir)
+validateWebUploadTerminationContract(sdkDir)
 
 if (!checkOnly && process.exitCode == null) {
   stagePackage()
   validateSdkShape(stagedSdkDir)
-  validateIdentityCacheContract(stagedSdkDir)
+  validateIdentityStorageContract(stagedSdkDir)
   validateUploadSanitizationContract(stagedSdkDir)
+  validateWebReferralContract(stagedSdkDir)
+  validateWebUploadTerminationContract(stagedSdkDir)
   const archivePath = createArchive(packageJson.version)
   if (archivePath != null) {
     console.log(`[sdk-release] staged: ${relative(rootDir, stagedSdkDir)}`)
