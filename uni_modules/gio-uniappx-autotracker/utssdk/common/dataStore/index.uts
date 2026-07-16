@@ -43,6 +43,9 @@ export class GioDataStore {
   private eventBuilder : GioEventBuilder = new GioEventBuilder()
   private sessionUpdateHandlers : GioSessionUpdateHandlers | null = null
   private originalSourceStore : GioOriginalSourceStore | null = null
+  // 只在 SDK 初始化访问链的首个有效页面上下文到来时消费一次。
+  // VISIT 成功删除快照后不会重开，session 更新也不会重新定义首次来源。
+  private originalSourcePending : boolean = true
   private sessionListenerBound : boolean = false
   private startupPageContext : GioPageContext | null = null
   private locationLatitude : number | null = null
@@ -59,6 +62,7 @@ export class GioDataStore {
     this.userStore = userStore
     this.storage = storage
     this.sessionUpdateHandlers = sessionUpdateHandlers
+    this.originalSourcePending = true
     this.eventBuilder.configure(userStore)
     this.systemContext.initialize(
       options.debug == true,
@@ -66,7 +70,6 @@ export class GioDataStore {
       options.screenHeight,
       shouldWaitForNetworkState()
     )
-    this.resetOriginalSourceStateIfDisabled()
     this.bindSessionUpdateListener()
   }
 
@@ -88,7 +91,9 @@ export class GioDataStore {
     // 初始化阶段的空旧 session 已由 shouldHandleSessionUpdate() 屏蔽；
     // 运行中持久化 session 过期/被删除时 oldSessionId 也会为空，此时仍要补发新
     // session 的 VISIT/PAGE。
-    const currentPageContext = this.buildCurrentPageContext(null)
+    // 对齐独立 Web SDK 的 session 重放：重新冻结本次 VISIT/PAGE 共用的页面时间，
+    // 但不改 currentPageShowAt，避免 APP_CLOSED.duration 从重放时刻重新计时。
+    const currentPageContext = this.refreshCurrentPageTimestamp()
     let visitPageContext = currentPageContext
     if (visitPageContext == null) {
       visitPageContext = this.buildLastVisitPageContext()
@@ -182,6 +187,10 @@ export class GioDataStore {
     return this.pageStore.buildCurrentPageContext(duration)
   }
 
+  refreshCurrentPageTimestamp() : GioPageContext | null {
+    return this.pageStore.refreshCurrentPageTimestamp()
+  }
+
   buildEventPageContext(duration : number | null) : GioPageContext | null {
     const currentPageContext = this.buildCurrentPageContext(duration)
     if (currentPageContext != null) {
@@ -229,15 +238,11 @@ export class GioDataStore {
 
   setStartupPageContext(pageContext : GioPageContext | null) {
     this.startupPageContext = pageContext
-    if (!this.isOriginalSourceEnabled()) {
-      this.pageStore.setEntryReferralPage(null)
-      return
-    }
     this.pageStore.setEntryReferralPage(
       pageContext != null ? pageContext.referralPage : null
     )
     if (pageContext != null) {
-      this.storeOriginalSource(pageContext, true)
+      this.maybeStoreOriginalSource(pageContext)
     }
   }
 
@@ -258,33 +263,30 @@ export class GioDataStore {
   }
 
   maybeStoreOriginalSource(pageContext : GioPageContext | null) {
-    this.storeOriginalSource(pageContext, false)
-  }
-
-  private storeOriginalSource(
-    pageContext : GioPageContext | null,
-    forceOverwrite : boolean
-  ) {
-    if (!this.isOriginalSourceEnabled() || pageContext == null) {
+    if (!this.originalSourcePending || pageContext == null) {
+      return
+    }
+    this.originalSourcePending = false
+    if (!this.isOriginalSourceEnabled()) {
+      return
+    }
+    const sourceStore = this.originalSourceStore
+    if (sourceStore == null) {
       return
     }
     const userStore = this.userStore as GioUserStore
-    const context = userStore.getContext()
-    const currentSessionId : string = context.sessionId
-    const sourceStore = this.originalSourceStore
-    if (sourceStore == null || currentSessionId.length == 0) {
-      return
-    }
-    if (!forceOverwrite && this.getVisitSentSessionId() == currentSessionId) {
+    const currentSessionId : string = userStore.getContext().sessionId
+    if (
+      currentSessionId.length > 0 &&
+      this.getVisitSentSessionId() == currentSessionId
+    ) {
       return
     }
     sourceStore.store(
       this.getResolvedOptions(),
       this.getOriginalSourceStorage(),
       pageContext,
-      this.resolvePreferredPageContext(pageContext),
-      forceOverwrite,
-      currentSessionId
+      this.resolvePreferredPageContext(pageContext)
     )
   }
 
@@ -339,22 +341,6 @@ export class GioDataStore {
       return false
     }
     return true
-  }
-
-  private resetOriginalSourceStateIfDisabled() {
-    if (this.isOriginalSourceEnabled()) {
-      return
-    }
-    this.startupPageContext = null
-    this.pageStore.setEntryReferralPage(null)
-    const sourceStore = this.originalSourceStore
-    if (sourceStore == null) {
-      return
-    }
-    sourceStore.reset(
-      this.getResolvedOptions(),
-      this.getOriginalSourceStorage()
-    )
   }
 
   private buildProjectStorageKey(suffix : string) : string {

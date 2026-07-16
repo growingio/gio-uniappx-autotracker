@@ -366,7 +366,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEvent
       query: entryInfo.query.length > 0 ? entryInfo.query : null,
       title: null,
       referralPage: entryInfo.referralPage,
-      duration: null
+      duration: null,
+      timestamp: null
     } as GioPageContext
   }
 

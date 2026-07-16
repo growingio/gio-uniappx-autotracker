@@ -82,6 +82,7 @@ export type GioPageContext = {
   title : string | null
   referralPage : string | null
   duration : number | null
+  timestamp : number | null
 }
 
 export type GioPageSnapshot = {
@@ -91,10 +92,8 @@ export type GioPageSnapshot = {
 }
 
 export type GioOriginalSource = {
-  sessionId : string
   path : string
   query : string
-  title : string
   referralPage : string
 }
 
@@ -139,14 +138,11 @@ export type GioTrackEvent = {
 }
 
 export interface GioOriginalSourceStore {
-  reset(options : GioInitOptions, storage : GioStorage) : void
   store(
     options : GioInitOptions,
     storage : GioStorage,
     pageContext : GioPageContext | null,
-    preferredPageContext : GioPageContext | null,
-    forceOverwrite : boolean,
-    sessionId : string
+    preferredPageContext : GioPageContext | null
   ) : void
   read(options : GioInitOptions, storage : GioStorage) : GioOriginalSource | null
   consume(

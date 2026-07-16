@@ -1,4 +1,4 @@
-// page-store 维护当前页、上一页和路由签名等页面态。
+// page-store 维护当前页、最近有效 PAGE 和路由签名等页面态。
 import { GioPageContext, GioPageSnapshot } from '../../../interface.uts'
 import {
   buildRouteSignature,
@@ -19,8 +19,8 @@ export class GioPageStore {
   private currentPagePath : string = ''
   private currentPageQuery : string = ''
   private currentPageTitle : string = ''
+  private currentPageTimestamp : number = 0
   private currentPageShowAt : number = 0
-  private referralPage : string = ''
   private entryReferralPage : string = ''
   private lastPageEvent : GioPageEventRecord | null = null
   private lastVisitEvent : GioPageEventRecord | null = null
@@ -68,7 +68,8 @@ export class GioPageStore {
       query: context.query,
       title: title,
       referralPage: context.referralPage,
-      duration: context.duration
+      duration: context.duration,
+      timestamp: context.timestamp
     } as GioPageContext
   }
 
@@ -81,8 +82,17 @@ export class GioPageStore {
       query: this.currentPageQuery.length > 0 ? this.currentPageQuery : null,
       title: this.currentPageTitle.length > 0 ? this.currentPageTitle : null,
       referralPage: this.resolveReferralPage(),
-      duration: duration
+      duration: duration,
+      timestamp: this.currentPageTimestamp > 0 ? this.currentPageTimestamp : null
     } as GioPageContext)
+  }
+
+  refreshCurrentPageTimestamp() : GioPageContext | null {
+    if (this.currentPagePath.length == 0) {
+      return null
+    }
+    this.currentPageTimestamp = now()
+    return this.buildCurrentPageContext(null)
   }
 
   buildPageContextFromTarget(
@@ -102,11 +112,14 @@ export class GioPageStore {
       query: routeInfo.query.length > 0 ? routeInfo.query : null,
       title: routeInfo.title.length > 0 ? routeInfo.title : null,
       referralPage: this.resolveReferralPage(),
-      duration: duration
+      duration: duration,
+      timestamp: null
     } as GioPageContext)
   }
 
   updateCurrentPage(page : GioPageSnapshot | null, options : UTSJSONObject | null) : GioPageContext | null {
+    // 对齐独立 SDK：页面时间在解析路由时冻结，不能等事件异步构建时再取。
+    const pageTimestamp : number = now()
     const path = this.resolvePathFromTarget(page)
     const cachedQuery = path.length > 0 ? this.getCachedQuery(path) : null
     const lastEventQuery = path.length > 0 ? this.getQueryFromLastEvent(path) : null
@@ -133,13 +146,6 @@ export class GioPageStore {
     )
     const nextSignature = routeInfo.signature
     const routeChanged = nextPath.length > 0 && nextSignature != currentSignature
-    if (
-      nextPath.length > 0 &&
-      this.currentPagePath.length > 0 &&
-      routeChanged
-    ) {
-      this.referralPage = this.currentPagePath
-    }
     if (nextPath.length > 0) {
       this.currentPagePath = nextPath
     }
@@ -150,7 +156,8 @@ export class GioPageStore {
         query: nextQuery.length > 0 ? nextQuery : null,
         title: null,
         referralPage: this.resolveReferralPage(),
-        duration: null
+        duration: null,
+        timestamp: pageTimestamp
       } as GioPageContext)
     }
     if (routeChanged) {
@@ -158,14 +165,13 @@ export class GioPageStore {
     } else if (nextTitle.length > 0) {
       this.currentPageTitle = nextTitle
     }
-    this.currentPageShowAt = now()
+    this.currentPageTimestamp = pageTimestamp
+    this.currentPageShowAt = pageTimestamp
     return this.buildCurrentPageContext(null)
   }
 
   resolveReferralPage() : string | null {
-    if (this.referralPage.length > 0) {
-      return this.referralPage
-    }
+    // 当前页可在生命周期阶段提前更新；referral 只跟随已通过采集门控的 PAGE。
     const lastPage = this.lastPageEvent
     if (lastPage != null && lastPage.path.length > 0) {
       return lastPage.path
@@ -189,6 +195,7 @@ export class GioPageStore {
   }
 
   recordLastPageEvent(path : string, query : string, title : string, referralPage : string) {
+    // 该方法只在 PAGE 正式进入事件提交链路后调用，是 referral 的唯一推进点。
     this.lastPageEvent = {
       path: path,
       query: query,
@@ -216,7 +223,8 @@ export class GioPageStore {
       query: lastVisit.query.length > 0 ? lastVisit.query : null,
       title: lastVisit.title.length > 0 ? lastVisit.title : null,
       referralPage: lastVisit.referralPage.length > 0 ? lastVisit.referralPage : null,
-      duration: null
+      duration: null,
+      timestamp: null
     } as GioPageContext
   }
 

@@ -240,11 +240,13 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、微信小程序。Android App、iOS App 和 HarmonyOS App 不启用该机制，与独立移动端 SDK 保持一致。
 
-生效行为：默认值为 `true`。设置为 `true` 后，SDK 启用首次来源快照，并在 `VISIT` 事件中优先使用首次来源快照里的 `path`、`query`、`title` 和 `referralPage`。设置为 `false` 后，SDK 不启用首次来源快照，`VISIT` 使用事件触发时的页面上下文。
+生效行为：默认值为 `true`。设置为 `true` 后，SDK 仅在当前 session 尚未成功发送 `VISIT` 时，于初始化访问链的首个有效页面上下文到来时捕获一次首次来源快照，并在 `VISIT` 事件中优先使用快照里的 `path`、`query` 和 `referralPage`；`title` 始终取事件触发时的当前页面。首次来源被成功发送的 `VISIT` 消费后删除，后续 session 更新与同 session 页面刷新不会重新定义它。
 
-字段规则：该配置只控制首次来源快照机制是否启用，不保证 `path`、`query`、`title`、`referralPage` 四个字段都非空；字段值来自 SDK 在对应平台已解析出的页面上下文。该快照不按 `sessionId` 绑定或判断。
+设置为 `false` 后，SDK 只停止首次来源快照的读取和写入，`VISIT` 使用事件触发时的页面上下文；已经存在的历史快照不会被主动清理。
+
+字段规则：首次来源快照只保存 `path`、`query` 和 `referralPage`，不保存 `sessionId` 或 `title`，也不与 session 绑定；捕获前只用当前 session 的 `VISIT` 发送标记避免刷新后误建快照。字段值来自 SDK 在对应平台已解析出的页面上下文，不保证全部非空。
 
 ### idMapping
 

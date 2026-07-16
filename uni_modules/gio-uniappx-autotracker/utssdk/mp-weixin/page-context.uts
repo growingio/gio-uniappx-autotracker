@@ -381,7 +381,8 @@ export function resolveMiniProgramPageContext(
     query: pageContext.query,
     title: title,
     referralPage: pageContext.referralPage,
-    duration: pageContext.duration
+    duration: pageContext.duration,
+    timestamp: pageContext.timestamp
   } as GioPageContext
 }
 

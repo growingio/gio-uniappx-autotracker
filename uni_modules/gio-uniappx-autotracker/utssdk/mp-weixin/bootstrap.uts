@@ -2,7 +2,7 @@
 // 生成产物中初始化可能走 mp-weixin 入口，但页面生命周期仍可能走根 utssdk 入口；
 // 因此平台入口和根入口都通过这里安装同一组小程序适配能力。
 import { GioTracker } from '../common/core/tracker.uts'
-import { createOriginalSourceStore } from '../platform-shared/original-source.uts'
+import { createOriginalSourceStore } from '../common/dataStore/original-source.uts'
 import { createMiniProgramResolver } from './resolver.uts'
 import { installGioShareTrackingPlugin } from './plugins/gio-share-tracking.uts'
 import { installMiniProgramPageContextResolver } from './page-context.uts'

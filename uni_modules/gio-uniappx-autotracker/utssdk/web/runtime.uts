@@ -535,7 +535,8 @@ function resolveBrowserPageContext(
     query: query,
     title: title,
     referralPage: referralPage,
-    duration: logicalPageContext != null ? logicalPageContext.duration : null
+    duration: logicalPageContext != null ? logicalPageContext.duration : null,
+    timestamp: logicalPageContext != null ? logicalPageContext.timestamp : null
   } as GioPageContext
 }
 

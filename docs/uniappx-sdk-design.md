@@ -146,7 +146,7 @@ web 端额外支持两个初始化项：
 
 跨端配置项补充：
 
-- `originalSource`：默认 `true`
+- `originalSource`：默认 `true`，仅 Web 和微信小程序生效；只在 SDK 初始化访问链且当前 session 尚未成功发送 `VISIT` 时捕获一次 `path` / `query` / `referralPage`，不保存 `sessionId` / `title`，session 更新与同 session 刷新不重捕获
 - `dataCollect`：默认 `true`，也可通过 `setOptions({ dataCollect })` 动态切换
 
 UTS 约束说明：
