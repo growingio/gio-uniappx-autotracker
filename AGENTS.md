@@ -14,7 +14,8 @@
 ## 硬性规则
 
 - 目标是让 SDK 在 `web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 五个端都能正确产出；任何代码改动都不能只按单端思路实现。
-- `utssdk` 目录结构必须保持多端入口齐全：`app-js`、`web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin`。
+- `utssdk` 目录结构必须保持多端入口齐全：`web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin`。
+- 禁止创建或保留 `utssdk/app-js`；App 端必须走 `app-android`、`app-ios`、`app-harmony` 原生入口，不能用 App JS 实现或回退掩盖原生实现缺失。
 - `web` 目录必须保留 `utssdk/web/package.json`，`app-android`、`app-ios`、`app-harmony` 目录必须保留各自的 `config.json`。
 - 不要依赖 `undefined` 语义。所有非必填字段统一显式使用 `null`，不要使用 `?` 可选属性或可选参数表达运行时缺省。
 - 对外配置对象和事件对象要使用稳定、显式的字段结构，避免让生成器自行推断可选字段形态。

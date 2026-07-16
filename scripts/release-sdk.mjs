@@ -25,7 +25,6 @@ const requiredFiles = [
   'utssdk/index.uts',
   'utssdk/interface.uts',
   'utssdk/common/config.uts',
-  'utssdk/app-js/index.uts',
   'utssdk/web/index.uts',
   'utssdk/web/package.json',
   'utssdk/mp-weixin/index.uts',
