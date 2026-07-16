@@ -247,6 +247,132 @@ function validateIdentityStorageContract(baseDir) {
   }
 }
 
+function validateOriginalSourceContract(baseDir) {
+  const interfacePath = join(baseDir, 'utssdk/interface.uts')
+  const storePath = join(baseDir, 'utssdk/common/dataStore/original-source.uts')
+  const dataStorePath = join(baseDir, 'utssdk/common/dataStore/index.uts')
+  const eventBuilderPath = join(baseDir, 'utssdk/common/dataStore/eventBuilder/index.uts')
+  const rootEntryPath = join(baseDir, 'utssdk/index.uts')
+  const webEntryPath = join(baseDir, 'utssdk/web/index.uts')
+  const mpBootstrapPath = join(baseDir, 'utssdk/mp-weixin/bootstrap.uts')
+  const appAndroidEntryPath = join(baseDir, 'utssdk/app-android/index.uts')
+  const appIosEntryPath = join(baseDir, 'utssdk/app-ios/index.uts')
+  const appHarmonyEntryPath = join(baseDir, 'utssdk/app-harmony/index.uts')
+  for (const path of [
+    interfacePath,
+    storePath,
+    dataStorePath,
+    eventBuilderPath,
+    rootEntryPath,
+    webEntryPath,
+    mpBootstrapPath,
+    appAndroidEntryPath,
+    appIosEntryPath,
+    appHarmonyEntryPath,
+  ]) {
+    if (!existsSync(path)) {
+      fail(`missing originalSource contract source: ${relative(rootDir, path)}`)
+      return
+    }
+  }
+
+  const interfaceSource = readFileSync(interfacePath, 'utf8')
+  const storeSource = readFileSync(storePath, 'utf8')
+  const dataStoreSource = readFileSync(dataStorePath, 'utf8')
+  const eventBuilderSource = readFileSync(eventBuilderPath, 'utf8')
+  const rootEntrySource = readFileSync(rootEntryPath, 'utf8')
+  const webEntrySource = readFileSync(webEntryPath, 'utf8')
+  const mpBootstrapSource = readFileSync(mpBootstrapPath, 'utf8')
+  const appAndroidEntrySource = readFileSync(appAndroidEntryPath, 'utf8')
+  const appIosEntrySource = readFileSync(appIosEntryPath, 'utf8')
+  const appHarmonyEntrySource = readFileSync(appHarmonyEntryPath, 'utf8')
+  const originalSourceTypeStart = interfaceSource.indexOf('export type GioOriginalSource = {')
+  const originalSourceTypeEnd = interfaceSource.indexOf('export type GioTrackEvent = {', originalSourceTypeStart)
+  const storeInterfaceStart = interfaceSource.indexOf('export interface GioOriginalSourceStore {')
+  const storeInterfaceEnd = interfaceSource.indexOf('// 由 GioStorageContainer', storeInterfaceStart)
+  if (
+    originalSourceTypeStart < 0 ||
+    originalSourceTypeEnd < 0 ||
+    storeInterfaceStart < 0 ||
+    storeInterfaceEnd < 0
+  ) {
+    fail('originalSource contract changed unexpectedly: type or store interface not found')
+    return
+  }
+
+  const originalSourceType = interfaceSource.slice(originalSourceTypeStart, originalSourceTypeEnd)
+  const storeInterface = interfaceSource.slice(storeInterfaceStart, storeInterfaceEnd)
+  for (const field of ['sessionId', 'title']) {
+    if (originalSourceType.includes(field)) {
+      fail(`originalSource must not carry ${field}`)
+    }
+  }
+  for (const token of ['sessionId', 'forceOverwrite', 'reset(']) {
+    if (storeInterface.includes(token)) {
+      fail(`originalSource store API must not contain ${token}`)
+    }
+  }
+  for (const token of ['sessionId', 'title', 'forceOverwrite', 'reset(']) {
+    if (storeSource.includes(token)) {
+      fail(`originalSource storage must not contain ${token}`)
+    }
+  }
+
+  const dataStoreRequiredSnippets = [
+    'private originalSourcePending : boolean = true',
+    'this.originalSourcePending = true',
+    'if (!this.originalSourcePending || pageContext == null)',
+    'this.originalSourcePending = false',
+    'const currentSessionId : string = userStore.getContext().sessionId',
+    'currentSessionId.length > 0',
+    'this.getVisitSentSessionId() == currentSessionId',
+    'this.resolvePreferredPageContext(pageContext)',
+  ]
+  for (const snippet of dataStoreRequiredSnippets) {
+    if (!dataStoreSource.includes(snippet)) {
+      fail(`originalSource initialization contract changed unexpectedly: ${snippet}`)
+    }
+  }
+  for (const token of ['resetOriginalSourceStateIfDisabled']) {
+    if (dataStoreSource.includes(token)) {
+      fail(`originalSource lifecycle must not depend on ${token}`)
+    }
+  }
+
+  if (eventBuilderSource.includes('originalSource.title')) {
+    fail('VISIT title must come from the current page, not originalSource')
+  }
+  if (!eventBuilderSource.includes('title: currentPageContext != null ? currentPageContext.title : null')) {
+    fail('VISIT must preserve the current page title when applying originalSource')
+  }
+  if (rootEntrySource.includes('createOriginalSourceStore')) {
+    fail('originalSource store must not be registered from the all-platform root entry')
+  }
+  for (const [platform, source] of [
+    ['web', webEntrySource],
+    ['mp-weixin', mpBootstrapSource],
+  ]) {
+    if (
+      !source.includes('createOriginalSourceStore') ||
+      !source.includes('setOriginalSourceStore')
+    ) {
+      fail(`${platform} must register the originalSource store explicitly`)
+    }
+  }
+  for (const [platform, source] of [
+    ['app-android', appAndroidEntrySource],
+    ['app-ios', appIosEntrySource],
+    ['app-harmony', appHarmonyEntrySource],
+  ]) {
+    if (
+      source.includes('createOriginalSourceStore') ||
+      source.includes('setOriginalSourceStore')
+    ) {
+      fail(`${platform} must not register the web-style originalSource store`)
+    }
+  }
+}
+
 function validateUploadSanitizationContract(baseDir) {
   const uploaderPath = join(baseDir, 'utssdk/common/core/uploader.uts')
   if (!existsSync(uploaderPath)) {
@@ -403,6 +529,7 @@ validatePackageJson(packageJson)
 validateSdkShape(sdkDir)
 validateSdkVersionContract(packageJson)
 validateIdentityStorageContract(sdkDir)
+validateOriginalSourceContract(sdkDir)
 validateUploadSanitizationContract(sdkDir)
 validateWebReferralContract(sdkDir)
 validateWebUploadTerminationContract(sdkDir)
@@ -411,6 +538,7 @@ if (!checkOnly && process.exitCode == null) {
   stagePackage()
   validateSdkShape(stagedSdkDir)
   validateIdentityStorageContract(stagedSdkDir)
+  validateOriginalSourceContract(stagedSdkDir)
   validateUploadSanitizationContract(stagedSdkDir)
   validateWebReferralContract(stagedSdkDir)
   validateWebUploadTerminationContract(stagedSdkDir)
