@@ -4,7 +4,7 @@ import {
   GioPageContext,
   GioTrackEvent
 } from '../interface.uts'
-import { GioConfig } from '../common/config.uts'
+import { DEFAULT_REQUEST_TIMEOUT_MS, GioConfig } from '../common/config.uts'
 import {
   registerConfigSyncer,
   registerEventShaper,
@@ -15,7 +15,8 @@ import {
   registerRuntimeBehavior,
   registerRuntimePolicy,
   registerUploadPolicy,
-  registerVisitSessionStore
+  registerVisitSessionStore,
+  resolveUploadRequestTimeout
 } from '../common/runtime/index.uts'
 import {
   buildCookieStorageValue,
@@ -812,25 +813,43 @@ registerEventSender({
         }
       } catch (_error) {}
     }
-    const xhr = new XMLHttpRequest() as any
-    xhr.open('POST', url, true)
-    xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8')
-    xhr.onload = function() {
-      if (xhr.status == 204 || xhr.status == 200) {
-        if (onSuccess != null) {
-          onSuccess()
-        }
-      } else {
-        if (onFail != null) {
-          onFail()
-        }
+    let settled : boolean = false
+    const finishSuccess = () => {
+      if (settled) {
+        return
+      }
+      settled = true
+      if (onSuccess != null) {
+        onSuccess()
       }
     }
-    xhr.onerror = function() {
+    const finishFail = () => {
+      if (settled) {
+        return
+      }
+      settled = true
       if (onFail != null) {
         onFail()
       }
     }
-    xhr.send(payload)
+    try {
+      const xhr = new XMLHttpRequest() as any
+      xhr.open('POST', url, true)
+      xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8')
+      xhr.timeout = resolveUploadRequestTimeout(DEFAULT_REQUEST_TIMEOUT_MS)
+      xhr.onload = function() {
+        if (xhr.status == 204 || xhr.status == 200) {
+          finishSuccess()
+        } else {
+          finishFail()
+        }
+      }
+      xhr.onerror = finishFail
+      xhr.ontimeout = finishFail
+      xhr.onabort = finishFail
+      xhr.send(payload)
+    } catch (_error) {
+      finishFail()
+    }
   }
 })
