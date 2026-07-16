@@ -12,6 +12,7 @@ import {
 } from '../utils/base.uts'
 import {
   shouldPersistSessionId,
+  shouldReadIdentityFromStorage,
   shouldRenewSessionOnTimeout
 } from '../runtime/index.uts'
 import { stringifyScalar, numberifyScalar } from '../utils/validate.uts'
@@ -153,11 +154,17 @@ export class GioUserStore {
   }
 
   private resolveUserId() : string {
+    if (shouldReadIdentityFromStorage()) {
+      return this.readStoredUserId()
+    }
     this.ensureIdentityLoaded()
     return this.cachedUserId
   }
 
   private resolveUserKey() : string {
+    if (shouldReadIdentityFromStorage()) {
+      return this.readStoredUserKey()
+    }
     this.ensureIdentityLoaded()
     return this.cachedUserKey
   }

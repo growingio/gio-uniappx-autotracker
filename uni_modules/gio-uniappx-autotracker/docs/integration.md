@@ -268,6 +268,13 @@ gdp('setUserId', 'user-1001', 'phone_hash_or_union_key')
 
 生效行为：默认值为 `false`。设置为 `false` 时，`gdp('setUserId', userId, userKey)` 中的 `userKey` 被忽略。设置为 `true` 时，SDK 接收并持久化 `userKey`，事件中携带 `userKey`。
 
+### 身份存储与跨端一致性
+
+`setUserId`、`clearUserId` 等公开身份 API 会通过 SDK 的统一身份存储路径，同时更新持久化存储和当前实例的内存状态。业务代码不要直接修改 SDK 的身份存储 key。
+
+- **Web**：每次构建事件上下文时都重新读取持久化存储中的 `userId` 和 `userKey`。同域页面使用相同 `projectId`，且 `storageType`、`cookieDomain` 等存储配置兼容时，其他标签页或另一 SDK 实例写入的新身份会在本页下一次构建事件时生效，不依赖 `storage` 事件或额外广播。
+- **App（Android、iOS、Harmony）和微信小程序**：首次取用身份时从存储恢复，之后由当前 SDK 实例的内存缓存参与事件构建。通过 SDK 身份 API 修改身份时，存储与缓存会同步更新；绕过 SDK 直接修改底层存储不会主动刷新已运行实例的缓存，通常要重新初始化后才能被读取。
+
 ### urlScheme
 
 `urlScheme` 用于标记 App 的 URL Scheme，会写入事件的 `urlScheme` 字段。

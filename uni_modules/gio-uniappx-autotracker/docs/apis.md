@@ -138,6 +138,8 @@ gdp('setUserId', 'user-1001', 'union-key-1001')
 - `idMapping: false` 时，SDK 忽略非空 `userKey` 并打印告警。
 - 新 `userId` 与当前登录身份不同时，SDK 更新用户身份，并在需要时续期 session。
 
+身份可见性：Web 在每次构建事件时重新读取存储中的 `userId` 和 `userKey`，可感知同域、相同项目及兼容存储配置下其他标签页或 SDK 实例的身份更新；App 和微信小程序使用运行期内存缓存，通过本 API 修改时会同步更新存储和缓存。不要绕过 SDK 直接修改身份存储 key。完整规则见[身份存储与跨端一致性](./integration.md#身份存储与跨端一致性)。
+
 失败条件：
 
 | 条件 | 返回值 |

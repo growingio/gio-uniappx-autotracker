@@ -629,6 +629,9 @@ registerRuntimePolicy({
   shouldPersistSessionId() : boolean {
     return true
   },
+  shouldReadIdentityFromStorage() : boolean {
+    return true
+  },
   shouldPersistEvents() : boolean {
     return false
   },

@@ -23,7 +23,7 @@
 - 尽量避免使用容易在 UTS 生成阶段出现歧义的 TypeScript 风格写法，尤其是复杂的类型体操、依赖 `undefined` 的分支、以及仅靠类型断言维持正确性的接口设计。
 - 能用 `type` 明确表达的数据结构，不要为了 TS 习惯随手写 `interface` 并直接承接对象字面量。
 - 跨端公共逻辑优先收敛在 `utssdk/common`，平台入口只做必要的薄封装，不要无序分叉实现。
-- 用户身份相关字段 `sessionId`、`userId`、`userKey` 必须持久化到存储里，并且每次构建事件时都要从存储重新读取，不能只靠内存态维护。
+- `sessionId`、`userId`、`userKey` 的读取策略必须显式按平台区分：Web 每次构建事件时都要从存储重新读取，以感知同域其他标签页或 SDK 实例的身份更新；App 和小程序允许在内存态维护。`userId`、`userKey` 的公开修改入口仍必须同步更新存储和内存缓存。
 - 关键事件与公开能力基线必须保留：`VISIT`、`PAGE`、`APP_CLOSED`、`track`、`setUserId`、`clearUserId`、`identify`、`registerPlugins`、`getABTest`。
 
 ## 验证规则

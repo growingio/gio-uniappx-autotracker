@@ -67,6 +67,12 @@ gdp('registerPlugins', plugins)
 gdp('getABTest', layerId, callback)
 ```
 
+## 身份一致性
+
+- Web 每次构建事件时都会重新读取存储中的 `userId` 和 `userKey`，以感知同域其他标签页或 SDK 实例的身份更新。
+- App 和微信小程序首次读取后使用内存缓存；调用 `setUserId`、`clearUserId` 等 SDK API 时，持久化存储和缓存会同步更新。
+- 不要直接修改 SDK 的身份存储 key。平台边界和跨标签页生效条件见[身份存储与跨端一致性](./integration.md#身份存储与跨端一致性)。
+
 ## 数据发送前提
 
 SDK 初始化成功后才会接收生命周期和 API 调用。初始化失败时，API 调用返回 `false`。`dataCollect: false` 时，事件不进入上报队列。`forceLogin: true` 且 `identify` 尚未调用成功时，事件队列暂停释放。调试阶段可设置 `debug: true`，通过控制台日志确认初始化、生命周期和上报状态。

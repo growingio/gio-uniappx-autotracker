@@ -205,7 +205,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 持久化 `sessionId`
 - 持久化 `sessionExpiresAt`
 - 判断当前是否需要创建新 session
-- 初始化时从存储恢复 `userId` / `userKey`，运行期用内存缓存服务事件构建
+- Web 每次构建事件时从存储读取 `userId` / `userKey`，App 和小程序首次取用时从存储恢复、运行期用内存缓存服务事件构建
 - `setUserId()` / `clearUserId()` 等公开身份入口必须同步更新存储和内存缓存
 - `identify(assignmentId)` 生效后持久化新的 `deviceId`
 
@@ -388,7 +388,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - `userKey`
 - `attributes`
 
-其中 `sessionId` 按平台 session 策略从存储或内存态读取；`userId`、`userKey` 在 `GioUserStore` 首次取用时从存储恢复，随后通过内存缓存参与事件构建，避免高频事件反复读取存储。所有会改登录身份的公开入口都必须走 `GioUserStore.persistUser()` 这一集中路径，同步写存储和缓存，避免事件构建读到旧身份。
+其中 `sessionId` 按平台 session 策略从存储或内存态读取。Web 的 `userId`、`userKey` 每次构建事件时都从存储读取，以感知同域、相同 `projectId` 且存储配置兼容的其他标签页或 SDK 实例的身份更新，不依赖 `storage` 事件或额外广播；App 和小程序在 `GioUserStore` 首次取用时从存储恢复，随后通过内存缓存参与事件构建，避免高频事件反复读取存储。所有会改登录身份的公开入口都必须走 `GioUserStore.persistUser()` 这一集中路径，同步写存储和缓存。App 和小程序不会监听绕过 SDK 的底层身份存储修改，外部直改通常要重新初始化后才会被读取。
 
 `sdkVersion` 不在原生公共层硬编码。JS 编译层从插件根目录 `package.json` 读取 `version`，在 `gdp('init')` 时作为纯字符串注入初始化参数；事件构建统一使用归一化后的 `options.sdkVersion`，因此发布时只维护插件清单版本。
 
@@ -485,7 +485,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 当 `setUserId()` 把登录用户从 A 切到 B 时，也会切新 session，并在后续事件前补发新的 `VISIT`
 - 页面 `onShow` 是首屏和后续前台页面采集的主要触发点
 - 自定义 `track` 也会重新检查 session，避免漏掉新的访问边界
-- `userId`、`userKey` 初始化时以存储为准，运行期以 `GioUserStore` 内存缓存为事件构建来源；身份变更入口必须同步更新缓存和存储
+- Web 的 `userId`、`userKey` 每次构建事件时以存储为准；App 和小程序首次取用时以存储为准、运行期以 `GioUserStore` 内存缓存为事件构建来源；身份变更入口必须同步更新缓存和存储
 
 `sessionExpires` 不作为对外初始化配置暴露，session 过期策略由 SDK 内部按平台默认规则处理。
 

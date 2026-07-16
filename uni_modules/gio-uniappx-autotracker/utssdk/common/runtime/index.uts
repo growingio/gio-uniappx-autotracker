@@ -58,6 +58,7 @@ type GioRuntimePolicy = {
   shouldRenewSessionOnTimeout : () => boolean
   getMaxQueueSize : (fallback : number) => number
   shouldPersistSessionId : () => boolean
+  shouldReadIdentityFromStorage : () => boolean
   shouldPersistEvents : () => boolean
   shouldWaitForNetworkState : () => boolean
   shouldEmitPageWithoutShow : () => boolean
@@ -210,6 +211,12 @@ export function resolveMaxQueueSize(fallback : number) : number {
 export function shouldPersistSessionId() : boolean {
   const policy = registeredRuntimePolicy
   return policy != null ? policy.shouldPersistSessionId() : false
+}
+
+export function shouldReadIdentityFromStorage() : boolean {
+  const policy = registeredRuntimePolicy
+  // App 不注册通用 runtime policy，默认 false 即保留身份内存缓存。
+  return policy != null ? policy.shouldReadIdentityFromStorage() : false
 }
 
 export function shouldPersistEvents() : boolean {

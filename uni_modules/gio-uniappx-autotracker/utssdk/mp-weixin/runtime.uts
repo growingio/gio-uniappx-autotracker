@@ -31,6 +31,9 @@ registerRuntimePolicy({
   shouldPersistSessionId() : boolean {
     return false
   },
+  shouldReadIdentityFromStorage() : boolean {
+    return false
+  },
   shouldPersistEvents() : boolean {
     return false
   },
