@@ -81,7 +81,10 @@ export class GioPageStore {
       path: this.currentPagePath,
       query: this.currentPageQuery.length > 0 ? this.currentPageQuery : null,
       title: this.currentPageTitle.length > 0 ? this.currentPageTitle : null,
-      referralPage: this.resolveReferralPage(),
+      referralPage: this.resolveReferralPage(
+        this.currentPagePath,
+        this.currentPageQuery
+      ),
       duration: duration,
       timestamp: this.currentPageTimestamp > 0 ? this.currentPageTimestamp : null
     } as GioPageContext)
@@ -111,7 +114,7 @@ export class GioPageStore {
       path: routeInfo.path,
       query: routeInfo.query.length > 0 ? routeInfo.query : null,
       title: routeInfo.title.length > 0 ? routeInfo.title : null,
-      referralPage: this.resolveReferralPage(),
+      referralPage: this.resolveReferralPage(routeInfo.path, routeInfo.query),
       duration: duration,
       timestamp: null
     } as GioPageContext)
@@ -155,7 +158,7 @@ export class GioPageStore {
         path: nextPath,
         query: nextQuery.length > 0 ? nextQuery : null,
         title: null,
-        referralPage: this.resolveReferralPage(),
+        referralPage: this.resolveReferralPage(nextPath, nextQuery),
         duration: null,
         timestamp: pageTimestamp
       } as GioPageContext)
@@ -170,10 +173,17 @@ export class GioPageStore {
     return this.buildCurrentPageContext(null)
   }
 
-  resolveReferralPage() : string | null {
+  private resolveReferralPage(path : string, query : string) : string | null {
     // 当前页可在生命周期阶段提前更新；referral 只跟随已通过采集门控的 PAGE。
     const lastPage = this.lastPageEvent
     if (lastPage != null && lastPage.path.length > 0) {
+      // 对齐独立 Web SDK：同 path/query 的 PAGE 属于 session 重放，沿用上一条
+      // PAGE 原本的 referral，不能把当前页写成自己的来源页。
+      if (lastPage.path == path && lastPage.query == query) {
+        return lastPage.referralPage.length > 0
+          ? lastPage.referralPage
+          : null
+      }
       return lastPage.path
     }
     if (this.entryReferralPage.length > 0) {
