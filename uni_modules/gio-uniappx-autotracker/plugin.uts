@@ -280,7 +280,12 @@ function readAutoTrackPickerViewIndices(changePayload : any | null) : Array<any>
   }
   // #ifdef APP-ANDROID
   if (changePayload instanceof UniPickerViewChangeEvent) {
-    return (changePayload as UniPickerViewChangeEvent).detail.value
+    const nativeIndices = (changePayload as UniPickerViewChangeEvent).detail.value
+    const indices = [] as Array<any>
+    for (let i = 0; i < nativeIndices.length; i++) {
+      indices.push(nativeIndices[i] as number)
+    }
+    return indices
   }
   // #endif
   const value = readDynamicField(readDynamicField(changePayload, 'detail'), 'value')
