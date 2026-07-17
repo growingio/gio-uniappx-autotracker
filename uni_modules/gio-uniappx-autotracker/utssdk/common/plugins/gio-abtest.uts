@@ -171,7 +171,7 @@ export class GioABTestPlugin {
   }
 
   private writeCachedData(hashKey : number, data : GioABTestResult) {
-    const payload = {} as UTSJSONObject
+    const payload = new UTSJSONObject()
     payload['layerId'] = data.layerId
     payload['strategyId'] = data.strategyId
     payload['experimentId'] = data.experimentId
@@ -332,8 +332,8 @@ export class GioABTestPlugin {
     const resolvedLayerId = readScalarString(responseData, 'layerId', stringifyScalar(layerId))
     const resolvedStrategyId = readScalarString(responseData, 'strategyId')
     const resolvedExperimentId = readScalarString(responseData, 'experimentId')
-    const comparisonData = {} as UTSJSONObject
-    const fallbackVariables = {} as UTSJSONObject
+    const comparisonData = new UTSJSONObject()
+    const fallbackVariables = new UTSJSONObject()
     comparisonData['layerId'] = resolvedLayerId
     comparisonData['strategyId'] = resolvedStrategyId
     comparisonData['experimentId'] = resolvedExperimentId
@@ -367,7 +367,7 @@ export class GioABTestPlugin {
   }
 
   private buildExperimentHitEvent(result : GioABTestResult) {
-    const attributes = {} as UTSJSONObject
+    const attributes = new UTSJSONObject()
     attributes['$exp_layer_id'] = result.layerId
     attributes['$exp_id'] = result.experimentId
     attributes['$exp_strategy_id'] = result.strategyId
