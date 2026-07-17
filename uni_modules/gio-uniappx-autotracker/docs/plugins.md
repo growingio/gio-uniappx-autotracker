@@ -69,7 +69,7 @@ gdp('registerPlugins', [
 | `xpath` | `id#handlerName` |
 | `index` | `data-index`，必须是大于 `0` 且小于 `2147483647` 的整数 |
 | `textValue` | 点击事件读取 `data-title`；变更事件仅在 `data-growing-track` 为真时优先读取 `detail.value`、缺失时回退 `target.attr.value`，数组值序列化为 JSON 字符串，合法的 `0` / `false` 会保留；没有 value 的 change 事件不写入；标记了 `data-growing-track` 的 `type="password"` 输入框强制不采集输入内容 |
-| `hyperlink` | `data-src` |
+| `hyperlink` | `data-src`，最多保留前 320 个字符 |
 
 变更事件是否上报不受输入类型影响，仍按统一的 change 触发和忽略规则执行。唯一的 password 特殊逻辑是：标记了 `data-growing-track` 的 `type="password"` 输入框即使触发 `VIEW_CHANGE`，也不会写入 `textValue`。
 

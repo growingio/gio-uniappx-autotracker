@@ -6,6 +6,7 @@ export function isBlank (value : string | null) : boolean {
 
 const INVALID_ID_VALUES = ['-', 'null', 'undefined']
 const TEXT_VALUE_MAX_LENGTH = 100
+const HYPERLINK_MAX_LENGTH = 320
 
 export function verifyId (value : string | null) : boolean {
   if (isBlank(value)) {
@@ -41,6 +42,15 @@ export function limitTextValue (value : string | null) : string | null {
   return trimmed.length > TEXT_VALUE_MAX_LENGTH
     ? trimmed.slice(0, TEXT_VALUE_MAX_LENGTH)
     : trimmed
+}
+
+export function limitHyperlink (value : string | null) : string | null {
+  if (value == null) {
+    return null
+  }
+  return value.length > HYPERLINK_MAX_LENGTH
+    ? value.slice(0, HYPERLINK_MAX_LENGTH)
+    : value
 }
 
 // 把标量按真实类型解包成字符串。iOS 上对 any 直接 `${value}` 会渲染出 "Optional(...)"。
