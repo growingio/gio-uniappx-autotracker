@@ -171,15 +171,15 @@ export class GioABTestPlugin {
   }
 
   private writeCachedData(hashKey : number, data : GioABTestResult) {
-    (this.storage as GioStorage).setItem(this.getDataStorageKey(hashKey), {
-      layerId: data.layerId,
-      strategyId: data.strategyId,
-      experimentId: data.experimentId,
-      layerName: data.layerName,
-      experimentName: data.experimentName,
-      strategyName: data.strategyName,
-      variables: data.variables
-    } as UTSJSONObject, endOfNextDay())
+    const payload = {} as UTSJSONObject
+    payload['layerId'] = data.layerId
+    payload['strategyId'] = data.strategyId
+    payload['experimentId'] = data.experimentId
+    payload['layerName'] = data.layerName
+    payload['experimentName'] = data.experimentName
+    payload['strategyName'] = data.strategyName
+    payload['variables'] = data.variables
+    ;(this.storage as GioStorage).setItem(this.getDataStorageKey(hashKey), payload, endOfNextDay())
   }
 
   private getSign(hashKey : number) : number {
@@ -332,12 +332,12 @@ export class GioABTestPlugin {
     const resolvedLayerId = readScalarString(responseData, 'layerId', stringifyScalar(layerId))
     const resolvedStrategyId = readScalarString(responseData, 'strategyId')
     const resolvedExperimentId = readScalarString(responseData, 'experimentId')
-    const comparisonData = {
-      layerId: resolvedLayerId,
-      strategyId: resolvedStrategyId,
-      experimentId: resolvedExperimentId,
-      variables: variables != null ? variables : {} as UTSJSONObject
-    } as UTSJSONObject
+    const comparisonData = {} as UTSJSONObject
+    const fallbackVariables = {} as UTSJSONObject
+    comparisonData['layerId'] = resolvedLayerId
+    comparisonData['strategyId'] = resolvedStrategyId
+    comparisonData['experimentId'] = resolvedExperimentId
+    comparisonData['variables'] = variables != null ? variables : fallbackVariables
     const controlData = this.cloneComparisonData(originData)
     const comparisonValue = hashCode(jsonStringify(comparisonData))
     const controlValue = hashCode(jsonStringify(controlData))
@@ -367,14 +367,13 @@ export class GioABTestPlugin {
   }
 
   private buildExperimentHitEvent(result : GioABTestResult) {
-    const attributes = {
-      $exp_layer_id: result.layerId,
-      $exp_id: result.experimentId,
-      $exp_strategy_id: result.strategyId,
-      $exp_layer_name: result.layerName != null ? result.layerName : '',
-      $exp_name: result.experimentName != null ? result.experimentName : '',
-      $exp_strategy_name: result.strategyName != null ? result.strategyName : ''
-    } as UTSJSONObject
+    const attributes = {} as UTSJSONObject
+    attributes['$exp_layer_id'] = result.layerId
+    attributes['$exp_id'] = result.experimentId
+    attributes['$exp_strategy_id'] = result.strategyId
+    attributes['$exp_layer_name'] = result.layerName != null ? result.layerName : ''
+    attributes['$exp_name'] = result.experimentName != null ? result.experimentName : ''
+    attributes['$exp_strategy_name'] = result.strategyName != null ? result.strategyName : ''
     this.tracker.trackPluginEvent('$exp_hit', attributes)
   }
 }
