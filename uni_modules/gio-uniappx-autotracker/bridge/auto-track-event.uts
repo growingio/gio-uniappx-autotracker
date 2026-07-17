@@ -143,6 +143,22 @@ function copyScalarValue(source : any | null) : UTSJSONObject | null {
       }
     }
   }
+  const rangeValue = readDynamicField(source, 'range')
+  if (Array.isArray(rangeValue)) {
+    const copiedRange = [] as Array<any>
+    for (let i = 0; i < rangeValue.length; i++) {
+      const item = rangeValue[i]
+      if (
+        item != null &&
+        (typeof item == 'string' || typeof item == 'number' || typeof item == 'boolean')
+      ) {
+        copiedRange.push(item)
+      }
+    }
+    if (copiedRange.length > 0) {
+      copied['range'] = copiedRange
+    }
+  }
   return UTSJSONObject.keys(copied).length > 0 ? copied : null
 }
 

@@ -36,6 +36,10 @@ function readCopiedDynamicField(source : any | null, key : string) : any | null 
   if (copied == null) {
     return null
   }
+  const arrayValue = copied.getArray(key)
+  if (arrayValue != null) {
+    return arrayValue
+  }
   const objectValue = copied.getJSON(key)
   if (objectValue != null) {
     return objectValue

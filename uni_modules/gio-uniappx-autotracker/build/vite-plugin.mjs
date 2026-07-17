@@ -554,7 +554,7 @@ function readTargetMetadata(node) {
 
 /**
  * 读取 change 值的组件语义。input 等节点优先保留显式 type；
- * switch 额外传入组件名，供桥接层恢复 iOS 上可能被桥接为 0/1 的布尔值。
+ * switch / picker 额外传入组件名，供桥接层恢复平台差异后的真实业务值。
  */
 function readChangeElementType(element) {
   const explicitType = normalizeStaticBoundValue(readBoundAttribute(element, 'type') ?? '')
@@ -562,7 +562,10 @@ function readChangeElementType(element) {
   if (explicitType != null) {
     return explicitType
   }
-  return element.tag === 'switch' ? 'switch' : null
+  if (element.tag === 'switch' || element.tag === 'picker') {
+    return element.tag
+  }
+  return null
 }
 
 /** 将 change 组件语义转成生成 UTS 代码所需的字面量。 */

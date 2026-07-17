@@ -203,6 +203,60 @@ export class GioEventAutoTrackingPlugin {
     return null
   }
 
+  private readPickerIndex(source : UTSJSONObject | null) : number | null {
+    if (source == null) {
+      return null
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null) {
+      return numberValue as number
+    }
+    const textValue = source.getString('value')
+    if (textValue == null || textValue.length == 0) {
+      return null
+    }
+    const indexValue = parseInt(textValue, 10)
+    if (isNaN(indexValue) || `${indexValue}` != textValue) {
+      return null
+    }
+    return indexValue
+  }
+
+  private readPickerLabelFromAttr(attr : UTSJSONObject | null, index : number) : string | null {
+    if (attr == null || index < 0) {
+      return null
+    }
+    // #ifdef APP-HARMONY
+    const range = attr.getArray<Object>('range')
+    // #endif
+    // #ifndef APP-HARMONY
+    const range = attr.getArray('range')
+    // #endif
+    if (range == null || index >= range.length) {
+      return null
+    }
+    const item = range[index]
+    if (typeof item == 'string') {
+      return item as string
+    }
+    if (typeof item == 'number' || typeof item == 'boolean') {
+      return stringifyScalar(item)
+    }
+    return null
+  }
+
+  private readPickerChangeValue(detail : UTSJSONObject | null, attr : UTSJSONObject | null) : string | null {
+    const index = this.readPickerIndex(detail)
+    if (index == null) {
+      return null
+    }
+    const label = this.readPickerLabelFromAttr(attr, index as number)
+    if (label != null) {
+      return label
+    }
+    return `${index as number}`
+  }
+
   private isPasswordTarget(target : UTSJSONObject | null) : boolean {
     if (target == null) {
       return false
@@ -230,13 +284,21 @@ export class GioEventAutoTrackingPlugin {
   }
 
   private readChangeValue(snapshot : UTSJSONObject) : string | null {
-    const preferBoolean = snapshot.getString('elementType', '') == 'switch'
-    const detailValue = this.readDetailValue(this.readSnapshotObject(snapshot, 'detail'), preferBoolean)
+    const elementType = snapshot.getString('elementType', '')
+    const detail = this.readSnapshotObject(snapshot, 'detail')
+    const target = this.readOriginalTarget(snapshot)
+    const attr = target != null ? target.getJSON('attr') : null
+    if (elementType == 'picker') {
+      const pickerValue = this.readPickerChangeValue(detail, attr)
+      if (pickerValue != null) {
+        return pickerValue
+      }
+    }
+    const preferBoolean = elementType == 'switch'
+    const detailValue = this.readDetailValue(detail, preferBoolean)
     if (detailValue != null) {
       return detailValue
     }
-    const target = this.readOriginalTarget(snapshot)
-    const attr = target != null ? target.getJSON('attr') : null
     return this.readNilAwareValue(attr)
   }
 

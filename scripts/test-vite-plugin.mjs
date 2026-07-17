@@ -168,6 +168,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
     assert.match(template, /id="auto_change_slider"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="component_radio_group_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="component_picker_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
+    assert.match(output, /_gioHandleAutoChange\(event, 'recordComponentAction', 'picker', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
     assert.match(template, /id="component_checkbox_group_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="component_picker_view_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="component_swiper_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
