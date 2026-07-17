@@ -241,10 +241,90 @@ function readAutoTrackChangeScalar(changePayload : any | null) : string | number
   )
 }
 
+function readAutoTrackPickerIndex(value : string | number | boolean | null) : number | null {
+  if (value == null) {
+    return null
+  }
+  if (typeof value == 'number') {
+    const index = value as number
+    return index >= 0 && Math.floor(index) == index ? index : null
+  }
+  if (typeof value != 'string') {
+    return null
+  }
+  const text = value as string
+  const index = parseInt(text, 10)
+  return !isNaN(index) && `${index}` == text && index >= 0 ? index : null
+}
+
+function readAutoTrackPickerLabel(range : any | null, index : number) : string | null {
+  if (!Array.isArray(range) || index < 0 || index >= range.length) {
+    return null
+  }
+  const item = range[index]
+  if (typeof item == 'string') {
+    return item as string
+  }
+  if (typeof item == 'number') {
+    return `${item as number}`
+  }
+  if (typeof item == 'boolean') {
+    return (item as boolean) ? 'true' : 'false'
+  }
+  return null
+}
+
+function readAutoTrackPickerViewIndices(changePayload : any | null) : Array<any> | null {
+  if (Array.isArray(changePayload)) {
+    return changePayload as Array<any>
+  }
+  // #ifdef APP-ANDROID
+  if (changePayload instanceof UniPickerViewChangeEvent) {
+    return (changePayload as UniPickerViewChangeEvent).detail.value
+  }
+  // #endif
+  const value = readDynamicField(readDynamicField(changePayload, 'detail'), 'value')
+  return Array.isArray(value) ? value as Array<any> : null
+}
+
+function readAutoTrackPickerValue(
+  changePayload : any | null,
+  elementType : string | null,
+  pickerRange : any | null
+) : string | null {
+  if (elementType == 'picker') {
+    const index = readAutoTrackPickerIndex(readAutoTrackChangeScalar(changePayload))
+    return index != null ? readAutoTrackPickerLabel(pickerRange, index as number) : null
+  }
+  if (elementType != 'picker-view' || !Array.isArray(pickerRange)) {
+    return null
+  }
+  const indices = readAutoTrackPickerViewIndices(changePayload)
+  if (indices == null || indices.length == 0 || pickerRange.length != indices.length) {
+    return null
+  }
+  const labels = [] as Array<string>
+  for (let i = 0; i < indices.length; i++) {
+    const indexValue = indices[i]
+    const index = typeof indexValue == 'number'
+      ? readAutoTrackPickerIndex(indexValue as number)
+      : (typeof indexValue == 'string' ? readAutoTrackPickerIndex(indexValue as string) : null)
+    const label = index != null ? readAutoTrackPickerLabel(pickerRange[i], index as number) : null
+    if (label == null) {
+      return null
+    }
+    labels.push(label)
+  }
+  return labels.join(',')
+}
+
 function buildAutoTrackDetailSnapshot(
-  changePayload : any | null
+  changePayload : any | null,
+  elementType : string | null,
+  pickerRange : any | null
 ) : UTSJSONObject | null {
-  const value = readAutoTrackChangeScalar(changePayload)
+  const mappedPickerValue = readAutoTrackPickerValue(changePayload, elementType, pickerRange)
+  const value = mappedPickerValue != null ? mappedPickerValue : readAutoTrackChangeScalar(changePayload)
   if (value == null) {
     return null
   }
@@ -293,7 +373,8 @@ export function gioHandleAutoChange(
   templateSrc : AutoTrackTemplateDatasetValue,
   templateGrowingTrack : AutoTrackTemplateDatasetValue,
   templateGrowingIgnore : AutoTrackTemplateDatasetValue,
-  changePayload : any | null
+  changePayload : any | null,
+  pickerRange : any | null
 ) : boolean {
   return dispatchAutoTrackSnapshot(
     'CHANGE',
@@ -306,7 +387,7 @@ export function gioHandleAutoChange(
     templateSrc,
     templateGrowingTrack,
     templateGrowingIgnore,
-    buildAutoTrackDetailSnapshot(changePayload)
+    buildAutoTrackDetailSnapshot(changePayload, elementType, pickerRange)
   )
 }
 

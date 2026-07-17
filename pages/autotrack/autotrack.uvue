@@ -575,7 +575,7 @@
 			</picker>
 
 			<text class="subsectionTitle">数组值组件</text>
-			<text class="hint">checkbox-group 与 picker-view 的 value 是数组，应序列化为稳定 textValue。</text>
+			<text class="hint">checkbox-group 保留数组值；picker-view 会按各列的候选文案映射，示例中 [1] 上报为 Beta。</text>
 			<checkbox-group
 				id="component_checkbox_group_change"
 				class="choiceRow"
