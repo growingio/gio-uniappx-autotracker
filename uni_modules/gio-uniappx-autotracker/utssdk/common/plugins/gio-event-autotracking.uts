@@ -91,6 +91,11 @@ export class GioEventAutoTrackingPlugin {
       return false
     }
     const currentTime = timeStamp as number
+    // Web picker-view 的 change 事件可能持续给出 0 时间戳。0 不能作为去重基准，
+    // 否则第一条之后所有同类事件都会因差值恒为 0 而被永久吞掉。
+    if (currentTime <= 0 || isNaN(currentTime)) {
+      return false
+    }
     const previous = this.previousEvent
     if (
       previous != null &&
@@ -144,9 +149,25 @@ export class GioEventAutoTrackingPlugin {
     return indexValue
   }
 
-  private readDetailValue(source : UTSJSONObject | null) : string | null {
+  private readDetailValue(source : UTSJSONObject | null, preferBoolean : boolean) : string | null {
     if (source == null) {
       return null
+    }
+    // switch 在 iOS 桥接后可能被 string/number getter 解读为 "0"/"1"。
+    // 只对编译期已标记的 switch 优先读布尔，不改变 slider/picker 的数值语义。
+    if (preferBoolean) {
+      const booleanValue = source.getBoolean('value')
+      if (booleanValue != null) {
+        return (booleanValue as boolean) ? 'true' : 'false'
+      }
+      const numberValue = source.getNumber('value')
+      if (numberValue != null && ((numberValue as number) == 0 || (numberValue as number) == 1)) {
+        return (numberValue as number) == 1 ? 'true' : 'false'
+      }
+      const stringValue = source.getString('value')
+      if (stringValue == '0' || stringValue == '1') {
+        return stringValue == '1' ? 'true' : 'false'
+      }
     }
     const textValue = source.getString('value')
     if (textValue != null) {
@@ -209,7 +230,8 @@ export class GioEventAutoTrackingPlugin {
   }
 
   private readChangeValue(snapshot : UTSJSONObject) : string | null {
-    const detailValue = this.readDetailValue(this.readSnapshotObject(snapshot, 'detail'))
+    const preferBoolean = snapshot.getString('elementType', '') == 'switch'
+    const detailValue = this.readDetailValue(this.readSnapshotObject(snapshot, 'detail'), preferBoolean)
     if (detailValue != null) {
       return detailValue
     }

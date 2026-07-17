@@ -164,6 +164,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
     assert.match(template, /id="auto_blur_input"[\s\S]*@blur="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="component_textarea_confirm"[\s\S]*@confirm="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="auto_change_switch"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
+    assert.match(output, /_gioHandleAutoChange\(event, 'onSwitchChange', 'switch', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
     assert.match(template, /id="auto_change_slider"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="component_radio_group_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(template, /id="component_picker_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
@@ -194,8 +195,8 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   </template><script setup lang="uts"></script>`
   const output = transformForPlatform(code, 'app-android')
   assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 0, \$event, \(item\.id\), null, \(item\.title\), null, \(item\.track\), null, enabled, 1\) \? onChangeTrue\(\$event\) : onChangeFalse\(\$event\)"/)
-  assert.match(output, /_gioHandleAutoChange\(event, 'onChangeTrue', null, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
-  assert.match(output, /_gioHandleAutoChange\(event, 'onChangeFalse', null, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onChangeTrue', 'switch', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onChangeFalse', 'switch', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload\)/)
   assert.doesNotMatch(output.slice(0, output.indexOf('</template>')), /detail|as UTSJSONObject/)
   const dispatcher = output.slice(output.indexOf('function _gioAutoTrackDispatch'))
   assert.doesNotMatch(dispatcher, /item\.|enabled/)

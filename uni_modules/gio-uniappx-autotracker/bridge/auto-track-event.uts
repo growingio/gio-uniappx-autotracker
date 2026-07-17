@@ -36,9 +36,32 @@ function readBooleanField(source : any | null, key : string) : boolean | null {
   return readBooleanValue(readDynamicField(source, key))
 }
 
-function copyInjectedDetailValue(target : UTSJSONObject, source : UTSJSONObject | null) : boolean {
+function copyInjectedDetailValue(
+  target : UTSJSONObject,
+  source : UTSJSONObject | null,
+  preferBoolean : boolean
+) : boolean {
   if (source == null) {
     return false
+  }
+  // iOS 上 switch 的 Bool 过桥后可能同时被标量 getter 解读为 0/1。
+  // 组件语义已确认为 switch 时优先用 typed boolean getter 恢复真实类型。
+  if (preferBoolean) {
+    const booleanValue = source.getBoolean('value')
+    if (booleanValue != null) {
+      target['value'] = booleanValue
+      return true
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null && ((numberValue as number) == 0 || (numberValue as number) == 1)) {
+      target['value'] = (numberValue as number) == 1
+      return true
+    }
+    const stringValue = source.getString('value')
+    if (stringValue == '0' || stringValue == '1') {
+      target['value'] = stringValue == '1'
+      return true
+    }
   }
   const textValue = source.getString('value')
   if (textValue != null) {
@@ -391,7 +414,7 @@ export function buildAutoTrackEventSnapshot(
     snapshot['target'] = templateTarget
   }
   const detail = runtimeDetail != null ? runtimeDetail : {} as UTSJSONObject
-  const hasInjectedValue = copyInjectedDetailValue(detail, eventDetail)
+  const hasInjectedValue = copyInjectedDetailValue(detail, eventDetail, elementType == 'switch')
   if (runtimeDetail != null || hasInjectedValue) {
     snapshot['detail'] = detail
   }

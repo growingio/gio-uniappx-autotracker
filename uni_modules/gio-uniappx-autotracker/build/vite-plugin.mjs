@@ -552,7 +552,20 @@ function readTargetMetadata(node) {
   }
 }
 
-/** 将 input 等节点的静态 type 转成生成 UTS 代码所需的字面量。 */
+/**
+ * 读取 change 值的组件语义。input 等节点优先保留显式 type；
+ * switch 额外传入组件名，供桥接层恢复 iOS 上可能被桥接为 0/1 的布尔值。
+ */
+function readChangeElementType(element) {
+  const explicitType = normalizeStaticBoundValue(readBoundAttribute(element, 'type') ?? '')
+    ?? readStaticAttribute(element, 'type')
+  if (explicitType != null) {
+    return explicitType
+  }
+  return element.tag === 'switch' ? 'switch' : null
+}
+
+/** 将 change 组件语义转成生成 UTS 代码所需的字面量。 */
 function buildChangeElementTypeArgument(elementType, attrQuote) {
   return elementType != null ? quoteString(elementType, attrQuote) : 'null'
 }
@@ -906,7 +919,7 @@ function collectTemplateReplacements(code, options = {
         continue
       }
       const attributeQuote = getAttributeQuote(binding)
-      const elementType = normalizeStaticBoundValue(readBoundAttribute(element, 'type') ?? '') ?? readStaticAttribute(element, 'type')
+      const elementType = readChangeElementType(element)
       const metadata = readTargetMetadata(element)
       if (options.useSetupDispatcher) {
         const conditionalParts = readTopLevelConditionalParts(expression)
