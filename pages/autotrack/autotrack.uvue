@@ -559,8 +559,8 @@
 				data-growing-track="true"
 				@change="recordComponentAction('radio-group change')"
 			>
-				<label class="choiceItem"><radio value="alpha" /><text class="choiceText">Alpha</text></label>
-				<label class="choiceItem"><radio value="beta" /><text class="choiceText">Beta</text></label>
+				<view class="choiceItem"><radio value="alpha" /><text class="choiceText">Alpha</text></view>
+				<view class="choiceItem"><radio value="beta" /><text class="choiceText">Beta</text></view>
 			</radio-group>
 			<picker
 				id="component_picker_change"
@@ -583,8 +583,8 @@
 				data-growing-track="true"
 				@change="recordComponentAction('checkbox-group change')"
 			>
-				<label class="choiceItem"><checkbox value="red" /><text class="choiceText">Red</text></label>
-				<label class="choiceItem"><checkbox value="blue" /><text class="choiceText">Blue</text></label>
+				<view class="choiceItem"><checkbox value="red" /><text class="choiceText">Red</text></view>
+				<view class="choiceItem"><checkbox value="blue" /><text class="choiceText">Blue</text></view>
 			</checkbox-group>
 			<picker-view
 				id="component_picker_view_change"
@@ -1075,7 +1075,7 @@ function onImageError(event : ImageErrorEvent) {
 .fieldLabel { font-size: 22rpx; color: #475467; margin: 10rpx 2rpx 6rpx; }
 .btn { background: #1677ff; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btnGreen { background: #13a67a; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
-.btnOrange { background: #fa8c16; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
+.btnOrange { background: #fa8c16; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
 .btnText { color: #fff; font-size: 26rpx; text-align: center; }
 .btnWarn { background: #fff7e6; color: #b26200; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; border: 1rpx solid #ffd591; }
 .btnDanger { background: #ef4444; color: #fff; font-size: 26rpx; padding: 16rpx; border-radius: 8rpx; margin-bottom: 12rpx; }
