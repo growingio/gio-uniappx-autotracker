@@ -2,7 +2,7 @@
   "name": "gio-uniappx-autotracker",
   "id": "gio-uniappx-autotracker",
   "displayName": "GrowingIO uni-app x Autotracker Lite",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "A minimal uni-app x cross-platform tracking SDK with init, track, user identity management, session management, and reporting.",
   "dependencies": {
     "@babel/parser": "7.28.5",
