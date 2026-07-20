@@ -15,7 +15,7 @@
 ```text
 模板事件
   → Vite 编译期模板 AST 改写
-  → script setup 模板表达式: _gioAutoTrackDispatch($event, action); 原业务表达式
+  → script setup 模板表达式: _gioAutoTrackDispatch($event, action, 快照参数); 原业务表达式
   → plugin.uts: gioHandleAutoClick / gioHandleAutoChange
   → bridge/auto-track-event.uts: 构建稳定事件快照
   → GioEventAutoTrackingPlugin: 去重、忽略、脱敏、element 构建
@@ -68,7 +68,7 @@ Web 与其他平台遵循相同的采集边界：只有模板中声明了受支�
 
 ```vue
 <view
-  @tap="_gioAutoTrackDispatch($event, 0); onTap($event, 'from-card')"
+  @tap="_gioAutoTrackDispatch($event, 0, null, null, null, null, null, null, null, null); onTap($event, 'from-card')"
 />
 ```
 
@@ -78,6 +78,14 @@ Web 与其他平台遵循相同的采集边界：只有模板中声明了受支�
 function _gioAutoTrackDispatch(
   event : any | null,
   action : number,
+  changePayload : any | null,
+  pickerRange : any | null,
+  templateId : string | number | null,
+  templateIndex : string | number | boolean | null,
+  templateTitle : string | number | boolean | null,
+  templateSrc : string | number | boolean | null,
+  templateGrowingTrack : string | number | boolean | null,
+  templateGrowingIgnore : string | number | boolean | null,
   condition : boolean | null = null,
   alternateAction : number | null = null
 ) : boolean {
@@ -87,7 +95,7 @@ function _gioAutoTrackDispatch(
     selectedAction = alternateAction as number
   }
   if (selectedAction == 0) {
-    _gioHandleAutoClick(event, 'onTap', null, null, null, null, null, null)
+    _gioHandleAutoClick(event, 'onTap', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore)
     return resolvedCondition
   }
   return resolvedCondition
@@ -110,7 +118,7 @@ function _gioAutoTrackDispatch(
 
 - input、textarea、switch、slider、radio-group 等标量值；
 - checkbox-group、picker-view 等数组值，序列化为 JSON 字符串；
-- swiper 等没有 `detail.value` 的 change，仍可产生 `VIEW_CHANGE`；如果标记了 `data-title`，会把标记值写入 `textValue`；autoplay 继续遵守既有忽略规则。
+- `swiper` 没有 `detail.value`，仍可产生 `VIEW_CHANGE`；如果标记了 `data-title`，会把标记值写入 `textValue`。它是当前唯一允许该 title 兜底的无值型 change 组件；autoplay 继续遵守既有忽略规则。
 
 值读取按“是否缺失”而不是 JavaScript truthy 语义判断，因此 picker/slider 的 `0` 与 switch 的 `false` 都会作为有效 `textValue` 保留。
 
@@ -134,7 +142,7 @@ function _gioAutoTrackDispatch(
 会直接改写为：
 
 ```vue
-<tracking-card @click="_gioAutoTrackDispatch($event, 0); onCardClick()" />
+<tracking-card @click="_gioAutoTrackDispatch($event, 0, null, null, null, null, null, null, null, null); onCardClick()" />
 ```
 
 因此，即使组件通过 `emit` 传出的参数没有 `currentTarget`、dataset 或 type，仍会执行采集分支与 `onCardClick()`。
@@ -151,7 +159,7 @@ function _gioAutoTrackDispatch(
 
 ```vue
 <button
-  @click="_gioAutoTrackDispatch($event, 0, conditionEnabled, 1) ? onConditionalTrue() : onConditionalFalse()"
+  @click="_gioAutoTrackDispatch($event, 0, null, null, null, null, null, null, null, null, conditionEnabled, 1) ? onConditionalTrue() : onConditionalFalse()"
 />
 ```
 
@@ -177,8 +185,8 @@ function _gioAutoTrackDispatch(
 | `dataCollect = false` | tracker 不入队 |
 | `data-growing-ignore` | 忽略当前事件 |
 | autoplay 且未显式 track | 忽略当前事件 |
-| 同类型事件间隔小于 10ms | 视为重复事件 |
-| `data-index` | 校验范围必须大于 0、小于 2147483647 |
+| 同一元素、同类型事件间隔小于 10ms | 视为重复事件；时间戳为 0 或无效值时不去重 |
+| `data-index` | 仅 `VIEW_CLICK` 校验并写入 index；范围必须大于 0、小于 2147483647 |
 | password | 永不写入变更内容 |
 
 ## 6. 平台差异
@@ -246,7 +254,7 @@ function _gioAutoTrackDispatch(
 | 采集覆盖 | 继续由模板事件插桩采集，不增加全局事件监听。小程序 `target/currentTarget.dataset` 仍用于补充快照，而非确定 action。 |
 | 稳定性收益 | 旧的 dataset/type 反查失败时可能跳过目标采集分支；当前 action 已由模板写死，自定义组件 `emit` 的事件对象不完整也不会影响 click/change 的分类。 |
 | tabBar | 保留 `onTabItemTap` 自动采集能力。 |
-| 数据语义 | `data-index`、`data-src`、`data-growing-track` 与 `data-growing-ignore` 仍会被读取并进入统一插件规则；password 仍绝不写入变更内容。 |
+| 数据语义 | `data-index` 与 `data-src` 只影响点击事件；`data-growing-track`、`data-growing-ignore` 按对应规则影响变更或忽略。password 仍绝不写入变更内容。 |
 | 仍需关注 | 小程序宿主对象不是真正的 `UTSJSONObject`，读取必须留在小程序/桥接适配范围内，不能把这类读取方式下沉进 `utssdk/common`。 |
 
 ### 7.6 移动端场景矩阵
@@ -254,7 +262,7 @@ function _gioAutoTrackDispatch(
 | 场景 | Android / iOS | Harmony VDOM | Harmony Vapor | 微信小程序 | 当前处理与影响 |
 | --- | --- | --- | --- | --- | --- |
 | 普通静态 `@tap` / `@click` | 支持 | 支持 | 支持 | 支持 | 模板 AST 写入固定 action；事件字段不完整也能归类为 CLICK。 |
-| `@change` / `@blur` / `@confirm` | 支持 | 支持 | 支持 | 支持 | 固定 action 归类为 CHANGE；模板透传完整事件，桥接层处理标量/数组值；仅 `data-growing-track` 时采集值，password 脱敏。 |
+| `@change` / `@blur` / `@confirm` | 支持 | 支持 | 支持 | 支持 | 固定 action 归类为 CHANGE；模板透传完整事件，桥接层处理标量/数组值；仅 `data-growing-track` 时采集真实值，password 脱敏；`swiper` 可用 `data-title` 作为无值型 change 文案。 |
 | 自定义组件 `emit('click')` | 支持 | 支持 | 支持 | 支持 | 不再依赖 emit 参数存在 dataset/type；原业务 handler 仍需自己适配参数。 |
 | Ref / computed 条件表达式 | 支持 | 支持 | 支持 | 支持 | 条件只求值一次；true/false 分别映射独立 action，业务分支和上报 handler/xpath 保持一致。 |
 | `uni-link` | 支持 | 支持 | 支持 | 支持 | AST 补充 click 和静态 href 推导；跳过内部 `uni-link-x`。 |

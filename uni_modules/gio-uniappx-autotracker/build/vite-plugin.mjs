@@ -516,6 +516,19 @@ function readTemplateAttribute(node, name) {
     : { kind: 'expression', value: expression }
 }
 
+/**
+ * 布尔 data-* 标记的静态空属性表示 true；其他元数据仍沿用普通属性读取规则。
+ * 这样 `data-growing-track` 与 `:data-growing-track="enabled"` 都能保留明确语义。
+ */
+function readTemplateMarkerAttribute(node, name) {
+  const staticAttribute = node.props.find((prop) => prop.type === 6 && prop.name === name)
+  if (staticAttribute != null) {
+    const value = staticAttribute.value != null ? staticAttribute.value.content : ''
+    return { kind: 'static', value: value.length > 0 ? value : 'true' }
+  }
+  return readTemplateAttribute(node, name)
+}
+
 /** 为没有 data-src 的 uni-link 生成等价属性，保留静态/绑定两种写法。 */
 function buildHrefDatasetAttribute(node) {
   const staticValue = readStaticAttribute(node, 'href')
@@ -547,14 +560,15 @@ function readTargetMetadata(node) {
     index: readTemplateAttribute(node, 'data-index'),
     title: readTemplateAttribute(node, 'data-title'),
     src: datasetSrc ?? (hasDataSrcAttribute(node) ? null : readTemplateAttribute(node, 'href')),
-    growingTrack: readTemplateAttribute(node, 'data-growing-track'),
-    growingIgnore: readTemplateAttribute(node, 'data-growing-ignore'),
+    growingTrack: readTemplateMarkerAttribute(node, 'data-growing-track'),
+    growingIgnore: readTemplateMarkerAttribute(node, 'data-growing-ignore'),
   }
 }
 
 /**
  * 读取 change 值的组件语义。input 等节点优先保留显式 type；
- * switch / picker 额外传入组件名，供桥接层恢复平台差异后的真实业务值。
+ * switch / picker 额外传入组件名，供桥接层恢复平台差异后的真实业务值；
+ * swiper 是没有 detail.value 的白名单组件，允许 data-title 作为变更文案兜底。
  */
 function readChangeElementType(element) {
   const explicitType = normalizeStaticBoundValue(readBoundAttribute(element, 'type') ?? '')
@@ -562,7 +576,12 @@ function readChangeElementType(element) {
   if (explicitType != null) {
     return explicitType
   }
-  if (element.tag === 'switch' || element.tag === 'picker' || element.tag === 'picker-view') {
+  if (
+    element.tag === 'switch' ||
+    element.tag === 'picker' ||
+    element.tag === 'picker-view' ||
+    element.tag === 'swiper'
+  ) {
     return element.tag
   }
   return null

@@ -88,7 +88,7 @@ function copyDatasetFlag(source : any | null, target : UTSJSONObject, key : stri
     return
   }
   const stringValue = readStringField(source, key)
-  if (stringValue != null) {
+  if (stringValue != null && stringValue.length > 0) {
     target[key] = stringValue
   }
 }

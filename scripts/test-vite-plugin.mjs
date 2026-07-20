@@ -175,6 +175,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
     assert.match(output, /_gioHandleAutoChange\(event, 'recordComponentAction', 'picker-view', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload, pickerRange\)/)
     assert.match(template, /id="component_picker_view_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event, \[\(pickerItems\)\],/)
     assert.match(template, /id="component_swiper_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event, null, 'component_swiper_change', null, 'swiper change', null, null, null\)/)
+    assert.match(output, /_gioHandleAutoChange\(event, 'recordComponentAction', 'swiper', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload, pickerRange\)/)
     assert.doesNotMatch(template, /\$event\.detail|as UTSJSONObject/)
     assertSetupDispatcher(output)
   }
@@ -212,6 +213,23 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
   const output = transformForPlatform(code, 'mp-weixin')
   assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 0, \$event, null, null, null, null, null, 'true', null\); onSliderChange\(\$event\)"/)
   assertSetupDispatcher(output)
+}
+
+{
+  const code = `<template>
+    <switch data-growing-track @change="onTrackedChange($event)" />
+    <switch data-growing-track="false" @change="onUntrackedChange($event)" />
+    <view data-growing-ignore @tap="onIgnoredTap" />
+    <view data-growing-ignore="false" @tap="onVisibleTap" />
+  </template><script setup lang="uts"></script>`
+  for (const platform of ['app-android', 'app-ios', 'app-harmony', 'mp-weixin', 'web']) {
+    const output = transformForPlatform(code, platform)
+    assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 0, \$event, null, null, null, null, null, 'true', null\); onTrackedChange\(\$event\)"/)
+    assert.match(output, /@change="_gioAutoTrackDispatch\(\$event, 1, \$event, null, null, null, null, null, 'false', null\); onUntrackedChange\(\$event\)"/)
+    assert.match(output, /@tap="_gioAutoTrackDispatch\(\$event, 2, null, null, null, null, null, null, null, 'true'\); onIgnoredTap\((?:\$event)?\)"/)
+    assert.match(output, /@tap="_gioAutoTrackDispatch\(\$event, 3, null, null, null, null, null, null, null, 'false'\); onVisibleTap\((?:\$event)?\)"/)
+    assertSetupDispatcher(output)
+  }
 }
 
 {

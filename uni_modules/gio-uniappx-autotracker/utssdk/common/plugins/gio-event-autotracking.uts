@@ -10,6 +10,7 @@ const MIN_INDEX = 0
 const MAX_INDEX = 2147483647
 
 type GioPreviousAutoTrackEvent = {
+  elementKey : string
   eventType : string
   timeStamp : number
 }
@@ -59,7 +60,11 @@ export class GioEventAutoTrackingPlugin {
     }
     const stringValue = dataset.getString(key)
     if (stringValue != null) {
-      return stringValue.length > 0
+      const normalized = (stringValue as string).trim().toLowerCase()
+      if (normalized == 'false' || normalized == '0') {
+        return false
+      }
+      return normalized.length > 0
     }
     const numberValue = dataset.getNumber(key)
     if (numberValue != null) {
@@ -84,6 +89,28 @@ export class GioEventAutoTrackingPlugin {
     return detail.getString('source') == 'autoplay'
   }
 
+  private buildDedupeElementKey(snapshot : UTSJSONObject) : string {
+    const target = this.readPrimaryTarget(snapshot)
+    const dataset = this.readDataset(target)
+    const action = snapshot.getString('action', '')
+    const eventName = snapshot.getString('eventName', '')
+    const xpath = this.buildXpath(target, eventName)
+    const title = dataset != null ? dataset.getString('title', '') : ''
+    let index = ''
+    if (action == CLICK_ACTION && dataset != null) {
+      const stringIndex = dataset.getString('index')
+      if (stringIndex != null) {
+        index = stringIndex as string
+      } else {
+        const numberIndex = dataset.getNumber('index')
+        if (numberIndex != null) {
+          index = `${numberIndex as number}`
+        }
+      }
+    }
+    return `${xpath}|${index}|${title}`
+  }
+
   private isDuplicate(snapshot : UTSJSONObject) : boolean {
     const eventType = snapshot.getString('type', '')
     const timeStamp = snapshot.getNumber('timeStamp')
@@ -96,15 +123,18 @@ export class GioEventAutoTrackingPlugin {
     if (currentTime <= 0 || isNaN(currentTime)) {
       return false
     }
+    const elementKey = this.buildDedupeElementKey(snapshot)
     const previous = this.previousEvent
     if (
       previous != null &&
       previous.eventType == eventType &&
+      previous.elementKey == elementKey &&
       Math.abs(currentTime - previous.timeStamp) < 10
     ) {
       return true
     }
     this.previousEvent = {
+      elementKey: elementKey,
       eventType: eventType,
       timeStamp: currentTime
     } as GioPreviousAutoTrackEvent
@@ -343,7 +373,11 @@ export class GioEventAutoTrackingPlugin {
         element['textValue'] = stringifyScalar(value)
       }
     }
-    if (element.getString('textValue') == null && dataset != null) {
+    if (
+      element.getString('textValue') == null &&
+      snapshot.getString('elementType', '') == 'swiper' &&
+      dataset != null
+    ) {
       const title = dataset.getString('title')
       if (title != null) {
         element['textValue'] = title

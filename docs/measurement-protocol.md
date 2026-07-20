@@ -108,10 +108,10 @@
 |---|---|:--:|:--:|:--:|---|
 | `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `pageShowTimestamp` | long | ● | ● | ● | 页面显示时间 |
-| `textValue` | string | ○ | ○ | ○ | 元素文本内容 |
+| `textValue` | string | ○ | ○ | ○ | `data-title` 标记的元素文案 |
 | `xpath` | string | ● | ● | ● | xpath 标识符 |
-| `index` | int | ○ | ○ | ○ | 列表元素序号 |
-| `hyperlink` | string | ○ | ○ | ○ | 元素的 href（Hybrid） |
+| `index` | int | ○ | ○ | ○ | `data-index` 标记的列表元素序号 |
+| `hyperlink` | string | ○ | ○ | ○ | `data-src` 标记的目标地址，或 `uni-link` 的 href |
 
 ### 3.7 VIEW_CHANGE（输入元素改变事件）
 
@@ -119,10 +119,10 @@
 |---|---|:--:|:--:|:--:|---|
 | `eventSequenceId` | long | ● | ● | ● | 事件请求编号 |
 | `pageShowTimestamp` | long | ● | ● | ● | 页面显示时间 |
-| `textValue` | string | ○ | ○ | ○ | 元素文本内容 |
+| `textValue` | string | ○ | ○ | ○ | 标记的组件值，或 swiper 的 `data-title` 文案 |
 | `xpath` | string | ● | ● | ● | xpath 标识符 |
-| `index` | int | ○ | ○ | ○ | 列表元素序号 |
-| `hyperlink` | string | — | — | ○ | 元素的 href（Hybrid） |
+| `index` | int | — | — | — | `VIEW_CHANGE` 不产生该字段 |
+| `hyperlink` | string | — | — | — | `VIEW_CHANGE` 不产生该字段 |
 
 ---
 
