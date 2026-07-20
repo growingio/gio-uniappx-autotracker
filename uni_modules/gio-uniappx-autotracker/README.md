@@ -15,6 +15,8 @@ SDK 覆盖以下平台：
 - [SDK 使用指南](./docs/README.md)
 - [集成与初始化配置](./docs/integration.md)
 - [数据采集 API](./docs/apis.md)
+- [无埋点](./docs/event-autotracking.md)
+- [ABTest](./docs/abtest.md)
 - [功能插件](./docs/plugins.md)
 
 ## 快速开始
@@ -63,6 +65,6 @@ gdp('track', 'buy_click', {
 gdp('setUserId', 'user-1001')
 ```
 
-无埋点点击/变更采集需要同时接入 `build/vite-plugin.mjs` 并注册 `gioEventAutoTracking`，详见 [功能插件](./docs/plugins.md)。
+无埋点点击/变更采集需要完成 Vite 配置并注册 `gioEventAutoTracking`，详见 [无埋点](./docs/event-autotracking.md)。
 
 完整配置项、API 参数和插件用法见上方文档目录。

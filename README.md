@@ -23,7 +23,9 @@ SDK 的接入方式、初始化参数、API 和插件说明请看包内文档，
 | [SDK 使用指南](./uni_modules/gio-uniappx-autotracker/docs/README.md) | SDK 能力概览、平台范围和文档导航 |
 | [集成与初始化配置](./uni_modules/gio-uniappx-autotracker/docs/integration.md) | 如何把 SDK 放进业务工程、如何初始化和验证 |
 | [数据采集 API](./uni_modules/gio-uniappx-autotracker/docs/apis.md) | 自定义事件、用户身份、用户属性、动态开关、地理位置 |
-| [功能插件](./uni_modules/gio-uniappx-autotracker/docs/plugins.md) | ABTest 和微信小程序分享采集插件 |
+| [无埋点](./uni_modules/gio-uniappx-autotracker/docs/event-autotracking.md) | 无埋点的接入、标记和采集边界 |
+| [ABTest](./uni_modules/gio-uniappx-autotracker/docs/abtest.md) | ABTest 的注册、变量读取和缓存行为 |
+| [功能插件总览](./uni_modules/gio-uniappx-autotracker/docs/plugins.md) | 全部插件及微信小程序分享采集 |
 
 SDK 包入口 README：
 

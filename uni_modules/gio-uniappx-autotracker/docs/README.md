@@ -4,7 +4,7 @@
 
 ## 简介
 
-`gio-uniappx-autotracker` 以 `uni_modules` 插件形式交付，不需要业务工程额外构建 SDK。集成后，SDK 会通过 Vue 生命周期桥接自动采集访问、页面和应用退后台等基础事件，并提供 `gdp(...)` 命令式 API 用于自定义事件、用户身份、运行时开关和插件能力。
+`gio-uniappx-autotracker` 以 `uni_modules` 插件形式交付，不需要业务工程额外构建 SDK。集成后，SDK 会自动采集访问、页面和应用退后台等基础事件，并提供 `gdp(...)` API 用于自定义事件、用户身份、配置和插件能力。
 
 覆盖平台：
 
@@ -13,6 +13,7 @@
 | Web | 可用 |
 | Android App | 可用 |
 | iOS App | 可用 |
+| Harmony App | 可用 |
 | 微信小程序 | 可用 |
 
 ## 文档导航
@@ -21,7 +22,9 @@
 | --- | --- |
 | [集成与初始化配置](./integration.md) | 安装目录、入口初始化、初始化配置项、基础验证 |
 | [数据采集 API](./apis.md) | `track`、用户身份、用户属性、动态开关、地理位置 |
-| [功能插件](./plugins.md) | `gioABTest`、`gioShareTracking` 的注册和调用 |
+| [无埋点](./event-autotracking.md) | `gioEventAutoTracking` 的接入、标记和采集边界 |
+| [ABTest](./abtest.md) | `gioABTest` 的注册、变量读取和缓存行为 |
+| [功能插件总览](./plugins.md) | 全部插件及微信小程序分享采集 |
 
 ## 最小接入示例
 

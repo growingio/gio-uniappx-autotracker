@@ -34,7 +34,7 @@ import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
 
 ## init
 
-初始化 SDK，并安装生命周期桥接。
+初始化 SDK，并启用基础自动采集。
 
 ```uts
 gdp('init', {
@@ -53,11 +53,11 @@ gdp('init', {
 | --- | --- | --- | --- |
 | `options` | `UTSJSONObject` | 是 | 初始化配置对象，详见 [集成与初始化配置](./integration.md)。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效行为：
 
-- 返回 `true`：初始化成功，生命周期桥接已安装。
+- 返回 `true`：初始化成功，基础自动采集已启用。
 - 返回 `false`：初始化失败，SDK 不采集事件。
 - `init` 只允许成功调用一次；重复调用返回 `false`。
 - `app` 会在 JS 层用于安装生命周期，传入 native 层前会被置为 `null`。
@@ -90,7 +90,7 @@ gdp('track', 'buy_click', {
 | `eventName` | `string` | 是 | 事件名。只能包含数字、字母和下划线，不能以数字开头，长度不超过 100 个字符。 |
 | `properties` | `UTSJSONObject \| null` | 否 | 事件属性。按通用属性归一规则处理。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效行为：
 
@@ -129,7 +129,7 @@ gdp('setUserId', 'user-1001', 'union-key-1001')
 | `userId` | `string` | 是 | 登录用户 ID。不能为空，不能是 `-`、`null`、`undefined`。最长保留 1000 个字符。 |
 | `userKey` | `string \| null` | 否 | 用户映射 Key。最长保留 1000 个字符。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效行为：
 
@@ -157,7 +157,7 @@ gdp('setUserId', 'user-1001', 'union-key-1001')
 gdp('clearUserId')
 ```
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效行为：
 
@@ -184,7 +184,7 @@ gdp('identify', 'openid-or-unionid')
 | --- | --- | --- | --- |
 | `assignmentId` | `string \| number` | 是 | 标识值。不能为空，不能是 `0`、`-`、`null`、`undefined`。最长保留 1000 个字符。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效条件：初始化配置为 `forceLogin: true`。
 
@@ -221,7 +221,7 @@ gdp('setUserAttributes', {
 | --- | --- | --- | --- |
 | `attributes` | `UTSJSONObject` | 是 | 用户属性。按通用属性归一规则处理。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效行为：
 
@@ -256,7 +256,7 @@ gdp('setOptions', {
 
 不可配置项：`setOptions` 不支持修改 `projectId`、`dataSourceId`、`serverUrl`、`debug`、`forceLogin`、`useUnified`、`idMapping` 等初始化配置。
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效行为：
 
@@ -293,6 +293,7 @@ gdp('setLocation', 31.2304, 121.4737)
 | --- | --- | --- |
 | Android App | 可用 | 记录业务传入的经纬度。 |
 | iOS App | 可用 | 记录业务传入的经纬度。 |
+| Harmony App | 可用 | 记录业务传入的经纬度。 |
 | 微信小程序 | 可用 | 记录业务传入的经纬度。 |
 | Web | 不可用 | 返回 `false` 并打印告警。 |
 
@@ -325,6 +326,7 @@ gdp('clearLocation')
 | --- | --- | --- |
 | Android App | 可用 | 清除已设置的经纬度。 |
 | iOS App | 可用 | 清除已设置的经纬度。 |
+| Harmony App | 可用 | 清除已设置的经纬度。 |
 | 微信小程序 | 可用 | 清除已设置的经纬度。 |
 | Web | 不可用 | 返回 `false` 并打印告警。 |
 
@@ -358,7 +360,7 @@ gdp('registerPlugins', [
 | `plugins[].name` | `string` | 是 | 插件名。当前可用插件见 [功能插件](./plugins.md)。 |
 | `plugins[].options` | `UTSJSONObject \| null` | 否 | 插件配置。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效行为：
 
@@ -393,7 +395,7 @@ gdp('getABTest', 'layer-1001', (result : any) => {
 | `layerId` | `string \| number` | 是 | 实验层 ID。 |
 | `callback` | `(result : any) => void` | 否 | 结果回调。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
 
 生效条件：已通过 `gdp('registerPlugins', [{ name: 'gioABTest' }])` 注册 `gioABTest`。
 
@@ -412,7 +414,7 @@ gdp('getABTest', 'layer-1001', (result : any) => {
 | `gioABTest` 未注册 | `false` |
 | `layerId` 为空或数字值小于等于 `0` | `true`，回调空对象 |
 
-结果字段和插件配置见 [功能插件](./plugins.md)。
+结果字段和插件配置见 [ABTest](./abtest.md)。
 
 ## 返回值与排查
 
