@@ -13,7 +13,6 @@
 | Web | 可用 |
 | Android App | 可用 |
 | iOS App | 可用 |
-| Harmony App | 可用 |
 | 微信小程序 | 可用 |
 
 ## 文档导航

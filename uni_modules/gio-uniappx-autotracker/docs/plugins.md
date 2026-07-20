@@ -4,8 +4,8 @@ SDK 的插件能力需要在初始化成功后通过 `registerPlugins` 显式启
 
 | 插件 | 适用平台 | 用途 | 文档 |
 | --- | --- | --- | --- |
-| `gioEventAutoTracking` | Web、Android App、iOS App、Harmony App、微信小程序 | 无埋点点击和变更采集 | [无埋点](./event-autotracking.md) |
-| `gioABTest` | Web、Android App、iOS App、Harmony App、微信小程序 | 获取实验层变量和自动上报实验命中 | [ABTest](./abtest.md) |
+| `gioEventAutoTracking` | Web、Android App、iOS App、微信小程序 | 无埋点点击和变更采集 | [无埋点](./event-autotracking.md) |
+| `gioABTest` | Web、Android App、iOS App、微信小程序 | 获取实验层变量和自动上报实验命中 | [ABTest](./abtest.md) |
 | `gioShareTracking` | 微信小程序 | 采集分享、朋友圈和收藏 | [本页](#giosharetracking) |
 
 `registerPlugins` 会忽略没有 `name` 的插件项。至少成功启用一个可用插件时返回 `true`；重复注册同名插件会被跳过。
@@ -16,7 +16,7 @@ SDK 的插件能力需要在初始化成功后通过 `registerPlugins` 显式启
 
 适用平台：微信小程序。
 
-不适用平台：Web、Android App、iOS App、Harmony App。
+不适用平台：Web、Android App、iOS App。
 
 ### 注册插件
 

@@ -29,8 +29,6 @@ uni_modules/gio-uniappx-autotracker/utssdk/app-android/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/app-android/config.json
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/config.json
-uni_modules/gio-uniappx-autotracker/utssdk/app-harmony/index.uts
-uni_modules/gio-uniappx-autotracker/utssdk/app-harmony/config.json
 ```
 
 如果需要启用 `gioEventAutoTracking` 无埋点点击/变更采集，还需要在业务工程根目录 `vite.config.js` 配置 SDK 插件。`uni_modules` 目录里的 Vite 插件不会被 HBuilderX 自动加载，业务工程必须显式配置：
@@ -138,7 +136,7 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `https://napi.growingio.com`。传非空字符串时，SDK 使用该地址上报事件；传空字符串或不传时，SDK 使用默认值。
 
@@ -156,7 +154,7 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `1.0.0`。传非空字符串时，SDK 将该值写入事件的 `appVersion` 字段；传 `null`、空字符串或不传时，SDK 使用默认值。
 
@@ -182,7 +180,7 @@ gdp('setOptions', {
 } as UTSJSONObject)
 ```
 
-适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `true`。设置为 `true` 时，事件会进入上报队列。设置为 `false` 时，SDK 仍会完成初始化，但不会上报事件。
 
@@ -200,7 +198,7 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `false`。设置为 `true` 时，SDK 输出初始化、生命周期、系统上下文、请求和请求失败等调试信息。设置为 `false` 时，SDK 不输出 debug 级别调试信息。
 
@@ -222,7 +220,7 @@ gdp('identify', 'openid-or-unionid')
 
 生效条件：`identify` 仅在 `forceLogin: true` 时生效。调用成功后，SDK 将 `forceLogin` 状态改为 `false`。
 
-适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `false`。设置为 `false` 时，SDK 按正常流程上报事件。设置为 `true` 时，SDK 暂停上报队列，直到 `identify` 调用成功后释放队列。Web、App 和微信小程序均不限制等待队列长度，也不会因队列长度静默淘汰事件；业务应及时调用 `identify`，避免长时间积压占用内存。
 
@@ -240,7 +238,7 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、微信小程序。Android App、iOS App 和 Harmony App 不启用该机制，与独立移动端 SDK 保持一致。
+适用平台：Web、微信小程序。Android App、iOS App 不启用该机制，与独立移动端 SDK 保持一致。
 
 生效行为：默认值为 `true`。设置为 `true` 后，SDK 仅在当前 session 尚未成功发送 `VISIT` 时，于初始化访问链的首个有效页面上下文到来时捕获一次首次来源快照，并在 `VISIT` 事件中优先使用快照里的 `path`、`query` 和 `referralPage`；`title` 始终取事件触发时的当前页面。首次来源被成功发送的 `VISIT` 消费后删除，后续 session 更新与同 session 页面刷新不会重新定义它。
 
@@ -266,7 +264,7 @@ gdp('setUserId', 'user-1001', 'phone_hash_or_union_key')
 
 未开启 `idMapping` 时传入 `userKey`，SDK 会忽略 `userKey` 并打印告警。
 
-适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `false`。设置为 `false` 时，`gdp('setUserId', userId, userKey)` 中的 `userKey` 被忽略。设置为 `true` 时，SDK 接收并持久化 `userKey`，事件中携带 `userKey`。
 
@@ -275,7 +273,7 @@ gdp('setUserId', 'user-1001', 'phone_hash_or_union_key')
 `setUserId`、`clearUserId` 等公开身份 API 会通过 SDK 的统一身份存储路径，同时更新持久化存储和当前实例的内存状态。业务代码不要直接修改 SDK 的身份存储 key。
 
 - **Web**：每次构建事件上下文时都重新读取持久化存储中的 `userId` 和 `userKey`。同域页面使用相同 `projectId`，且 `storageType`、`cookieDomain` 等存储配置兼容时，其他标签页或另一 SDK 实例写入的新身份会在本页下一次构建事件时生效，不依赖 `storage` 事件或额外广播。
-- **App（Android、iOS、Harmony）和微信小程序**：首次取用身份时从存储恢复，之后由当前 SDK 实例的内存缓存参与事件构建。通过 SDK 身份 API 修改身份时，存储与缓存会同步更新；绕过 SDK 直接修改底层存储不会主动刷新已运行实例的缓存，通常要重新初始化后才能被读取。
+- **App（Android、iOS）和微信小程序**：首次取用身份时从存储恢复，之后由当前 SDK 实例的内存缓存参与事件构建。通过 SDK 身份 API 修改身份时，存储与缓存会同步更新；绕过 SDK 直接修改底层存储不会主动刷新已运行实例的缓存，通常要重新初始化后才能被读取。
 
 ### urlScheme
 
@@ -291,7 +289,7 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、Android App、iOS App、Harmony App、微信小程序。
+适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `null`。设置为非空字符串后，SDK 构建事件时把该值写入事件的 `urlScheme` 字段；传 `null` 或不传时，事件的 `urlScheme` 字段为 `null`。
 
@@ -311,7 +309,7 @@ gdp('init', {
 
 默认值为 `7`。SDK 会把小于 `3` 的值归一为 `3`，把大于 `30` 的值归一为 `30`。
 
-适用平台：Android App、iOS App、Harmony App。
+适用平台：Android App、iOS App。
 
 不适用平台：Web、微信小程序。
 
@@ -349,7 +347,7 @@ gdp('init', initOptions)
 
 适用平台：Web。
 
-不适用平台：Android App、iOS App、Harmony App、微信小程序。
+不适用平台：Android App、iOS App、微信小程序。
 
 ### useUnified
 
@@ -363,9 +361,9 @@ initOptions['useUnified'] = true
 
 适用平台：Web。
 
-不适用平台：Android App、iOS App、Harmony App、微信小程序。
+不适用平台：Android App、iOS App、微信小程序。
 
-生效行为：默认值为 `true`。设置为 `true` 时，Web 端优先使用 `UniPage.route` 生成的页面路径，与 App 和微信小程序的页面路径规则保持统一。设置为 `false` 时，Web 端优先使用浏览器 `location`。Android App、iOS App、Harmony App 和微信小程序不读取该配置，始终使用页面 `route` 的既有规则。
+生效行为：默认值为 `true`。设置为 `true` 时，Web 端优先使用 `UniPage.route` 生成的页面路径，与 App 和微信小程序的页面路径规则保持统一。设置为 `false` 时，Web 端优先使用浏览器 `location`。Android App、iOS App 和微信小程序不读取该配置，始终使用页面 `route` 的既有规则。
 
 ### storageType
 
@@ -379,7 +377,7 @@ initOptions['storageType'] = 'localStorage'
 
 适用平台：Web。
 
-不适用平台：Android App、iOS App、Harmony App、微信小程序。
+不适用平台：Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `cookie`。合法值只有 `cookie` 和 `localStorage`，大小写不敏感；传入其他值时按 `cookie` 处理。取值为 `cookie` 时，Web 端优先使用 Cookie 保存主身份和 session 信息；Cookie 写入失败时回退到 `localStorage`。取值为 `localStorage` 时，Web 端直接使用 `localStorage`。
 
@@ -395,7 +393,7 @@ initOptions['cookieDomain'] = '.example.com'
 
 适用平台：Web。
 
-不适用平台：Android App、iOS App、Harmony App、微信小程序。
+不适用平台：Android App、iOS App、微信小程序。
 
 生效条件：Web 端主存储使用 Cookie。`storageType` 为 `localStorage` 时，该字段不生效。
 

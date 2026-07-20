@@ -7,7 +7,6 @@ SDK 覆盖以下平台：
 - `web`
 - `app-android`
 - `app-ios`
-- `app-harmony`
 - `mp-weixin`
 
 ## 文档目录
