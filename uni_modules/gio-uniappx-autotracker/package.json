@@ -18,8 +18,8 @@
   ],
   "repository": "https://github.com/growingio/gio-uniappx-autotracker",
   "engines": {
-    "HBuilderX": "^4.33",
-    "uni-app-x": "^4.62"
+    "HBuilderX": ">=5.08",
+    "uni-app-x": ">=5.08"
   },
   "dcloudext": {
     "type": "uts",

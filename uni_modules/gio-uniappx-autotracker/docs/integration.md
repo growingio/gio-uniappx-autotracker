@@ -10,7 +10,9 @@
 uni_modules/gio-uniappx-autotracker
 ```
 
-业务工程不需要额外构建 SDK。HBuilderX 会随 uni-app x 工程直接编译 `uni_modules` 下的 UTS 代码。
+业务工程不需要额外构建 SDK。HBuilderX 会随 uni-app x 工程直接编译 `uni_modules` 下的 UTS 代码；业务工程需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译，具体版本范围以 SDK 包内 `package.json` 为准。
+
+SDK 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 和 `uni-link-x` / `uts-openSchema` 示例依赖。请完整复制 SDK 目录，不要从 demo 中挑选或依赖这些示例模块。
 
 发布或复制插件时请保留以下关键文件：
 
@@ -46,14 +48,14 @@ export default defineConfig({
 })
 ```
 
-插件依赖已在插件目录的 `package.json` 中声明。通过插件市场安装时由安装流程处理；**手工复制** `uni_modules/gio-uniappx-autotracker` 时，先在该目录执行一次包管理器安装，再启动 HBuilderX 编译：
+插件依赖已在插件目录的 `package.json` 中声明。通过插件市场安装时由安装流程处理；**手工复制且启用无埋点** `uni_modules/gio-uniappx-autotracker` 时，先在该目录执行一次包管理器安装，再启动 HBuilderX 编译：
 
 ```bash
 cd uni_modules/gio-uniappx-autotracker
 npm install --omit=dev
 ```
 
-不要把生成的 `node_modules` 提交或打进 SDK 发布包；它属于业务工程本地的 Vite 编译依赖。
+不要把生成的 `node_modules` 提交或打进 SDK 发布包；它属于业务工程本地的 Vite 编译依赖。未启用无埋点时，业务工程不会加载 SDK 的 Vite 插件，无需仅为基础采集、ABTest 或微信分享采集安装这些依赖。
 
 ## 2. 在应用入口初始化
 
@@ -423,3 +425,4 @@ gdp('track', 'integration_test', {
 - 自定义属性使用 `UTSJSONObject`，不要传数组、函数或嵌套对象作为属性值。
 - 开启 `forceLogin` 后，必须调用 `gdp('identify', assignmentId)` 才能释放暂停的上报队列。
 - 需要 ABTest 或微信分享采集时，初始化成功后调用 `gdp('registerPlugins', plugins)`。
+- 选择的业务目标端已在 HBuilderX 中重新编译并完成一次真实上报验证；根目录 demo 的验证结果不能替代业务工程验证。

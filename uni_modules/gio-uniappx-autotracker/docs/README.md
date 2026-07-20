@@ -4,7 +4,13 @@
 
 ## 简介
 
-`gio-uniappx-autotracker` 以 `uni_modules` 插件形式交付，不需要业务工程额外构建 SDK。集成后，SDK 会自动采集访问、页面和应用退后台等基础事件，并提供 `gdp(...)` API 用于自定义事件、用户身份、配置和插件能力。
+`gio-uniappx-autotracker` 以 `uni_modules` 插件形式交付，不需要业务工程额外构建 SDK。集成后，SDK 会自动采集访问和页面等基础事件；App 和微信小程序进入后台时会尽力采集 `APP_CLOSED`。SDK 同时提供 `gdp(...)` API 用于自定义事件、用户身份、配置和插件能力。
+
+## 接入前确认
+
+- 业务工程需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译；SDK 包内 `package.json` 是版本范围的事实来源。
+- 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 和 `uni-link-x` / `uts-openSchema` 示例依赖。业务工程不要依赖这些 demo 专用模块。
+- 若手工复制 SDK 并启用无埋点，需安装 SDK 的 Vite 插件依赖；详细步骤见[集成与初始化配置](./integration.md)。仅查看根目录 demo 的运行结果不能替代业务工程目标端的真实编译与上报验证。
 
 覆盖平台：
 

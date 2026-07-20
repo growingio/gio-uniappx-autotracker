@@ -2,6 +2,8 @@
 
 GrowingIO uni-app x Autotracker Lite 是一个以 `uni_modules` 形态交付的轻量 SDK，面向 uni-app x 工程提供自动访问采集、页面采集、自定义事件、用户身份、ABTest 和微信小程序分享采集能力。
 
+运行要求：使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译业务工程。发布包只包含本目录 `uni_modules/gio-uniappx-autotracker`，不包含仓库根目录 demo 及其 `uni-link-x` / `uts-openSchema` 示例依赖；手工复制并启用无埋点时，还需按[集成与初始化配置](./docs/integration.md)安装 SDK 的 Vite 插件依赖。
+
 SDK 覆盖以下平台：
 
 - `web`

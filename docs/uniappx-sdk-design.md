@@ -465,7 +465,9 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 触发时机：
 
-- 应用 `onHide`
+- App 或微信小程序的应用 `onHide`；Web 不产生该事件。
+
+该事件用于记录进入后台这一生命周期边界，而不是可靠的进程退出确认。进程被系统直接终止、崩溃或网络请求未完成时，事件可能无法送达；Android 的真实 Activity 回调链仍需要在目标端真机或模拟器验证。
 
 上下文来源：
 
@@ -623,7 +625,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 应用通过 `gdp('init', { app, ...options })` 初始化 SDK
 - 新 session 创建时能发出 `VISIT`
 - 页面显示时能发出 `PAGE`
-- 应用退后台时能发出 `APP_CLOSED`
+- App 或微信小程序进入后台时尽力发出 `APP_CLOSED`；Web 不产生该事件。
 - 业务事件可通过 `gdp('track', eventName, properties)` 上报
 - `userId` 和 `userKey` 可在运行时更新
 - `dataCollect` 可通过 `setOptions({ dataCollect })` 动态切换

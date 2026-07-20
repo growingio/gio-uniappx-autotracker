@@ -11,7 +11,7 @@
 | `PAGE` | 页面浏览事件 | 打开一个页面时 | ✅ | ✅ | ✅ |
 | `CUSTOM` | 自定义事件 | 主动调用 track 接口 | ✅ | ✅ | ✅ |
 | `LOGIN_USER_ATTRIBUTES` | 登录用户属性事件 | 调用 setUserAttributes | ✅ | ✅ | ✅ |
-| `APP_CLOSED` | 关闭事件 | 应用进入后台/关闭时 | — | ✅ | ✅ |
+| `APP_CLOSED` | 关闭事件 | App 或小程序进入后台时尽力发送 | — | ✅ | ✅ |
 | `VIEW_CLICK` | 元素点击事件 | 点击页面元素时 | ✅ | ✅ | ✅ |
 | `VIEW_CHANGE` | 输入元素改变事件 | 输入元素内容改变时 | ✅ | ✅ | ✅ |
 
@@ -100,7 +100,7 @@
 
 ### 3.5 APP_CLOSED（关闭事件）
 
-无专有字段，仅携带公共字段（Web 无此事件）。
+无专有字段，仅携带公共字段。App 和微信小程序会在进入后台时尽力发送；Web 不产生此事件。进程被系统直接终止、崩溃或网络未完成时，不保证事件一定送达，不能把它当作可靠的“应用已关闭”确认。
 
 ### 3.6 VIEW_CLICK（元素点击事件）
 
@@ -138,7 +138,7 @@
 | `appChannel` | 无 | 场景值 | 应用渠道（仅 Android） |
 | `operatingSystem` | 无 | 有 | 无 |
 | `networkState`/设备型号品牌 | 无 | 有 | 有 |
-| `APP_CLOSED` | 无此事件 | 有 | 有 |
+| `APP_CLOSED` | 无此事件 | 有（进入后台时尽力发送） | 有（进入后台时尽力发送） |
 | App 专属字段 | — | — | `urlScheme` / `appState` / `appName` |
 | App 专属标识 | — | — | `idfa`/`idfv`（iOS）、`oaid`/`androidId`/`imei`（Android） |
 

@@ -68,7 +68,7 @@ gdp('init', {
 | --- | --- | --- |
 | `options` 不是对象 | `false` | 打印初始化参数错误。 |
 | `options.app` 为空 | `false` | 不安装生命周期。 |
-| `projectId` / `dataSourceId` / `appId` / `serverUrl` 归一化后为空 | `false` | 初始化失败。 |
+| `projectId` / `dataSourceId` / `appId` 归一化后为空 | `false` | 初始化失败。 |
 | SDK 已初始化 | `false` | 不刷新配置，不重装生命周期。 |
 
 ## track

@@ -10,6 +10,8 @@
 
 适用平台：Web、Android App、iOS App、微信小程序。
 
+运行要求：无埋点 SDK 需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译。SDK 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 与 `uni-link-x` / `uts-openSchema` 示例依赖；业务工程接入时以 SDK 包内 `package.json` 声明的版本范围为准。配置 Vite 插件或修改模板后，必须重新编译目标端；已经生成的构建产物不会自动补入无埋点桥接代码。
+
 ## 集成
 
 ### 1. 配置插件
