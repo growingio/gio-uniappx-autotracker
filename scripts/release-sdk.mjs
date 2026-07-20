@@ -150,6 +150,34 @@ function validateSdkShape(baseDir) {
   }
 }
 
+function validateLifecyclePageBoundaryContract(baseDir) {
+  const pluginPath = join(baseDir, 'plugin.uts')
+  if (!existsSync(pluginPath)) {
+    fail(`missing lifecycle bridge: ${relative(rootDir, pluginPath)}`)
+    return
+  }
+  const source = readFileSync(pluginPath, 'utf8')
+  const guardStart = source.indexOf('function isCurrentMainPageLifecycle(')
+  const guardEnd = source.indexOf('// #ifndef MP-WEIXIN\nfunction readCurrentPageTitle', guardStart)
+  if (guardStart < 0 || guardEnd < 0) {
+    fail('lifecycle bridge must keep the main-page boundary guard')
+    return
+  }
+  const guardSource = source.slice(guardStart, guardEnd)
+  if (!guardSource.includes('pageVm === instance')) {
+    fail('app-android lifecycle must match the public UniPage.vm instance')
+  }
+  if (!guardSource.includes('lifecyclePage === currentPage')) {
+    fail('dialog lifecycle must be distinguished from the current main page')
+  }
+  if (!guardSource.includes('// #ifdef MP-WEIXIN\n  return true')) {
+    fail('mp-weixin native-window onShow must keep using the main page lifecycle')
+  }
+  if (countOccurrences(source, 'if (!isCurrentMainPageLifecycle(this))') != 5) {
+    fail('every page lifecycle bridge must reject non-main-page callbacks')
+  }
+}
+
 function countOccurrences(text, pattern) {
   return text.split(pattern).length - 1
 }
@@ -674,6 +702,7 @@ function createArchive(version) {
 const packageJson = readSdkPackage()
 validatePackageJson(packageJson)
 validateSdkShape(sdkDir)
+validateLifecyclePageBoundaryContract(sdkDir)
 validateSdkVersionContract(packageJson)
 validateIdentityStorageContract(sdkDir)
 validateOriginalSourceContract(sdkDir)
@@ -687,6 +716,7 @@ validateWebSessionActivityContract(sdkDir)
 if (!checkOnly && process.exitCode == null) {
   stagePackage()
   validateSdkShape(stagedSdkDir)
+  validateLifecyclePageBoundaryContract(stagedSdkDir)
   validateIdentityStorageContract(stagedSdkDir)
   validateOriginalSourceContract(stagedSdkDir)
   validateUploadSanitizationContract(stagedSdkDir)

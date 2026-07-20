@@ -76,6 +76,40 @@ function getCurrentUniPage() : UniPage | null {
   return pages[pages.length - 1]
 }
 
+// getCurrentPages() 只返回主页面栈，this.$page 还可能指向 dialogPage。
+// 系统 picker / actionSheet 等弹窗也会命中全局 mixin；若继续使用主栈顶页面
+// 搭配弹窗的生命周期 options，会把弹窗参数缓存到业务页面 query 下。
+function isCurrentMainPageLifecycle(instance : any | null) : boolean {
+  const currentPage = getCurrentUniPage()
+  if (currentPage == null) {
+    return false
+  }
+  // 微信小程序关闭原生窗体会重新触发主页面 onShow，仍需保留这次页面生命周期。
+  // #ifdef MP-WEIXIN
+  return true
+  // #endif
+  // #ifndef MP-WEIXIN
+  if (instance == null) {
+    return false
+  }
+  // Android 的 app-uts 编译器不能从 any 直接解析 instance.$page；UniPage.vm
+  // 是公开的页面 Vue 实例，身份比较可达到同样效果且不需要序列化页面对象。
+  // #ifdef APP-ANDROID
+  const pageVm = currentPage.vm
+  return pageVm != null && pageVm === instance
+  // #endif
+  // #ifndef APP-ANDROID
+  try {
+    // @ts-ignore
+    const lifecyclePage = instance.$page
+    return lifecyclePage != null && lifecyclePage === currentPage
+  } catch (_error) {
+    return false
+  }
+  // #endif
+  // #endif
+}
+
 // #ifndef MP-WEIXIN
 function readCurrentPageTitle(page : UniPage) : string | null {
   try {
@@ -514,6 +548,9 @@ const lifecycle = defineMixin({
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onLoad(options : OnLoadOptions) {
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     // #ifdef MP-WEIXIN
     wrapMpShareHandlers(this)
     // #endif
@@ -537,6 +574,9 @@ const lifecycle = defineMixin({
     if (isAppShowOptionsSnapshot(launchOptions)) {
       return
     }
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     const pageSnapshot = buildPageSnapshot()
     handleOnShow(
       pageSnapshot,
@@ -554,6 +594,9 @@ const lifecycle = defineMixin({
       return
     }
     // #endif
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     const pageSnapshot = buildPageSnapshot()
     handleOnShow(
       pageSnapshot,
@@ -570,12 +613,18 @@ const lifecycle = defineMixin({
       return
     }
     // #endif
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     const pageSnapshot = buildPageSnapshot()
     handleOnHide(pageSnapshot)
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onUnload() {
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     handleOnPageUnload(buildPageSnapshot())
   }
 })
