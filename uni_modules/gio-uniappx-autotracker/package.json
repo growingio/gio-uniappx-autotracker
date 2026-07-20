@@ -4,6 +4,11 @@
   "displayName": "GrowingIO uni-app x Autotracker Lite",
   "version": "1.0.0",
   "description": "A minimal uni-app x cross-platform tracking SDK with init, track, user identity management, session management, and reporting.",
+  "dependencies": {
+    "@babel/parser": "7.28.5",
+    "@vue/compiler-dom": "3.5.22",
+    "magic-string": "0.30.19"
+  },
   "keywords": [
     "growingio",
     "analytics",
@@ -13,8 +18,8 @@
   ],
   "repository": "https://github.com/growingio/gio-uniappx-autotracker",
   "engines": {
-    "HBuilderX": "^4.33",
-    "uni-app-x": "^4.62"
+    "HBuilderX": ">=5.08",
+    "uni-app-x": ">=5.08"
   },
   "dcloudext": {
     "type": "uts",
@@ -36,8 +41,6 @@
     }
   },
   "uni_modules": {
-    "dependencies": [],
-    "encrypt": [],
     "platforms": {
       "client": {
         "uni-app-x": {

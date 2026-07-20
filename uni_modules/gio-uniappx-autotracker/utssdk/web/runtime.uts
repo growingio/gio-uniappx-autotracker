@@ -4,7 +4,7 @@ import {
   GioPageContext,
   GioTrackEvent
 } from '../interface.uts'
-import { GioConfig } from '../common/config.uts'
+import { DEFAULT_REQUEST_TIMEOUT_MS, GioConfig } from '../common/config.uts'
 import {
   registerConfigSyncer,
   registerEventShaper,
@@ -15,7 +15,8 @@ import {
   registerRuntimeBehavior,
   registerRuntimePolicy,
   registerUploadPolicy,
-  registerVisitSessionStore
+  registerVisitSessionStore,
+  resolveUploadRequestTimeout
 } from '../common/runtime/index.uts'
 import {
   buildCookieStorageValue,
@@ -32,7 +33,6 @@ const VISIT_SENT_SUFFIX = '_gdp_session_id_sent'
 const DEFAULT_STORAGE_TYPE = 'cookie'
 const LOCAL_STORAGE_TYPE = 'localStorage'
 const WEB_SESSION_TIMEOUT_MS = 30 * 60 * 1000
-const WEB_MAX_QUEUE_SIZE = 100
 
 const SPECIAL_TOP_DOMAIN_PREFIXES = [
   '.ac.',
@@ -408,7 +408,8 @@ function readDocumentReferrer() : string {
   return ''
 }
 
-let lastPageFullUrl : string = ''
+let lastCommittedPageFullUrl : string = ''
+let lastCommittedReferralPage : string = ''
 let lastTrackedPageHref : string = ''
 
 function readCurrentHref() : string {
@@ -520,16 +521,21 @@ function resolveBrowserPageContext(
   }
   const documentReferrer = readDocumentReferrer()
   const currentHref = readCurrentHref()
-  const previousPageUrl = lastPageFullUrl
-  lastPageFullUrl = currentHref.length > 0 ? currentHref : lastPageFullUrl
+  let referralPage = documentReferrer
+  if (lastCommittedPageFullUrl.length > 0) {
+    // session 续期等场景会在同一地址补发 PAGE。此时沿用上一条 PAGE 的
+    // referral，避免把当前页面错误地记成自己的来源页。
+    referralPage = currentHref.length > 0 && currentHref == lastCommittedPageFullUrl
+      ? lastCommittedReferralPage
+      : lastCommittedPageFullUrl
+  }
   return {
     path: path,
     query: query,
     title: title,
-    referralPage: previousPageUrl.length > 0
-      ? previousPageUrl
-      : documentReferrer,
-    duration: logicalPageContext != null ? logicalPageContext.duration : null
+    referralPage: referralPage,
+    duration: logicalPageContext != null ? logicalPageContext.duration : null,
+    timestamp: logicalPageContext != null ? logicalPageContext.timestamp : null
   } as GioPageContext
 }
 
@@ -623,10 +629,10 @@ registerRuntimePolicy({
   shouldRenewSessionOnTimeout() : boolean {
     return true
   },
-  getMaxQueueSize(_fallback : number) : number {
-    return WEB_MAX_QUEUE_SIZE
-  },
   shouldPersistSessionId() : boolean {
+    return true
+  },
+  shouldReadIdentityFromStorage() : boolean {
     return true
   },
   shouldPersistEvents() : boolean {
@@ -643,9 +649,6 @@ registerRuntimePolicy({
   },
   supportsLocation() : boolean {
     return false
-  },
-  getPageReferralFallback(_options : GioInitOptions) : string {
-    return ''
   },
   getUploadRequestTimeout(fallback : number) : number {
     return fallback
@@ -742,6 +745,12 @@ registerEventShaper({
     if (event.eventType == 'PAGE') {
       const currentHref = readCurrentHref()
       if (currentHref.length > 0) {
+        // 页面上下文解析可能在生命周期、originalSource 和事件构建中重复执行。
+        // 只有 PAGE 已完成构建时才能推进 referral，避免 resolver 提前把当前页当成上一页。
+        lastCommittedPageFullUrl = currentHref
+        lastCommittedReferralPage = event.referralPage != null
+          ? event.referralPage as string
+          : ''
         lastTrackedPageHref = currentHref
       }
     }
@@ -768,6 +777,9 @@ function shouldUseBeacon(payload : string) : boolean {
 
 registerUploadPolicy({
   shouldScheduleFlush() : boolean {
+    return true
+  },
+  shouldRefreshSessionOnSuccess() : boolean {
     return true
   },
   getFlushDelay() : number {
@@ -801,25 +813,43 @@ registerEventSender({
         }
       } catch (_error) {}
     }
-    const xhr = new XMLHttpRequest() as any
-    xhr.open('POST', url, true)
-    xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8')
-    xhr.onload = function() {
-      if (xhr.status == 204 || xhr.status == 200) {
-        if (onSuccess != null) {
-          onSuccess()
-        }
-      } else {
-        if (onFail != null) {
-          onFail()
-        }
+    let settled : boolean = false
+    const finishSuccess = () => {
+      if (settled) {
+        return
+      }
+      settled = true
+      if (onSuccess != null) {
+        onSuccess()
       }
     }
-    xhr.onerror = function() {
+    const finishFail = () => {
+      if (settled) {
+        return
+      }
+      settled = true
       if (onFail != null) {
         onFail()
       }
     }
-    xhr.send(payload)
+    try {
+      const xhr = new XMLHttpRequest() as any
+      xhr.open('POST', url, true)
+      xhr.setRequestHeader('Content-Type', 'text/plain;charset=UTF-8')
+      xhr.timeout = resolveUploadRequestTimeout(DEFAULT_REQUEST_TIMEOUT_MS)
+      xhr.onload = function() {
+        if (xhr.status == 204) {
+          finishSuccess()
+        } else {
+          finishFail()
+        }
+      }
+      xhr.onerror = finishFail
+      xhr.ontimeout = finishFail
+      xhr.onabort = finishFail
+      xhr.send(payload)
+    } catch (_error) {
+      finishFail()
+    }
   }
 })

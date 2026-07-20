@@ -10,7 +10,9 @@
 uni_modules/gio-uniappx-autotracker
 ```
 
-业务工程不需要额外构建 SDK。HBuilderX 会随 uni-app x 工程直接编译 `uni_modules` 下的 UTS 代码。
+业务工程不需要额外构建 SDK。HBuilderX 会随 uni-app x 工程直接编译 `uni_modules` 下的 UTS 代码；业务工程需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译，具体版本范围以 SDK 包内 `package.json` 为准。
+
+SDK 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 和 `uni-link-x` / `uts-openSchema` 示例依赖。请完整复制 SDK 目录，不要从 demo 中挑选或依赖这些示例模块。
 
 发布或复制插件时请保留以下关键文件：
 
@@ -19,6 +21,7 @@ uni_modules/gio-uniappx-autotracker/gdp.uts
 uni_modules/gio-uniappx-autotracker/plugin.uts
 uni_modules/gio-uniappx-autotracker/package.json
 uni_modules/gio-uniappx-autotracker/README.md
+uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs
 uni_modules/gio-uniappx-autotracker/utssdk/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/interface.uts
 uni_modules/gio-uniappx-autotracker/utssdk/web/index.uts
@@ -29,6 +32,30 @@ uni_modules/gio-uniappx-autotracker/utssdk/app-android/config.json
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/index.uts
 uni_modules/gio-uniappx-autotracker/utssdk/app-ios/config.json
 ```
+
+如果需要启用 `gioEventAutoTracking` 无埋点点击/变更采集，还需要在业务工程根目录 `vite.config.js` 配置 SDK 插件。`uni_modules` 目录里的 Vite 插件不会被 HBuilderX 自动加载，业务工程必须显式配置：
+
+```ts
+import { defineConfig } from 'vite'
+import uni from '@dcloudio/vite-plugin-uni'
+import { gioUniappxAutoTrack } from './uni_modules/gio-uniappx-autotracker/build/vite-plugin.mjs'
+
+export default defineConfig({
+  plugins: [
+    gioUniappxAutoTrack(),
+    uni(),
+  ],
+})
+```
+
+插件依赖已在插件目录的 `package.json` 中声明。通过插件市场安装时由安装流程处理；**手工复制且启用无埋点** `uni_modules/gio-uniappx-autotracker` 时，先在该目录执行一次包管理器安装，再启动 HBuilderX 编译：
+
+```bash
+cd uni_modules/gio-uniappx-autotracker
+npm install --omit=dev
+```
+
+不要把生成的 `node_modules` 提交或打进 SDK 发布包；它属于业务工程本地的 Vite 编译依赖。未启用无埋点时，业务工程不会加载 SDK 的 Vite 插件，无需仅为基础采集、ABTest 或微信分享采集安装这些依赖。
 
 ## 2. 在应用入口初始化
 
@@ -91,7 +118,7 @@ export function createApp() {
 - `dataSourceId`
 - `appId`
 
-`app` 为空时，JS 桥接层返回 `false`，并且不安装生命周期。`projectId`、`dataSourceId` 或 `appId` 归一化后为空时，SDK 初始化返回 `false`。`serverUrl` 可以不传，SDK 会使用默认值 `https://napi.growingio.com`。
+`app` 为空时，SDK 初始化返回 `false`。`projectId`、`dataSourceId` 或 `appId` 为空时，SDK 初始化也会返回 `false`。`serverUrl` 可以不传，SDK 会使用默认值 `https://napi.growingio.com`。
 
 ## 4. 配置项说明
 
@@ -157,7 +184,7 @@ gdp('setOptions', {
 
 适用平台：Web、Android App、iOS App、微信小程序。
 
-生效行为：默认值为 `true`。设置为 `true` 时，事件进入上报队列。设置为 `false` 时，SDK 仍完成初始化和生命周期桥接，但事件不进入上报队列。
+生效行为：默认值为 `true`。设置为 `true` 时，事件会进入上报队列。设置为 `false` 时，SDK 仍会完成初始化，但不会上报事件。
 
 ### debug
 
@@ -197,7 +224,7 @@ gdp('identify', 'openid-or-unionid')
 
 适用平台：Web、Android App、iOS App、微信小程序。
 
-生效行为：默认值为 `false`。设置为 `false` 时，SDK 按正常流程上报事件。设置为 `true` 时，SDK 暂停上报队列，直到 `identify` 调用成功后释放队列。
+生效行为：默认值为 `false`。设置为 `false` 时，SDK 按正常流程上报事件。设置为 `true` 时，SDK 暂停上报队列，直到 `identify` 调用成功后释放队列。Web、App 和微信小程序均不限制等待队列长度，也不会因队列长度静默淘汰事件；业务应及时调用 `identify`，避免长时间积压占用内存。
 
 ### originalSource
 
@@ -213,11 +240,13 @@ gdp('init', {
 })
 ```
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、微信小程序。Android App、iOS App 不启用该机制，与独立移动端 SDK 保持一致。
 
-生效行为：默认值为 `true`。设置为 `true` 后，SDK 启用首次来源快照，并在 `VISIT` 事件中优先使用首次来源快照里的 `path`、`query`、`title` 和 `referralPage`。设置为 `false` 后，SDK 不启用首次来源快照，`VISIT` 使用事件触发时的页面上下文。
+生效行为：默认值为 `true`。设置为 `true` 后，SDK 仅在当前 session 尚未成功发送 `VISIT` 时，于初始化访问链的首个有效页面上下文到来时捕获一次首次来源快照，并在 `VISIT` 事件中优先使用快照里的 `path`、`query` 和 `referralPage`；`title` 始终取事件触发时的当前页面。首次来源被成功发送的 `VISIT` 消费后删除，后续 session 更新与同 session 页面刷新不会重新定义它。
 
-字段规则：该配置只控制首次来源快照机制是否启用，不保证 `path`、`query`、`title`、`referralPage` 四个字段都非空；字段值来自 SDK 在对应平台已解析出的页面上下文。该快照不按 `sessionId` 绑定或判断。
+设置为 `false` 后，SDK 只停止首次来源快照的读取和写入，`VISIT` 使用事件触发时的页面上下文；已经存在的历史快照不会被主动清理。
+
+字段规则：首次来源快照只保存 `path`、`query` 和 `referralPage`，不保存 `sessionId` 或 `title`，也不与 session 绑定；捕获前只用当前 session 的 `VISIT` 发送标记避免刷新后误建快照。字段值来自 SDK 在对应平台已解析出的页面上下文，不保证全部非空。
 
 ### idMapping
 
@@ -240,6 +269,13 @@ gdp('setUserId', 'user-1001', 'phone_hash_or_union_key')
 适用平台：Web、Android App、iOS App、微信小程序。
 
 生效行为：默认值为 `false`。设置为 `false` 时，`gdp('setUserId', userId, userKey)` 中的 `userKey` 被忽略。设置为 `true` 时，SDK 接收并持久化 `userKey`，事件中携带 `userKey`。
+
+### 身份存储与跨端一致性
+
+`setUserId`、`clearUserId` 等公开身份 API 会通过 SDK 的统一身份存储路径，同时更新持久化存储和当前实例的内存状态。业务代码不要直接修改 SDK 的身份存储 key。
+
+- **Web**：每次构建事件上下文时都重新读取持久化存储中的 `userId` 和 `userKey`。同域页面使用相同 `projectId`，且 `storageType`、`cookieDomain` 等存储配置兼容时，其他标签页或另一 SDK 实例写入的新身份会在本页下一次构建事件时生效，不依赖 `storage` 事件或额外广播。
+- **App（Android、iOS）和微信小程序**：首次取用身份时从存储恢复，之后由当前 SDK 实例的内存缓存参与事件构建。通过 SDK 身份 API 修改身份时，存储与缓存会同步更新；绕过 SDK 直接修改底层存储不会主动刷新已运行实例的缓存，通常要重新初始化后才能被读取。
 
 ### urlScheme
 
@@ -389,3 +425,4 @@ gdp('track', 'integration_test', {
 - 自定义属性使用 `UTSJSONObject`，不要传数组、函数或嵌套对象作为属性值。
 - 开启 `forceLogin` 后，必须调用 `gdp('identify', assignmentId)` 才能释放暂停的上报队列。
 - 需要 ABTest 或微信分享采集时，初始化成功后调用 `gdp('registerPlugins', plugins)`。
+- 选择的业务目标端已在 HBuilderX 中重新编译并完成一次真实上报验证；根目录 demo 的验证结果不能替代业务工程验证。

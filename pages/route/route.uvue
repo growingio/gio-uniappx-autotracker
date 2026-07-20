@@ -65,7 +65,7 @@
 			<view class="btn-row">
 				<button class="btn ghost" @click="goIndex">去首页 (switchTab)</button>
 				<button class="btn ghost" @click="goCustom">去自定义事件页 (switchTab)</button>
-				<button class="btn ghost" @click="goLifecycle">去生命周期页 (switchTab)</button>
+				<button class="btn ghost" @click="goAutotrack">去无埋点页 (switchTab)</button>
 			</view>
 			<text class="expect">验证 tabBar 页面间切换时 referralPage 和 query</text>
 		</view>
@@ -224,9 +224,9 @@ function goCustom() {
 	})
 }
 
-function goLifecycle() {
+function goAutotrack() {
 	uni.switchTab({
-		url: '/pages/lifecycle/lifecycle',
+		url: '/pages/autotrack/autotrack',
 	})
 }
 

@@ -7,14 +7,15 @@
 - UTS 官方文档：<https://doc.dcloud.net.cn/uni-app-x/uts/>
 - UTS 与 TypeScript 差异：<https://doc.dcloud.net.cn/uni-app-x/uts/uts_diff_ts.html>
 - UTS 插件开发规范：<https://doc.dcloud.net.cn/uni-app-x/plugin/uts-plugin.html>
-- 项目 UTS 编码规范：[docs/uts-coding-guidelines.md](docs/uts-coding-guidelines.md)
+- 项目 UTS 编码规范：本文件的「已验证的高频坑」与「UTS 类型与写法规则」章节。
 
 以上文档是本项目的强约束来源。实现、重构、修复、补 demo、补文档时，都必须优先服从这些规则，不能按普通 TypeScript / JavaScript 习惯自行放宽。
 
 ## 硬性规则
 
 - 目标是让 SDK 在 `web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 五个端都能正确产出；任何代码改动都不能只按单端思路实现。
-- `utssdk` 目录结构必须保持多端入口齐全：`app-js`、`web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin`。
+- `utssdk` 目录结构必须保持多端入口齐全：`web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin`。
+- 禁止创建或保留 `utssdk/app-js`；App 端必须走 `app-android`、`app-ios`、`app-harmony` 原生入口，不能用 App JS 实现或回退掩盖原生实现缺失。
 - `web` 目录必须保留 `utssdk/web/package.json`，`app-android`、`app-ios`、`app-harmony` 目录必须保留各自的 `config.json`。
 - 不要依赖 `undefined` 语义。所有非必填字段统一显式使用 `null`，不要使用 `?` 可选属性或可选参数表达运行时缺省。
 - 对外配置对象和事件对象要使用稳定、显式的字段结构，避免让生成器自行推断可选字段形态。
@@ -22,7 +23,7 @@
 - 尽量避免使用容易在 UTS 生成阶段出现歧义的 TypeScript 风格写法，尤其是复杂的类型体操、依赖 `undefined` 的分支、以及仅靠类型断言维持正确性的接口设计。
 - 能用 `type` 明确表达的数据结构，不要为了 TS 习惯随手写 `interface` 并直接承接对象字面量。
 - 跨端公共逻辑优先收敛在 `utssdk/common`，平台入口只做必要的薄封装，不要无序分叉实现。
-- 用户身份相关字段 `sessionId`、`userId`、`userKey` 必须持久化到存储里，并且每次构建事件时都要从存储重新读取，不能只靠内存态维护。
+- `sessionId`、`userId`、`userKey` 的读取策略必须显式按平台区分：Web 每次构建事件时都要从存储重新读取，以感知同域其他标签页或 SDK 实例的身份更新；App 和小程序允许在内存态维护。`userId`、`userKey` 的公开修改入口仍必须同步更新存储和内存缓存。
 - 关键事件与公开能力基线必须保留：`VISIT`、`PAGE`、`APP_CLOSED`、`track`、`setUserId`、`clearUserId`、`identify`、`registerPlugins`、`getABTest`。
 
 ## 验证规则
@@ -78,6 +79,7 @@
 - iOS 对 `index.uts` 的二次 re-export 更敏感；公共导出尽量扁平，避免多层转发。
 - Kotlin/Swift 对数组引用语义不同，跨模块共享可变数组时优先使用显式包装类，避免长期直接传裸数组。
 - 小程序端 `globalThis`、`getCurrentPages()` 等宿主对象不是真 `UTSJSONObject`，不能调 `getString`/`getJSON`/`getArray` 等 typed getter；必须用 `source[key]` + `typeof` 分支直取。此类安全读取逻辑收敛在小程序平台文件内部（如 `page-context.uts` 的 `readStringProperty`），不要抽象到 `common`。
+- Vite 插桩改写 `blur` / `change` / `confirm` 时，禁止在模板事件表达式里内联 `({ value: ... } as UTSJSONObject)`；Android 会先报 `Unexpected token`，且 App Android 模板中的 `$event` 本身就是 `string | number | boolean` 标量，读取 `$event.detail.value` 会报 `找不到名称“detail”`。编译期必须用 `UNI_PLATFORM == 'app' && UNI_APP_PLATFORM == 'android'` 识别 Android：Android 直接传 `$event`，其他端传 `$event.detail.value`，再由 JS 编译层桥接入口构造 `UTSJSONObject` 快照。
 
 ## UTS 知识库
 

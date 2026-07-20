@@ -1,0 +1,451 @@
+import { readDynamicField } from './utils.uts'
+
+type AutoTrackTemplateId = string | number | null
+type AutoTrackTemplateDatasetValue = string | number | boolean | null
+
+function readStringValue(value : any | null) : string | null {
+  if (value == null || typeof value != 'string') {
+    return null
+  }
+  return value as string
+}
+
+function readNumberValue(value : any | null) : number | null {
+  if (value == null || typeof value != 'number') {
+    return null
+  }
+  return value as number
+}
+
+function readBooleanValue(value : any | null) : boolean | null {
+  if (value == null || typeof value != 'boolean') {
+    return null
+  }
+  return value as boolean
+}
+
+function readStringField(source : any | null, key : string) : string | null {
+  return readStringValue(readDynamicField(source, key))
+}
+
+function readNumberField(source : any | null, key : string) : number | null {
+  return readNumberValue(readDynamicField(source, key))
+}
+
+function readBooleanField(source : any | null, key : string) : boolean | null {
+  return readBooleanValue(readDynamicField(source, key))
+}
+
+function copyInjectedDetailValue(
+  target : UTSJSONObject,
+  source : UTSJSONObject | null,
+  preferBoolean : boolean
+) : boolean {
+  if (source == null) {
+    return false
+  }
+  // iOS 上 switch 的 Bool 过桥后可能同时被标量 getter 解读为 0/1。
+  // 组件语义已确认为 switch 时优先用 typed boolean getter 恢复真实类型。
+  if (preferBoolean) {
+    const booleanValue = source.getBoolean('value')
+    if (booleanValue != null) {
+      target['value'] = booleanValue
+      return true
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null && ((numberValue as number) == 0 || (numberValue as number) == 1)) {
+      target['value'] = (numberValue as number) == 1
+      return true
+    }
+    const stringValue = source.getString('value')
+    if (stringValue == '0' || stringValue == '1') {
+      target['value'] = stringValue == '1'
+      return true
+    }
+  }
+  const textValue = source.getString('value')
+  if (textValue != null) {
+    target['value'] = textValue
+    return true
+  }
+  const numberValue = source.getNumber('value')
+  if (numberValue != null) {
+    target['value'] = numberValue
+    return true
+  }
+  const booleanValue = source.getBoolean('value')
+  if (booleanValue != null) {
+    target['value'] = booleanValue
+    return true
+  }
+  return false
+}
+
+function copyDatasetFlag(source : any | null, target : UTSJSONObject, key : string) {
+  const booleanValue = readBooleanField(source, key)
+  if (booleanValue != null) {
+    target[key] = booleanValue
+    return
+  }
+  const stringValue = readStringField(source, key)
+  if (stringValue != null && stringValue.length > 0) {
+    target[key] = stringValue
+  }
+}
+
+function copyDataset(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const indexText = readStringField(source, 'index')
+  if (indexText != null) {
+    copied['index'] = indexText
+  } else {
+    const indexNumber = readNumberField(source, 'index')
+    if (indexNumber != null) {
+      copied['index'] = indexNumber
+    }
+  }
+  const src = readStringField(source, 'src')
+  if (src != null) {
+    copied['src'] = src
+  }
+  const title = readStringField(source, 'title')
+  if (title != null) {
+    copied['title'] = title
+  }
+  copyDatasetFlag(source, copied, 'growingTrack')
+  copyDatasetFlag(source, copied, 'growingIgnore')
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function copyScalarValue(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const typeText = readStringField(source, 'type')
+  if (typeText != null) {
+    copied['type'] = typeText
+  }
+  const valueText = readStringField(source, 'value')
+  if (valueText != null) {
+    copied['value'] = valueText
+  } else {
+    const valueNumber = readNumberField(source, 'value')
+    if (valueNumber != null) {
+      copied['value'] = valueNumber
+    } else {
+      const valueBoolean = readBooleanField(source, 'value')
+      if (valueBoolean != null) {
+        copied['value'] = valueBoolean
+      }
+    }
+  }
+  const rangeValue = readDynamicField(source, 'range')
+  if (Array.isArray(rangeValue)) {
+    const copiedRange = [] as Array<any>
+    for (let i = 0; i < rangeValue.length; i++) {
+      const item = rangeValue[i]
+      if (
+        item != null &&
+        (typeof item == 'string' || typeof item == 'number' || typeof item == 'boolean')
+      ) {
+        copiedRange.push(item)
+      }
+    }
+    if (copiedRange.length > 0) {
+      copied['range'] = copiedRange
+    }
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function copyEventTargetSnapshot(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const id = readStringField(source, 'id')
+  if (id != null) {
+    copied['id'] = id
+  }
+  const dataset = copyDataset(readDynamicField(source, 'dataset'))
+  if (dataset != null) {
+    copied['dataset'] = dataset
+  }
+  const typeText = readStringField(source, 'type')
+  if (typeText != null) {
+    copied['type'] = typeText
+  }
+  const runtimeAttr = copyScalarValue(readDynamicField(source, 'attr'))
+  const attr = runtimeAttr != null ? runtimeAttr : copyScalarValue(source)
+  if (attr != null) {
+    copied['attr'] = attr
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function writeTemplateId(target : UTSJSONObject, value : AutoTrackTemplateId) {
+  if (value == null) {
+    return
+  }
+  if (typeof value == 'string') {
+    const text = value as string
+    if (text.length > 0) {
+      target['id'] = text
+    }
+    return
+  }
+  target['id'] = `${value as number}`
+}
+
+function writeTemplateDatasetValue(target : UTSJSONObject, key : string, value : AutoTrackTemplateDatasetValue) {
+  if (value == null) {
+    return
+  }
+  if (typeof value == 'string') {
+    const text = value as string
+    if (text.length > 0) {
+      target[key] = text
+    }
+    return
+  }
+  if (typeof value == 'number') {
+    target[key] = value as number
+    return
+  }
+  target[key] = value as boolean
+}
+
+function buildTemplateTargetSnapshot(
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue
+) : UTSJSONObject | null {
+  const copied = {} as UTSJSONObject
+  writeTemplateId(copied, templateId)
+  const dataset = {} as UTSJSONObject
+  writeTemplateDatasetValue(dataset, 'index', templateIndex)
+  writeTemplateDatasetValue(dataset, 'title', templateTitle)
+  writeTemplateDatasetValue(dataset, 'src', templateSrc)
+  writeTemplateDatasetValue(dataset, 'growingTrack', templateGrowingTrack)
+  writeTemplateDatasetValue(dataset, 'growingIgnore', templateGrowingIgnore)
+  if (UTSJSONObject.keys(dataset).length > 0) {
+    copied['dataset'] = dataset
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function isDatasetFieldMissing(dataset : UTSJSONObject, key : string) : boolean {
+  return dataset.getString(key) == null && dataset.getNumber(key) == null && dataset.getBoolean(key) == null
+}
+
+function mergeTemplateDatasetValue(runtimeDataset : UTSJSONObject, templateDataset : UTSJSONObject, key : string) {
+  if (!isDatasetFieldMissing(runtimeDataset, key)) {
+    return
+  }
+  const text = templateDataset.getString(key)
+  if (text != null) {
+    runtimeDataset[key] = text
+    return
+  }
+  const numberValue = templateDataset.getNumber(key)
+  if (numberValue != null) {
+    runtimeDataset[key] = numberValue
+    return
+  }
+  const booleanValue = templateDataset.getBoolean(key)
+  if (booleanValue != null) {
+    runtimeDataset[key] = booleanValue
+  }
+}
+
+function mergeTemplateDataset(runtimeDataset : UTSJSONObject | null, templateDataset : UTSJSONObject | null) : UTSJSONObject | null {
+  if (runtimeDataset == null) {
+    return templateDataset
+  }
+  if (templateDataset == null) {
+    return runtimeDataset
+  }
+  mergeTemplateDatasetValue(runtimeDataset, templateDataset, 'index')
+  mergeTemplateDatasetValue(runtimeDataset, templateDataset, 'title')
+  mergeTemplateDatasetValue(runtimeDataset, templateDataset, 'src')
+  mergeTemplateDatasetValue(runtimeDataset, templateDataset, 'growingTrack')
+  mergeTemplateDatasetValue(runtimeDataset, templateDataset, 'growingIgnore')
+  return runtimeDataset
+}
+
+function mergeTemplateTargetSnapshot(runtimeTarget : UTSJSONObject | null, templateTarget : UTSJSONObject | null) : UTSJSONObject | null {
+  if (runtimeTarget == null) {
+    return templateTarget
+  }
+  if (templateTarget == null) {
+    return runtimeTarget
+  }
+  const runtimeId = runtimeTarget.getString('id', '')
+  const templateId = templateTarget.getString('id')
+  if (runtimeId.length == 0 && templateId != null) {
+    runtimeTarget['id'] = templateId
+  }
+  const dataset = mergeTemplateDataset(runtimeTarget.getJSON('dataset'), templateTarget.getJSON('dataset'))
+  if (dataset != null) {
+    runtimeTarget['dataset'] = dataset
+  }
+  return runtimeTarget
+}
+
+function copyEventDetailSnapshot(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const copied = {} as UTSJSONObject
+  const sourceText = readStringField(source, 'source')
+  if (sourceText != null) {
+    copied['source'] = sourceText
+  }
+  const value = copyScalarValue(source)
+  if (value != null) {
+    const valueText = value.getString('value')
+    if (valueText != null) {
+      copied['value'] = valueText
+    } else {
+      const valueNumber = value.getNumber('value')
+      if (valueNumber != null) {
+        copied['value'] = valueNumber
+      } else {
+        const valueBoolean = value.getBoolean('value')
+        if (valueBoolean != null) {
+          copied['value'] = valueBoolean
+        }
+      }
+    }
+  }
+  return UTSJSONObject.keys(copied).length > 0 ? copied : null
+}
+
+function copyTabItemTargetSnapshot(source : any | null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  const dataset = {} as UTSJSONObject
+  const indexNumber = readNumberField(source, 'index')
+  if (indexNumber != null) {
+    dataset['index'] = (indexNumber as number) + 1
+  } else {
+    const indexText = readStringField(source, 'index')
+    if (indexText != null && indexText.length > 0) {
+      const indexValue = parseInt(indexText, 10)
+      if (!isNaN(indexValue)) {
+        dataset['index'] = indexValue + 1
+      }
+    }
+  }
+  const text = readStringField(source, 'text')
+  if (text != null) {
+    dataset['title'] = text
+  }
+  const pagePath = readStringField(source, 'pagePath')
+  if (pagePath != null) {
+    dataset['src'] = pagePath
+  } else {
+    const path = readStringField(source, 'path')
+    if (path != null) {
+      dataset['src'] = path
+    }
+  }
+  const copied = {} as UTSJSONObject
+  copied['id'] = ''
+  if (UTSJSONObject.keys(dataset).length > 0) {
+    copied['dataset'] = dataset
+  }
+  return copied
+}
+
+export function buildAutoTrackEventSnapshot(
+  action : string,
+  event : any | null,
+  eventName : string,
+  elementType : string | null,
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue,
+  eventDetail : UTSJSONObject | null,
+  preferOriginalTarget : boolean = false
+) : UTSJSONObject | null {
+  if (eventName.length == 0) {
+    return null
+  }
+  const snapshot = {} as UTSJSONObject
+  snapshot['action'] = action
+  snapshot['eventName'] = eventName
+  const templateTarget = buildTemplateTargetSnapshot(
+    templateId,
+    templateIndex,
+    templateTitle,
+    templateSrc,
+    templateGrowingTrack,
+    templateGrowingIgnore
+  )
+  if (elementType != null && elementType.length > 0) {
+    snapshot['elementType'] = elementType
+  }
+  let runtimeDetail : UTSJSONObject | null = null
+  if (event != null && typeof event == 'object' && !Array.isArray(event)) {
+    const type = readStringField(event, 'type')
+    if (type != null) {
+      snapshot['type'] = type
+    }
+    const timeStamp = readNumberField(event, 'timeStamp')
+    if (timeStamp != null) {
+      snapshot['timeStamp'] = timeStamp
+    }
+    const currentTarget = mergeTemplateTargetSnapshot(
+      copyEventTargetSnapshot(readDynamicField(event, 'currentTarget')),
+      templateTarget
+    )
+    const target = mergeTemplateTargetSnapshot(
+      copyEventTargetSnapshot(readDynamicField(event, 'target')),
+      templateTarget
+    )
+    const primaryTarget = preferOriginalTarget && target != null
+      ? target
+      : currentTarget
+    if (primaryTarget != null) {
+      snapshot['currentTarget'] = primaryTarget
+    }
+    if (target != null) {
+      snapshot['target'] = target
+    }
+    runtimeDetail = copyEventDetailSnapshot(readDynamicField(event, 'detail'))
+  } else if (templateTarget != null) {
+    snapshot['currentTarget'] = templateTarget
+    snapshot['target'] = templateTarget
+  }
+  const detail = runtimeDetail != null ? runtimeDetail : {} as UTSJSONObject
+  const hasInjectedValue = copyInjectedDetailValue(detail, eventDetail, elementType == 'switch')
+  if (runtimeDetail != null || hasInjectedValue) {
+    snapshot['detail'] = detail
+  }
+  return snapshot
+}
+
+export function buildAutoTrackTabItemSnapshot(item : any | null) : UTSJSONObject | null {
+  const target = copyTabItemTargetSnapshot(item)
+  if (target == null) {
+    return null
+  }
+  const snapshot = {} as UTSJSONObject
+  snapshot['action'] = 'CLICK'
+  snapshot['eventName'] = 'onTabItemTap'
+  snapshot['type'] = 'tap'
+  snapshot['target'] = target
+  return snapshot
+}

@@ -1,0 +1,421 @@
+import { GioEventAutoTrackingHost } from '../../interface.uts'
+import { consoleText } from '../utils/debug.uts'
+import { stringifyScalar } from '../utils/validate.uts'
+
+const CLICK_EVENT_TYPE = 'VIEW_CLICK'
+const CHANGE_EVENT_TYPE = 'VIEW_CHANGE'
+const CLICK_ACTION = 'CLICK'
+const CHANGE_ACTION = 'CHANGE'
+const MIN_INDEX = 0
+const MAX_INDEX = 2147483647
+
+type GioPreviousAutoTrackEvent = {
+  elementKey : string
+  eventType : string
+  timeStamp : number
+}
+
+export class GioEventAutoTrackingPlugin {
+  private host : GioEventAutoTrackingHost
+  private previousEvent : GioPreviousAutoTrackEvent | null = null
+
+  constructor(host : GioEventAutoTrackingHost) {
+    this.host = host
+  }
+
+  private readSnapshotObject(raw : UTSJSONObject, key : string) : UTSJSONObject | null {
+    return raw.getJSON(key)
+  }
+
+  private readCurrentTarget(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    return this.readSnapshotObject(snapshot, 'currentTarget')
+  }
+
+  private readOriginalTarget(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    return this.readSnapshotObject(snapshot, 'target')
+  }
+
+  private readPrimaryTarget(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    const currentTarget = this.readCurrentTarget(snapshot)
+    if (currentTarget != null) {
+      return currentTarget
+    }
+    return this.readOriginalTarget(snapshot)
+  }
+
+  private readDataset(target : UTSJSONObject | null) : UTSJSONObject | null {
+    if (target == null) {
+      return null
+    }
+    return target.getJSON('dataset')
+  }
+
+  private readDatasetMarker(dataset : UTSJSONObject | null, key : string) : boolean {
+    if (dataset == null) {
+      return false
+    }
+    const booleanValue = dataset.getBoolean(key)
+    if (booleanValue != null) {
+      return booleanValue as boolean
+    }
+    const stringValue = dataset.getString(key)
+    if (stringValue != null) {
+      const normalized = (stringValue as string).trim().toLowerCase()
+      if (normalized == 'false' || normalized == '0') {
+        return false
+      }
+      return normalized.length > 0
+    }
+    const numberValue = dataset.getNumber(key)
+    if (numberValue != null) {
+      return (numberValue as number) != 0
+    }
+    return false
+  }
+
+  private hasGrowingTrack(dataset : UTSJSONObject | null) : boolean {
+    return this.readDatasetMarker(dataset, 'growingTrack')
+  }
+
+  private isIgnored(dataset : UTSJSONObject | null) : boolean {
+    return this.readDatasetMarker(dataset, 'growingIgnore')
+  }
+
+  private isAutoplay(snapshot : UTSJSONObject) : boolean {
+    const detail = this.readSnapshotObject(snapshot, 'detail')
+    if (detail == null) {
+      return false
+    }
+    return detail.getString('source') == 'autoplay'
+  }
+
+  private buildDedupeElementKey(snapshot : UTSJSONObject) : string {
+    const target = this.readPrimaryTarget(snapshot)
+    const dataset = this.readDataset(target)
+    const action = snapshot.getString('action', '')
+    const eventName = snapshot.getString('eventName', '')
+    const xpath = this.buildXpath(target, eventName)
+    const title = dataset != null ? dataset.getString('title', '') : ''
+    let index = ''
+    if (action == CLICK_ACTION && dataset != null) {
+      const stringIndex = dataset.getString('index')
+      if (stringIndex != null) {
+        index = stringIndex as string
+      } else {
+        const numberIndex = dataset.getNumber('index')
+        if (numberIndex != null) {
+          index = `${numberIndex as number}`
+        }
+      }
+    }
+    return `${xpath}|${index}|${title}`
+  }
+
+  private isDuplicate(snapshot : UTSJSONObject) : boolean {
+    const eventType = snapshot.getString('type', '')
+    const timeStamp = snapshot.getNumber('timeStamp')
+    if (eventType.length == 0 || timeStamp == null) {
+      return false
+    }
+    const currentTime = timeStamp as number
+    // Web picker-view 的 change 事件可能持续给出 0 时间戳。0 不能作为去重基准，
+    // 否则第一条之后所有同类事件都会因差值恒为 0 而被永久吞掉。
+    if (currentTime <= 0 || isNaN(currentTime)) {
+      return false
+    }
+    const elementKey = this.buildDedupeElementKey(snapshot)
+    const previous = this.previousEvent
+    if (
+      previous != null &&
+      previous.eventType == eventType &&
+      previous.elementKey == elementKey &&
+      Math.abs(currentTime - previous.timeStamp) < 10
+    ) {
+      return true
+    }
+    this.previousEvent = {
+      elementKey: elementKey,
+      eventType: eventType,
+      timeStamp: currentTime
+    } as GioPreviousAutoTrackEvent
+    return false
+  }
+
+  private buildXpath(target : UTSJSONObject | null, eventName : string) : string {
+    const id = target != null ? target.getString('id', '') : ''
+    return `${id}#${eventName}`
+  }
+
+  private warnInvalidIndex(indexText : string) {
+    consoleText(`${indexText}，index标记应为 大于 0 且小于 2147483647 的整数！`, 'warn')
+  }
+
+  private readIndex(dataset : UTSJSONObject | null) : number | null {
+    if (dataset == null) {
+      return null
+    }
+    const rawIndex = dataset.getString('index')
+    let indexText = ''
+    if (rawIndex != null) {
+      indexText = rawIndex
+    } else {
+      const numericIndex = dataset.getNumber('index')
+      if (numericIndex != null) {
+        indexText = `${numericIndex as number}`
+      }
+    }
+    if (indexText.length == 0) {
+      return null
+    }
+    const indexValue = parseInt(indexText, 10)
+    if (isNaN(indexValue) || `${indexValue}` != indexText) {
+      this.warnInvalidIndex(indexText)
+      return null
+    }
+    if (indexValue <= MIN_INDEX || indexValue >= MAX_INDEX) {
+      this.warnInvalidIndex(indexText)
+      return null
+    }
+    return indexValue
+  }
+
+  private readDetailValue(source : UTSJSONObject | null, preferBoolean : boolean) : string | null {
+    if (source == null) {
+      return null
+    }
+    // switch 在 iOS 桥接后可能被 string/number getter 解读为 "0"/"1"。
+    // 只对编译期已标记的 switch 优先读布尔，不改变 slider/picker 的数值语义。
+    if (preferBoolean) {
+      const booleanValue = source.getBoolean('value')
+      if (booleanValue != null) {
+        return (booleanValue as boolean) ? 'true' : 'false'
+      }
+      const numberValue = source.getNumber('value')
+      if (numberValue != null && ((numberValue as number) == 0 || (numberValue as number) == 1)) {
+        return (numberValue as number) == 1 ? 'true' : 'false'
+      }
+      const stringValue = source.getString('value')
+      if (stringValue == '0' || stringValue == '1') {
+        return stringValue == '1' ? 'true' : 'false'
+      }
+    }
+    const textValue = source.getString('value')
+    if (textValue != null) {
+      return textValue.length > 0 ? textValue : null
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null) {
+      return `${numberValue as number}`
+    }
+    const booleanValue = source.getBoolean('value')
+    if (booleanValue != null) {
+      return (booleanValue as boolean) ? 'true' : 'false'
+    }
+    return null
+  }
+
+  private readNilAwareValue(source : UTSJSONObject | null) : string | null {
+    if (source == null) {
+      return null
+    }
+    const textValue = source.getString('value')
+    if (textValue != null) {
+      return textValue
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null) {
+      return `${numberValue as number}`
+    }
+    const booleanValue = source.getBoolean('value')
+    if (booleanValue != null) {
+      return (booleanValue as boolean) ? 'true' : 'false'
+    }
+    return null
+  }
+
+  private readPickerIndex(source : UTSJSONObject | null) : number | null {
+    if (source == null) {
+      return null
+    }
+    const numberValue = source.getNumber('value')
+    if (numberValue != null) {
+      return numberValue as number
+    }
+    const textValue = source.getString('value')
+    if (textValue == null || textValue.length == 0) {
+      return null
+    }
+    const indexValue = parseInt(textValue, 10)
+    if (isNaN(indexValue) || `${indexValue}` != textValue) {
+      return null
+    }
+    return indexValue
+  }
+
+  private readPickerLabelFromAttr(attr : UTSJSONObject | null, index : number) : string | null {
+    if (attr == null || index < 0) {
+      return null
+    }
+    // #ifdef APP-HARMONY
+    const range = attr.getArray<Object>('range')
+    // #endif
+    // #ifndef APP-HARMONY
+    const range = attr.getArray('range')
+    // #endif
+    if (range == null || index >= range.length) {
+      return null
+    }
+    const item = range[index]
+    if (typeof item == 'string') {
+      return item as string
+    }
+    if (typeof item == 'number' || typeof item == 'boolean') {
+      return stringifyScalar(item)
+    }
+    return null
+  }
+
+  private readPickerChangeValue(detail : UTSJSONObject | null, attr : UTSJSONObject | null) : string | null {
+    const index = this.readPickerIndex(detail)
+    if (index == null) {
+      return null
+    }
+    const label = this.readPickerLabelFromAttr(attr, index as number)
+    if (label != null) {
+      return label
+    }
+    return `${index as number}`
+  }
+
+  private isPasswordTarget(target : UTSJSONObject | null) : boolean {
+    if (target == null) {
+      return false
+    }
+    const targetType = target.getString('type', '')
+    if (targetType.toLowerCase() == 'password') {
+      return true
+    }
+    const attr = target.getJSON('attr')
+    if (attr == null) {
+      return false
+    }
+    const typeText = attr.getString('type', '')
+    return typeText.toLowerCase() == 'password'
+  }
+
+  private isPasswordChange(snapshot : UTSJSONObject) : boolean {
+    const elementType = snapshot.getString('elementType', '')
+    if (elementType.toLowerCase() == 'password') {
+      return true
+    }
+    const originalTarget = this.readOriginalTarget(snapshot)
+    const currentTarget = this.readCurrentTarget(snapshot)
+    return this.isPasswordTarget(originalTarget) || this.isPasswordTarget(currentTarget)
+  }
+
+  private readChangeValue(snapshot : UTSJSONObject) : string | null {
+    const elementType = snapshot.getString('elementType', '')
+    const detail = this.readSnapshotObject(snapshot, 'detail')
+    const target = this.readOriginalTarget(snapshot)
+    const attr = target != null ? target.getJSON('attr') : null
+    if (elementType == 'picker') {
+      const pickerValue = this.readPickerChangeValue(detail, attr)
+      if (pickerValue != null) {
+        return pickerValue
+      }
+    }
+    const preferBoolean = elementType == 'switch'
+    const detailValue = this.readDetailValue(detail, preferBoolean)
+    if (detailValue != null) {
+      return detailValue
+    }
+    return this.readNilAwareValue(attr)
+  }
+
+  private buildClickElement(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    const target = this.readPrimaryTarget(snapshot)
+    const dataset = this.readDataset(target)
+    const eventName = snapshot.getString('eventName', '')
+    if (eventName.length == 0) {
+      return null
+    }
+    const element = new UTSJSONObject()
+    element['xpath'] = this.buildXpath(target, eventName)
+    const index = this.readIndex(dataset)
+    if (index != null) {
+      element['index'] = index
+    }
+    if (dataset != null) {
+      const title = dataset.getString('title')
+      if (title != null) {
+        element['textValue'] = title
+      }
+      const src = dataset.getString('src')
+      if (src != null) {
+        element['hyperlink'] = src
+      }
+    }
+    return element
+  }
+
+  private buildChangeElement(snapshot : UTSJSONObject) : UTSJSONObject | null {
+    const target = this.readPrimaryTarget(snapshot)
+    const dataset = this.readDataset(target)
+    const eventName = snapshot.getString('eventName', '')
+    if (eventName.length == 0) {
+      return null
+    }
+    const element = new UTSJSONObject()
+    element['xpath'] = this.buildXpath(target, eventName)
+    if (this.hasGrowingTrack(dataset) && !this.isPasswordChange(snapshot)) {
+      const value = this.readChangeValue(snapshot)
+      if (value != null) {
+        element['textValue'] = stringifyScalar(value)
+      }
+    }
+    if (
+      element.getString('textValue') == null &&
+      snapshot.getString('elementType', '') == 'swiper' &&
+      dataset != null
+    ) {
+      const title = dataset.getString('title')
+      if (title != null) {
+        element['textValue'] = title
+      }
+    }
+    return element
+  }
+
+  private shouldIgnore(snapshot : UTSJSONObject) : boolean {
+    const currentTargetDataset = this.readDataset(this.readCurrentTarget(snapshot))
+    const targetDataset = this.readDataset(this.readOriginalTarget(snapshot))
+    if (this.isIgnored(currentTargetDataset) || this.isIgnored(targetDataset)) {
+      return true
+    }
+    if (!this.hasGrowingTrack(targetDataset) && this.isAutoplay(snapshot)) {
+      return true
+    }
+    return this.isDuplicate(snapshot)
+  }
+
+  handle(snapshot : UTSJSONObject) : boolean {
+    if (this.shouldIgnore(snapshot)) {
+      return true
+    }
+    const action = snapshot.getString('action', '')
+    const element = action == CLICK_ACTION
+      ? this.buildClickElement(snapshot)
+      : action == CHANGE_ACTION
+        ? this.buildChangeElement(snapshot)
+        : null
+    if (element == null) {
+      return false
+    }
+    const elements = [] as Array<UTSJSONObject>
+    elements.push(element)
+    return this.host.emitViewEvent(
+      action == CHANGE_ACTION ? CHANGE_EVENT_TYPE : CLICK_EVENT_TYPE,
+      elements
+    )
+  }
+}

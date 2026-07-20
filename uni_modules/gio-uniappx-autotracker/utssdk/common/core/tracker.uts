@@ -6,6 +6,7 @@ import {
   GioABTestHost,
   GioABTestPluginOptions,
   GioContext,
+  GioEventAutoTrackingHost,
   GioEntryInfo,
   GioEntryResolver,
   GioInitOptions,
@@ -30,9 +31,9 @@ import {
 import { now } from '../utils/base.uts'
 import { consoleText } from '../utils/debug.uts'
 import { GioABTestPlugin } from '../plugins/gio-abtest.uts'
+import { GioEventAutoTrackingPlugin } from '../plugins/gio-event-autotracking.uts'
 import { GioDataStore } from '../dataStore/index.uts'
 import { GioUploader } from './uploader.uts'
-import { MAX_PERSISTED_EVENTS } from './event-persistence.uts'
 import { GioUserStore } from '../userStore/index.uts'
 import {
   clearVisitSessionSnapshot,
@@ -40,7 +41,6 @@ import {
   recordVisitSessionSnapshot,
   resolveInitCompleteMessage,
   resolveInitStartMessage,
-  resolveMaxQueueSize,
   resolveSessionTimeoutMs,
   scheduleVisitAndPage,
   shouldEmitPageWithoutShow,
@@ -56,8 +56,9 @@ import { GioStorageContainer } from '../storage/index.uts'
 import { resolvePageRoute } from '../route.uts'
 
 type GioPageReadyCallback = () => void
+type GioSystemReadyEventCallback = () => void
 
-export class GioTracker implements GioABTestHost, GioShareTrackingHost {
+export class GioTracker implements GioABTestHost, GioShareTrackingHost, GioEventAutoTrackingHost {
   static sharedInstance : GioTracker | null = null
 
   static getInstance() : GioTracker {
@@ -76,9 +77,13 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   private pendingVisit : boolean = false
   private sessionUpdateReady : boolean = false
   private abTestPlugin : GioABTestPlugin | null = null
+  private eventAutoTrackingPlugin : GioEventAutoTrackingPlugin | null = null
   private pendingFirstPageContexts : Array<GioPageContext | null> = []
   private pendingPageReadyCallbacks : Array<GioPageReadyCallback> = []
   private firstPageDispatchWaiting : boolean = false
+  private pendingSystemReadyCallbacks : Array<GioSystemReadyEventCallback> = []
+  private systemReadyDispatchWaiting : boolean = false
+  private flushPendingEventsWaiting : boolean = false
   private shareTrackingEnabled : boolean = false
   private entryEnabled : boolean = false
   private entryResolver : GioEntryResolver | null = null
@@ -228,10 +233,6 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     return resolveSessionTimeoutMs(30 * 1000)
   }
 
-  private getMaxQueueSize() : number {
-    return resolveMaxQueueSize(MAX_PERSISTED_EVENTS)
-  }
-
   private isEntryResolverReady() : boolean {
     return this.entryResolver != null
   }
@@ -344,6 +345,16 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   private handleFlushSuccess(events : Array<GioTrackEvent>) {
+    for (let i = 0; i < events.length; i++) {
+      if (
+        this.userStore.touchSessionIfCurrent(
+          events[i].sessionId,
+          this.getSessionTimeoutMs()
+        )
+      ) {
+        break
+      }
+    }
     this.dataStore.handleFlushSuccess(events)
   }
 
@@ -363,7 +374,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       query: entryInfo.query.length > 0 ? entryInfo.query : null,
       title: null,
       referralPage: entryInfo.referralPage,
-      duration: null
+      duration: null,
+      timestamp: null
     } as GioPageContext
   }
 
@@ -407,6 +419,27 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     }
   }
 
+  private enqueueSystemReadyEvent(callback : GioSystemReadyEventCallback) {
+    if (this.dataStore.isSystemReady()) {
+      callback()
+      return
+    }
+    this.pendingSystemReadyCallbacks.push(callback)
+    if (this.systemReadyDispatchWaiting) {
+      return
+    }
+    this.systemReadyDispatchWaiting = true
+    this.dataStore.ensureSystemReady(() => {
+      this.systemReadyDispatchWaiting = false
+      const pendingCallbacks = this.pendingSystemReadyCallbacks.slice()
+      this.pendingSystemReadyCallbacks = []
+      for (let i = 0; i < pendingCallbacks.length; i++) {
+        const pendingCallback = pendingCallbacks[i]
+        pendingCallback()
+      }
+    })
+  }
+
   private emitVisitEvent(pageContext : GioPageContext | null, flushAfter : boolean = false) {
     if (this.shouldWaitForReadyPageContext(pageContext, 'VISIT')) {
       this.enqueuePageReadyCallback(() => {
@@ -415,7 +448,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       return
     }
     this.dataStore.maybeStoreOriginalSource(pageContext)
-    this.pushInternalEvent('visit', 'VISIT', null, pageContext, flushAfter)
+    this.pushInternalEvent('visit', 'VISIT', null, pageContext, flushAfter, null)
   }
 
   private maybeEmitVisit(pageContext : GioPageContext | null) : boolean {
@@ -445,15 +478,18 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     name : string,
     eventType : string,
     properties : UTSJSONObject | null,
-    pageContext : GioPageContext | null
+    pageContext : GioPageContext | null,
+    element : Array<UTSJSONObject> | null
   ) : GioTrackEvent {
-    return this.dataStore.buildEvent(
+    const event = this.dataStore.buildEvent(
       name,
       eventType,
       properties,
       pageContext,
       this.buildAppChannel()
     )
+    event.element = element
+    return event
   }
 
   private applyLastPageEventContext(event : GioTrackEvent) : GioTrackEvent {
@@ -519,7 +555,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     eventType : string,
     properties : UTSJSONObject | null,
     pageContext : GioPageContext | null,
-    flushAfter : boolean = false
+    flushAfter : boolean,
+    element : Array<UTSJSONObject> | null
   ) {
     if (!this.ensureReady()) {
       return
@@ -535,19 +572,20 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
           eventType,
           properties,
           this.buildCurrentPageContext(null),
-          flushAfter
+          flushAfter,
+          element
         )
       })
       return
     }
     // 所有事件都必须等异步系统上下文 ready 后才能真正构建；
     // 这样首屏 VISIT / PAGE 也不会带着空的设备或网络字段抢先发出。
-    this.dataStore.ensureSystemReady(() => {
+    this.enqueueSystemReadyEvent(() => {
       const event = this.applyLastPageEventContext(
-        this.buildEvent(name, eventType, properties, pageContext)
+        this.buildEvent(name, eventType, properties, pageContext, element)
       )
       this.recordEventContext(eventType, event)
-      this.uploader.enqueue(event, this.getMaxQueueSize())
+      this.uploader.enqueue(event)
       if (flushAfter) {
         if (eventType == 'APP_CLOSED') {
           this.uploader.flush(null, null)
@@ -559,7 +597,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   private emitPageEvent(pageContext : GioPageContext | null) {
-    this.pushInternalEvent('page', 'PAGE', null, pageContext, true)
+    this.pushInternalEvent('page', 'PAGE', null, pageContext, true, null)
   }
 
   private recordEventContext(eventType : string, event : GioTrackEvent) {
@@ -651,7 +689,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'CUSTOM',
       normalizeTrackProperties(properties),
       pageContext,
-      true
+      true,
+      null
     )
     return true
   }
@@ -670,9 +709,37 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'CUSTOM',
       normalizeTrackProperties(properties),
       pageContext,
-      true
+      true,
+      null
     )
     return true
+  }
+
+  emitViewEvent(eventType : string, element : Array<UTSJSONObject>) : boolean {
+    if (!this.ensureReady()) {
+      return false
+    }
+    if (eventType != 'VIEW_CLICK' && eventType != 'VIEW_CHANGE') {
+      return false
+    }
+    const pageContext = this.buildEventPageContext(null)
+    this.maybeEmitVisit(pageContext)
+    this.pushInternalEvent(
+      eventType == 'VIEW_CLICK' ? 'click' : 'change',
+      eventType,
+      null,
+      pageContext,
+      true,
+      element
+    )
+    return true
+  }
+
+  dispatchAutoTrackEvent(snapshot : UTSJSONObject) : boolean {
+    if (!this.ensureReady() || this.eventAutoTrackingPlugin == null) {
+      return false
+    }
+    return (this.eventAutoTrackingPlugin as GioEventAutoTrackingPlugin).handle(snapshot)
   }
 
   // ── GioShareTrackingHost：分享采集插件的平台无关 host 能力 ──
@@ -702,7 +769,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'CUSTOM',
       normalizeTrackProperties(properties),
       pageContext,
-      true
+      true,
+      null
     )
   }
 
@@ -726,6 +794,53 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     } as GioABTestPluginOptions
   }
 
+  private isRegisteredPluginInstalled(pluginName : string) : boolean {
+    if (pluginName == 'gioABTest') {
+      return this.abTestPlugin != null
+    }
+    if (pluginName == 'gioShareTracking') {
+      return this.shareTrackingEnabled
+    }
+    if (pluginName == 'gioEventAutoTracking') {
+      return this.eventAutoTrackingPlugin != null
+    }
+    return false
+  }
+
+  private installRegisteredPlugin(plugin : GioPluginItem) : boolean {
+    const pluginName : string = plugin.name
+    if (this.isRegisteredPluginInstalled(pluginName)) {
+      consoleText(`重复加载插件 ${pluginName} 或插件重名，已跳过加载!`, 'warn')
+      return false
+    }
+
+    try {
+      if (pluginName == 'gioABTest') {
+        this.abTestPlugin = new GioABTestPlugin(
+          this,
+          this.resolveABTestOptions(plugin.options)
+        )
+        consoleText(`加载插件 ${pluginName}`, 'info')
+        return true
+      }
+      if (pluginName == 'gioShareTracking') {
+        this.shareTrackingEnabled = true
+        consoleText(`加载插件 ${pluginName}`, 'info')
+        return true
+      }
+      if (pluginName == 'gioEventAutoTracking') {
+        this.eventAutoTrackingPlugin = new GioEventAutoTrackingPlugin(this)
+        consoleText(`加载插件 ${pluginName}`, 'info')
+        return true
+      }
+      consoleText(`插件加载失败!不存在名为 ${pluginName} 的插件!`, 'error')
+      return false
+    } catch (error) {
+      consoleText(`插件【${pluginName}】加载异常 ${stringifyScalar(error)}`, 'error')
+      return false
+    }
+  }
+
   registerPlugins(plugins : Array<GioPluginItem>) : boolean {
     if (!this.ensureReady()) {
       return false
@@ -733,14 +848,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     let installed = false
     for (let i = 0; i < plugins.length; i++) {
       const plugin = plugins[i]
-      if (plugin.name == 'gioABTest') {
-        this.abTestPlugin = new GioABTestPlugin(
-          this,
-          this.resolveABTestOptions(plugin.options)
-        )
-        installed = true
-      } else if (plugin.name == 'gioShareTracking') {
-        this.shareTrackingEnabled = true
+      if (this.installRegisteredPlugin(plugin)) {
         installed = true
       }
     }
@@ -817,7 +925,7 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     options.forceLogin = false
     this.identified = true
     this.uploader.setForceLogin(false)
-    this.uploader.releaseHoarding(deviceId, this.getMaxQueueSize())
+    this.uploader.releaseHoarding(deviceId)
     this.uploader.flush(null, null)
     return true
   }
@@ -843,7 +951,8 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
       'LOGIN_USER_ATTRIBUTES',
       normalized,
       pageContext,
-      true
+      true,
+      null
     )
     return true
   }
@@ -858,7 +967,16 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
   }
 
   private flushPendingEvents() {
+    if (this.dataStore.isSystemReady()) {
+      this.uploader.flush(null, null)
+      return
+    }
+    if (this.flushPendingEventsWaiting) {
+      return
+    }
+    this.flushPendingEventsWaiting = true
     this.dataStore.ensureSystemReady(() => {
+      this.flushPendingEventsWaiting = false
       this.uploader.flush(null, null)
     })
   }
@@ -1013,13 +1131,13 @@ export class GioTracker implements GioABTestHost, GioShareTrackingHost {
     if (shouldTrackAppClosed()) {
       this.lastAppHideAt = now()
       this.lastEntryScene = this.entryScene
-      this.userStore.touchSession(this.getSessionTimeoutMs())
       this.pushInternalEvent(
         'close',
         'APP_CLOSED',
         null,
         pageContext,
-        true
+        true,
+        null
       )
     }
     this.dataStore.updateAppState(this.resolveAppState(appState, false))

@@ -152,7 +152,7 @@ export class GioUploader {
     this.continueFlush()
   }
 
-  enqueue(event : GioTrackEvent, maxQueueSize : number) {
+  enqueue(event : GioTrackEvent) {
     const queue = this.forceLogin ? this.hoarding : this.pending
     const requestId = guid()
     const queued : GioQueuedEvent = {
@@ -167,9 +167,6 @@ export class GioUploader {
       this.persistence.persist(key, event)
     }
     queue.push(queued)
-    if (queue.length > maxQueueSize) {
-      queue.shift()
-    }
     if (!this.forceLogin) {
       this.continueFlush()
     }
@@ -179,7 +176,7 @@ export class GioUploader {
     this.forceLogin = forceLogin
   }
 
-  releaseHoarding(deviceId : string, maxQueueSize : number) {
+  releaseHoarding(deviceId : string) {
     for (let i = 0; i < this.hoarding.length; i++) {
       const queued = this.hoarding.get(i as number)
       if (queued != null) {
@@ -190,9 +187,6 @@ export class GioUploader {
           this.persistence.persist(key, queued.event)
         }
         this.pending.push(queued)
-        if (this.pending.length > maxQueueSize) {
-          this.pending.shift()
-        }
       }
     }
     this.hoarding = new BoxArray()
@@ -203,14 +197,9 @@ export class GioUploader {
     const sanitized = {} as UTSJSONObject
     const raw = eventToJSONObject(event)
     const keys = UTSJSONObject.keys(raw)
+    // 上报边界统一清洗所有字段，禁止按字段名绕过空值过滤。
     for (let i = 0; i < keys.length; i++) {
       const key = keys[i]
-      if (key == 'title') {
-        if (raw[key] != null) {
-          sanitized[key] = raw[key]
-        }
-        continue
-      }
       const sanitizedValue = this.sanitizeValue(raw[key])
       if (sanitizedValue == null) {
         continue

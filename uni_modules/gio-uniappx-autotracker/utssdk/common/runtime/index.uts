@@ -46,6 +46,7 @@ type GioEventSender = {
 
 type GioUploadPolicy = {
   shouldScheduleFlush : () => boolean
+  shouldRefreshSessionOnSuccess : () => boolean
   getFlushDelay : () => number
   getMaxBatchSize : () => number
   getMaxBatchPayloadBytes : () => number
@@ -56,14 +57,13 @@ type GioRuntimePolicy = {
   getInitCompleteMessage : (fallback : string) => string
   getSessionTimeoutMs : (fallback : number) => number
   shouldRenewSessionOnTimeout : () => boolean
-  getMaxQueueSize : (fallback : number) => number
   shouldPersistSessionId : () => boolean
+  shouldReadIdentityFromStorage : () => boolean
   shouldPersistEvents : () => boolean
   shouldWaitForNetworkState : () => boolean
   shouldEmitPageWithoutShow : () => boolean
   supportsAppState : () => boolean
   supportsLocation : () => boolean
-  getPageReferralFallback : (options : GioInitOptions) => string
   getUploadRequestTimeout : (fallback : number) => number
   getUploadMaxConcurrency : (fallback : number) => number
 }
@@ -203,14 +203,15 @@ export function shouldRenewSessionOnTimeout() : boolean {
   return sessionPolicy != null ? sessionPolicy.shouldRenewSessionOnTimeout() : false
 }
 
-export function resolveMaxQueueSize(fallback : number) : number {
-  const policy = registeredRuntimePolicy
-  return policy != null ? policy.getMaxQueueSize(fallback) : fallback
-}
-
 export function shouldPersistSessionId() : boolean {
   const policy = registeredRuntimePolicy
   return policy != null ? policy.shouldPersistSessionId() : false
+}
+
+export function shouldReadIdentityFromStorage() : boolean {
+  const policy = registeredRuntimePolicy
+  // App 不注册通用 runtime policy，默认 false 即保留身份内存缓存。
+  return policy != null ? policy.shouldReadIdentityFromStorage() : false
 }
 
 export function shouldPersistEvents() : boolean {
@@ -241,11 +242,6 @@ export function supportsAppState() : boolean {
 export function supportsLocation() : boolean {
   const policy = registeredRuntimePolicy
   return policy != null ? policy.supportsLocation() : true
-}
-
-export function resolvePageReferralFallback(options : GioInitOptions) : string {
-  const policy = registeredRuntimePolicy
-  return policy != null ? policy.getPageReferralFallback(options) : ''
 }
 
 export function resolveUploadRequestTimeout(fallback : number) : number {
@@ -337,6 +333,14 @@ export function shouldScheduleUploadFlush () : boolean {
     return false
   }
   return policy.shouldScheduleFlush()
+}
+
+export function shouldRefreshSessionOnUploadSuccess () : boolean {
+  const policy = registeredUploadPolicy
+  if (policy == null) {
+    return false
+  }
+  return policy.shouldRefreshSessionOnSuccess()
 }
 
 export function resolveUploadFlushDelay (fallback : number) : number {

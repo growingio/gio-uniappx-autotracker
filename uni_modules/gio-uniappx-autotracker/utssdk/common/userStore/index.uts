@@ -1,7 +1,10 @@
 // userStore 是设备标识、登录身份和 session 状态的单一事实来源。
 import { GioContext, GioInitOptions, GioStorage } from '../../interface.uts'
 import {
-  GioEventCenter
+  GioEventCenter,
+  GioSessionIdUpdatePayload,
+  GioUserIdUpdatePayload,
+  GioUserKeyUpdatePayload
 } from '../events.uts'
 import {
   guid,
@@ -9,6 +12,8 @@ import {
 } from '../utils/base.uts'
 import {
   shouldPersistSessionId,
+  shouldReadIdentityFromStorage,
+  shouldRefreshSessionOnUploadSuccess,
   shouldRenewSessionOnTimeout
 } from '../runtime/index.uts'
 import { stringifyScalar, numberifyScalar } from '../utils/validate.uts'
@@ -28,6 +33,9 @@ export class GioUserStore {
   private deviceId : string = ''
   private storage : GioStorageContainer | null = null
   private memorySessionId : string = ''
+  private cachedUserId : string = ''
+  private cachedUserKey : string = ''
+  private identityLoaded : boolean = false
   // 本次冷启动是否首次生成 deviceId（存储里原本没有）。对齐独立 SDK 的
   // `!oldUId && newUId` —— 只有「全新设备」才允许后续把首访 session 记为 newDevice 快照；
   // 老设备（deviceId 从存储读出）恒不算新设备。
@@ -36,6 +44,7 @@ export class GioUserStore {
   hydrate(options : GioInitOptions, storage : GioStorageContainer) {
     this.projectId = options.projectId
     this.storage = storage
+    this.identityLoaded = false
     this.deviceId = this.readStoredDeviceId()
 
     if (this.deviceId.length == 0) {
@@ -136,6 +145,31 @@ export class GioUserStore {
     return stringifyScalar(value)
   }
 
+  private ensureIdentityLoaded() {
+    if (this.identityLoaded) {
+      return
+    }
+    this.cachedUserId = this.readStoredUserId()
+    this.cachedUserKey = this.readStoredUserKey()
+    this.identityLoaded = true
+  }
+
+  private resolveUserId() : string {
+    if (shouldReadIdentityFromStorage()) {
+      return this.readStoredUserId()
+    }
+    this.ensureIdentityLoaded()
+    return this.cachedUserId
+  }
+
+  private resolveUserKey() : string {
+    if (shouldReadIdentityFromStorage()) {
+      return this.readStoredUserKey()
+    }
+    this.ensureIdentityLoaded()
+    return this.cachedUserKey
+  }
+
   private readStoredGioId() : string {
     const value = this.getMainStorage().getItem(this.getGioIdKey())
     return stringifyScalar(value)
@@ -165,6 +199,9 @@ export class GioUserStore {
   private persistUser(userId : string, userKey : string) {
     this.getMainStorage().setItem(this.getUserIdKey(), userId, null)
     this.getMainStorage().setItem(this.getUserKeyKey(), userKey, null)
+    this.cachedUserId = userId
+    this.cachedUserKey = userKey
+    this.identityLoaded = true
   }
 
   private persistGioId(gioId : string) {
@@ -175,30 +212,33 @@ export class GioUserStore {
     if (newSessionId == oldSessionId) {
       return
     }
-    GioEventCenter.emitSessionIdUpdate({
+    const payload : GioSessionIdUpdatePayload = {
       newSessionId: newSessionId,
       oldSessionId: oldSessionId
-    })
+    }
+    GioEventCenter.emitSessionIdUpdate(payload)
   }
 
   private emitUserIdUpdate(newUserId : string, oldUserId : string) {
     if (newUserId == oldUserId) {
       return
     }
-    GioEventCenter.emitUserIdUpdate({
+    const payload : GioUserIdUpdatePayload = {
       newUserId: newUserId,
       oldUserId: oldUserId
-    })
+    }
+    GioEventCenter.emitUserIdUpdate(payload)
   }
 
   private emitUserKeyUpdate(newUserKey : string, oldUserKey : string) {
     if (newUserKey == oldUserKey) {
       return
     }
-    GioEventCenter.emitUserKeyUpdate({
+    const payload : GioUserKeyUpdatePayload = {
       newUserKey: newUserKey,
       oldUserKey: oldUserKey
-    })
+    }
+    GioEventCenter.emitUserKeyUpdate(payload)
   }
 
   private resolveSessionId() : string {
@@ -223,9 +263,23 @@ export class GioUserStore {
           (legacyExpiresAt > 0 && legacyExpiresAt <= ts)
         )
       )
-    if (timedOut) {
-      sessionId = guid()
+    if (!timedOut) {
+      // 旧版把过期时间单独保存。迁移时沿用原截止时间，不能因为读取事件
+      // 就把 session 重新延长一个完整超时周期。
+      if (renewOnTimeout && legacyExpiresAt > 0) {
+        this.writeStoredSessionId(sessionId, legacyExpiresAt)
+        if (lastActiveAt <= 0) {
+          const migratedLastActiveAt = legacyExpiresAt - timeoutMs
+          if (migratedLastActiveAt > 0) {
+            this.persistLastActiveAt(migratedLastActiveAt)
+          }
+        }
+        this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+      }
+      return null
     }
+
+    sessionId = guid()
     if (shouldPersistSessionId()) {
       this.writeStoredSessionId(
         sessionId,
@@ -238,22 +292,35 @@ export class GioUserStore {
       this.persistLastActiveAt(ts)
       this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
     }
-    if (timedOut) {
-      this.emitSessionIdUpdate(sessionId, previousSessionId)
-      return previousSessionId
-    }
-    return null
+    this.emitSessionIdUpdate(sessionId, previousSessionId)
+    return previousSessionId
   }
 
-  touchSession(_timeoutMs : number) {
-    if (shouldRenewSessionOnTimeout()) {
-      this.persistLastActiveAt(now())
+  touchSessionIfCurrent(sessionId : string, timeoutMs : number) : boolean {
+    if (
+      !shouldRefreshSessionOnUploadSuccess() ||
+      !shouldRenewSessionOnTimeout() ||
+      !shouldPersistSessionId() ||
+      sessionId.length == 0
+    ) {
+      return false
     }
+    // Web 每次都从持久化存储重读，避免旧标签页的迟到请求复活已经切换
+    // 或过期的 session。
+    const currentSessionId = this.resolveSessionId()
+    if (currentSessionId.length == 0 || currentSessionId != sessionId) {
+      return false
+    }
+    const ts = now()
+    this.writeStoredSessionId(currentSessionId, ts + timeoutMs)
+    this.persistLastActiveAt(ts)
+    this.getMainStorage().removeItem(this.getLegacySessionExpiresAtKey())
+    return true
   }
 
   setUserId(userId : string) {
-    const previousUserId = this.readStoredUserId()
-    this.persistUser(userId, this.readStoredUserKey())
+    const previousUserId = this.resolveUserId()
+    this.persistUser(userId, this.resolveUserKey())
     if (userId.length > 0) {
       this.persistGioId(userId)
     }
@@ -270,8 +337,8 @@ export class GioUserStore {
   }
 
   setUserKey(userKey : string) {
-    const previousUserKey = this.readStoredUserKey()
-    this.persistUser(this.readStoredUserId(), userKey)
+    const previousUserKey = this.resolveUserKey()
+    this.persistUser(this.resolveUserId(), userKey)
     this.emitUserKeyUpdate(userKey, previousUserKey)
   }
 
@@ -301,18 +368,18 @@ export class GioUserStore {
   getNextEventSequenceId() : number {
     const current = this.readStoredEventSequenceId()
     const next = current + 1 >= 1000000000 ? 1 : current + 1
-    const wrapper = { globalKey: next } as UTSJSONObject
+    const wrapper = new UTSJSONObject()
+    wrapper['globalKey'] = next
     this.getMainStorage().setItem(this.getEventSequenceIdKey(), wrapper, null)
     return current
   }
 
   getContext() : GioContext {
-    const deviceId = this.readStoredDeviceId()
     const sessionId = this.resolveSessionId()
-    const userId = this.readStoredUserId()
-    const userKey = this.readStoredUserKey()
+    const userId = this.resolveUserId()
+    const userKey = this.resolveUserKey()
     return {
-      deviceId: deviceId.length > 0 ? deviceId : this.deviceId,
+      deviceId: this.deviceId,
       sessionId: sessionId,
       userId: userId.length > 0 ? userId : null,
       userKey: userKey.length > 0 ? userKey : null

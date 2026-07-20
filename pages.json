@@ -25,6 +25,12 @@
 			}
 		},
 		{
+			"path": "pages/autotrack/autotrack",
+			"style": {
+				"navigationBarTitleText": "无埋点 / VIEW_CLICK / VIEW_CHANGE"
+			}
+		},
+		{
 			"path": "pages/route/route",
 			"style": {
 				"navigationBarTitleText": "路由 / referralPage"
@@ -40,6 +46,12 @@
 			"path": "pages/datacollect/datacollect",
 			"style": {
 				"navigationBarTitleText": "数据采集开关 / setOptions"
+			}
+		},
+		{
+			"path": "uni_modules/uni-link-x/pages/link-webview",
+			"style": {
+				"navigationBarTitleText": "链接预览"
 			}
 		}
 		// #ifdef MP-WEIXIN
@@ -78,8 +90,8 @@
 				"text": "用户"
 			},
 			{
-				"pagePath": "pages/lifecycle/lifecycle",
-				"text": "生命周期"
+				"pagePath": "pages/autotrack/autotrack",
+				"text": "无埋点"
 			}
 		]
 	}

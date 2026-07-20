@@ -16,11 +16,13 @@ export function createApp() {
 			debug: true,
 			forceLogin: false,
 			idMapping: false,
-			useUnified: false,
 			// storageType: 'localStorage',
 			dataCollect: true
 		})
 		gdp('registerPlugins', [
+			{
+				name: 'gioEventAutoTracking',
+			},
 			{
 				name: 'gioShareTracking',
 			},

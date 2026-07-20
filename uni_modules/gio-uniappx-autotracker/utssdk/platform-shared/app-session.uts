@@ -1,15 +1,19 @@
 // App 平台只声明 session 超时语义，避免接管完整 runtime policy。
-import { registerSessionTimeoutPolicy } from '../common/runtime/index.uts'
+import {
+  GioSessionTimeoutPolicy,
+  registerSessionTimeoutPolicy
+} from '../common/runtime/index.uts'
 
 const APP_SESSION_TIMEOUT_MS = 30 * 1000
 
 export function registerAppSessionPolicy() {
-  registerSessionTimeoutPolicy({
+  const policy : GioSessionTimeoutPolicy = {
     getSessionTimeoutMs(_fallback : number) : number {
       return APP_SESSION_TIMEOUT_MS
     },
     shouldRenewSessionOnTimeout() : boolean {
       return false
     }
-  })
+  }
+  registerSessionTimeoutPolicy(policy)
 }

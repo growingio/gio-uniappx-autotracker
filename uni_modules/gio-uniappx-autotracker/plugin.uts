@@ -2,8 +2,16 @@
 // 这里只负责挂载 mixin、提取页面快照和启动参数快照，再把稳定对象转发给 utssdk；
 // 初始化、session、事件构建和上报都由 utssdk 内部处理。
 
+// bridge/ 保持在 JS 编译层：它将宿主事件对象裁剪为可安全传入 utssdk 的快照。
+import { buildAutoTrackEventSnapshot, buildAutoTrackTabItemSnapshot } from './bridge/auto-track-event.uts'
+import { copyJSONObject, readDynamicField } from './bridge/utils.uts'
+
+type AutoTrackTemplateId = string | number | null
+type AutoTrackTemplateDatasetValue = string | number | boolean | null
+
 // #ifdef MP-WEIXIN
 import {
+  dispatchAutoTrackEvent,
   onHide as handleOnHide,
   onLaunch as handleOnLaunch,
   onPageLoad as handleOnPageLoad,
@@ -13,6 +21,7 @@ import {
 // #endif
 // #ifndef MP-WEIXIN
 import {
+  dispatchAutoTrackEvent,
   onHide as handleOnHide,
   onLaunch as handleOnLaunch,
   onPageLoad as handleOnPageLoad,
@@ -43,21 +52,6 @@ type MpOptionsFactory = (options : any | null) => any | null
 type MpShareHandler = (options : any | null) => any | null
 // #endif
 
-function copyJSONObject(source : any | null) : UTSJSONObject | null {
-  if (source == null || typeof source != 'object' || Array.isArray(source)) {
-    return null
-  }
-  const text = JSON.stringify(source)
-  if (text == null || text.length == 0) {
-    return null
-  }
-  const copied = JSON.parseObject(text)
-  if (copied == null || UTSJSONObject.keys(copied).length == 0) {
-    return null
-  }
-  return copied
-}
-
 function copyReferrerInfo(source : UTSJSONObject | null) : UTSJSONObject | null {
   if (source == null) {
     return null
@@ -80,6 +74,40 @@ function getCurrentUniPage() : UniPage | null {
     return null
   }
   return pages[pages.length - 1]
+}
+
+// getCurrentPages() 只返回主页面栈，this.$page 还可能指向 dialogPage。
+// 系统 picker / actionSheet 等弹窗也会命中全局 mixin；若继续使用主栈顶页面
+// 搭配弹窗的生命周期 options，会把弹窗参数缓存到业务页面 query 下。
+function isCurrentMainPageLifecycle(instance : any | null) : boolean {
+  const currentPage = getCurrentUniPage()
+  if (currentPage == null) {
+    return false
+  }
+  // 微信小程序关闭原生窗体会重新触发主页面 onShow，仍需保留这次页面生命周期。
+  // #ifdef MP-WEIXIN
+  return true
+  // #endif
+  // #ifndef MP-WEIXIN
+  if (instance == null) {
+    return false
+  }
+  // Android 的 app-uts 编译器不能从 any 直接解析 instance.$page；UniPage.vm
+  // 是公开的页面 Vue 实例，身份比较可达到同样效果且不需要序列化页面对象。
+  // #ifdef APP-ANDROID
+  const pageVm = currentPage.vm
+  return pageVm != null && pageVm === instance
+  // #endif
+  // #ifndef APP-ANDROID
+  try {
+    // @ts-ignore
+    const lifecyclePage = instance.$page
+    return lifecyclePage != null && lifecyclePage === currentPage
+  } catch (_error) {
+    return false
+  }
+  // #endif
+  // #endif
 }
 
 // #ifndef MP-WEIXIN
@@ -156,6 +184,250 @@ function buildLaunchOptionsSnapshot(options : any | null) : UTSJSONObject | null
 // 这里仍然做浅拷贝，但不能按启动参数那套白名单裁剪，否则普通页面参数会被误丢弃。
 function buildPageOptionsSnapshot(options : any | null) : UTSJSONObject | null {
   return copyJSONObject(options)
+}
+
+function dispatchAutoTrackSnapshot(
+  action : string,
+  event : any | null,
+  eventName : string,
+  elementType : string | null,
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue,
+  eventDetail : UTSJSONObject | null
+) : boolean {
+  const snapshot = buildAutoTrackEventSnapshot(
+    action,
+    event,
+    eventName,
+    elementType,
+    templateId,
+    templateIndex,
+    templateTitle,
+    templateSrc,
+    templateGrowingTrack,
+    templateGrowingIgnore,
+    eventDetail
+  )
+  return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
+}
+
+function readAutoTrackChangeScalar(changePayload : any | null) : string | number | boolean | null {
+  // 这里仅以 null 表示缺失；0 与 false 是 slider、picker、switch 的合法组件值。
+  if (changePayload == null) {
+    return null
+  }
+  if (typeof changePayload == 'string') {
+    return changePayload as string
+  }
+  if (typeof changePayload == 'number') {
+    return changePayload as number
+  }
+  if (typeof changePayload == 'boolean') {
+    return changePayload as boolean
+  }
+  if (Array.isArray(changePayload)) {
+    const text = JSON.stringify(changePayload)
+    return text != null && text.length > 0 ? text : null
+  }
+  // Android 的 $event 可能是标量或原生强类型事件；Any 不能安全地动态读取 detail。
+  // 在唯一入口按公开事件类型解包，避免模板层和后续快照层各自猜测 payload 形态。
+  // #ifdef APP-ANDROID
+  if (changePayload instanceof UniInputBlurEvent) {
+    return (changePayload as UniInputBlurEvent).detail.value
+  }
+  if (changePayload instanceof UniInputConfirmEvent) {
+    return (changePayload as UniInputConfirmEvent).detail.value
+  }
+  if (changePayload instanceof UniInputChangeEvent) {
+    return (changePayload as UniInputChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniTextareaBlurEvent) {
+    return (changePayload as UniTextareaBlurEvent).detail.value
+  }
+  if (changePayload instanceof UniSwitchChangeEvent) {
+    return (changePayload as UniSwitchChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniSliderChangeEvent) {
+    return (changePayload as UniSliderChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniRadioGroupChangeEvent) {
+    return (changePayload as UniRadioGroupChangeEvent).detail.value
+  }
+  if (changePayload instanceof UniCheckboxGroupChangeEvent) {
+    return readAutoTrackChangeScalar((changePayload as UniCheckboxGroupChangeEvent).detail.value)
+  }
+  if (changePayload instanceof UniPickerViewChangeEvent) {
+    return readAutoTrackChangeScalar((changePayload as UniPickerViewChangeEvent).detail.value)
+  }
+  if (changePayload instanceof UniPickerChangeEvent) {
+    return readAutoTrackChangeScalar((changePayload as UniPickerChangeEvent).detail.value)
+  }
+  // #endif
+  // Web、iOS、Harmony、小程序和自定义组件通常传入普通事件对象；Android 未命中
+  // 上方公开强类型事件时也使用这条纯数据兜底。嵌套读取直接作为函数实参，避免
+  // Harmony 产生隐式 any 局部变量。
+  return readAutoTrackChangeScalar(
+    readDynamicField(readDynamicField(changePayload, 'detail'), 'value')
+  )
+}
+
+function readAutoTrackPickerIndex(value : string | number | boolean | null) : number | null {
+  if (value == null) {
+    return null
+  }
+  if (typeof value == 'number') {
+    const index = value as number
+    return index >= 0 && Math.floor(index) == index ? index : null
+  }
+  if (typeof value != 'string') {
+    return null
+  }
+  const text = value as string
+  const index = parseInt(text, 10)
+  return !isNaN(index) && `${index}` == text && index >= 0 ? index : null
+}
+
+function readAutoTrackPickerLabel(range : any | null, index : number) : string | null {
+  if (!Array.isArray(range) || index < 0 || index >= range.length) {
+    return null
+  }
+  const item = range[index]
+  if (typeof item == 'string') {
+    return item as string
+  }
+  if (typeof item == 'number') {
+    return `${item as number}`
+  }
+  if (typeof item == 'boolean') {
+    return (item as boolean) ? 'true' : 'false'
+  }
+  return null
+}
+
+function readAutoTrackPickerViewIndices(changePayload : any | null) : Array<any> | null {
+  if (Array.isArray(changePayload)) {
+    return changePayload as Array<any>
+  }
+  // #ifdef APP-ANDROID
+  if (changePayload instanceof UniPickerViewChangeEvent) {
+    const nativeIndices = (changePayload as UniPickerViewChangeEvent).detail.value
+    const indices = [] as Array<any>
+    for (let i = 0; i < nativeIndices.length; i++) {
+      indices.push(nativeIndices[i] as number)
+    }
+    return indices
+  }
+  // #endif
+  const value = readDynamicField(readDynamicField(changePayload, 'detail'), 'value')
+  return Array.isArray(value) ? value as Array<any> : null
+}
+
+function readAutoTrackPickerValue(
+  changePayload : any | null,
+  elementType : string | null,
+  pickerRange : any | null
+) : string | null {
+  if (elementType == 'picker') {
+    const index = readAutoTrackPickerIndex(readAutoTrackChangeScalar(changePayload))
+    return index != null ? readAutoTrackPickerLabel(pickerRange, index as number) : null
+  }
+  if (elementType != 'picker-view' || !Array.isArray(pickerRange)) {
+    return null
+  }
+  const indices = readAutoTrackPickerViewIndices(changePayload)
+  if (indices == null || indices.length == 0 || pickerRange.length != indices.length) {
+    return null
+  }
+  const labels = [] as Array<string>
+  for (let i = 0; i < indices.length; i++) {
+    const indexValue = indices[i]
+    const index = typeof indexValue == 'number'
+      ? readAutoTrackPickerIndex(indexValue as number)
+      : (typeof indexValue == 'string' ? readAutoTrackPickerIndex(indexValue as string) : null)
+    const label = index != null ? readAutoTrackPickerLabel(pickerRange[i], index as number) : null
+    if (label == null) {
+      return null
+    }
+    labels.push(label)
+  }
+  return labels.join(',')
+}
+
+function buildAutoTrackDetailSnapshot(
+  changePayload : any | null,
+  elementType : string | null,
+  pickerRange : any | null
+) : UTSJSONObject | null {
+  const mappedPickerValue = readAutoTrackPickerValue(changePayload, elementType, pickerRange)
+  const value = mappedPickerValue != null ? mappedPickerValue : readAutoTrackChangeScalar(changePayload)
+  if (value == null) {
+    return null
+  }
+  const detail : UTSJSONObject = {}
+  detail['value'] = value
+  return detail
+}
+
+function dispatchAutoTrackTabItemSnapshot(item : any | null) : boolean {
+  const snapshot = buildAutoTrackTabItemSnapshot(item)
+  return snapshot != null ? dispatchAutoTrackEvent(snapshot) : false
+}
+
+export function gioHandleAutoClick(
+  event : any | null,
+  eventName : string,
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue
+) : boolean {
+  return dispatchAutoTrackSnapshot(
+    'CLICK',
+    event,
+    eventName,
+    null,
+    templateId,
+    templateIndex,
+    templateTitle,
+    templateSrc,
+    templateGrowingTrack,
+    templateGrowingIgnore,
+    null
+  )
+}
+
+export function gioHandleAutoChange(
+  event : any | null,
+  eventName : string,
+  elementType : string | null,
+  templateId : AutoTrackTemplateId,
+  templateIndex : AutoTrackTemplateDatasetValue,
+  templateTitle : AutoTrackTemplateDatasetValue,
+  templateSrc : AutoTrackTemplateDatasetValue,
+  templateGrowingTrack : AutoTrackTemplateDatasetValue,
+  templateGrowingIgnore : AutoTrackTemplateDatasetValue,
+  changePayload : any | null,
+  pickerRange : any | null
+) : boolean {
+  return dispatchAutoTrackSnapshot(
+    'CHANGE',
+    event,
+    eventName,
+    elementType,
+    templateId,
+    templateIndex,
+    templateTitle,
+    templateSrc,
+    templateGrowingTrack,
+    templateGrowingIgnore,
+    buildAutoTrackDetailSnapshot(changePayload, elementType, pickerRange)
+  )
 }
 
 // #ifdef MP-WEIXIN
@@ -276,6 +548,9 @@ const lifecycle = defineMixin({
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onLoad(options : OnLoadOptions) {
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     // #ifdef MP-WEIXIN
     wrapMpShareHandlers(this)
     // #endif
@@ -284,12 +559,22 @@ const lifecycle = defineMixin({
       buildPageOptionsSnapshot(options)
     )
   },
+  // #ifdef WEB || MP-WEIXIN || (APP-HARMONY && !VUE3-VAPOR)
+  // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
+  // @ts-ignore
+  onTabItemTap(item : any | null) {
+    dispatchAutoTrackTabItemSnapshot(item)
+  },
+  // #endif
   // #ifdef MP-WEIXIN
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onShow(options : any | null) {
     const launchOptions = buildLaunchOptionsSnapshot(options)
     if (isAppShowOptionsSnapshot(launchOptions)) {
+      return
+    }
+    if (!isCurrentMainPageLifecycle(this)) {
       return
     }
     const pageSnapshot = buildPageSnapshot()
@@ -309,6 +594,9 @@ const lifecycle = defineMixin({
       return
     }
     // #endif
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     const pageSnapshot = buildPageSnapshot()
     handleOnShow(
       pageSnapshot,
@@ -325,12 +613,18 @@ const lifecycle = defineMixin({
       return
     }
     // #endif
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     const pageSnapshot = buildPageSnapshot()
     handleOnHide(pageSnapshot)
   },
   // 生命周期函数的 this 在各端并没有统一静态类型，这里只在桥接层忽略类型检查。
   // @ts-ignore
   onUnload() {
+    if (!isCurrentMainPageLifecycle(this)) {
+      return
+    }
     handleOnPageUnload(buildPageSnapshot())
   }
 })

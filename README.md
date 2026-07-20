@@ -23,7 +23,9 @@ SDK 的接入方式、初始化参数、API 和插件说明请看包内文档，
 | [SDK 使用指南](./uni_modules/gio-uniappx-autotracker/docs/README.md) | SDK 能力概览、平台范围和文档导航 |
 | [集成与初始化配置](./uni_modules/gio-uniappx-autotracker/docs/integration.md) | 如何把 SDK 放进业务工程、如何初始化和验证 |
 | [数据采集 API](./uni_modules/gio-uniappx-autotracker/docs/apis.md) | 自定义事件、用户身份、用户属性、动态开关、地理位置 |
-| [功能插件](./uni_modules/gio-uniappx-autotracker/docs/plugins.md) | ABTest 和微信小程序分享采集插件 |
+| [无埋点](./uni_modules/gio-uniappx-autotracker/docs/event-autotracking.md) | 无埋点的接入、标记和采集边界 |
+| [ABTest](./uni_modules/gio-uniappx-autotracker/docs/abtest.md) | ABTest 的注册、变量读取和缓存行为 |
+| [功能插件总览](./uni_modules/gio-uniappx-autotracker/docs/plugins.md) | 全部插件及微信小程序分享采集 |
 
 SDK 包入口 README：
 
@@ -31,7 +33,12 @@ SDK 包入口 README：
 
 ## Demo 工程
 
-根目录 demo 主要用于 SDK 开发和联调，包含最小初始化、常用 API 页面、ABTest 页面和微信小程序分享采集示例。
+根目录 demo 主要用于 SDK 开发和联调，包含最小初始化、常用 API 页面、ABTest 页面和微信小程序分享采集示例。无埋点相关用例统一收在 `pages/autotrack/autotrack`：可在同一页连续验证点击/变更事件、element 字段、忽略规则、方法引用、官方值组件、list-view、image 与 navigator。
+
+运行要求：
+
+- SDK（包括无埋点）以及包含 `uni-link-x` 与 Android/iOS `picker` 示例的根目录 demo，均需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译。
+- SDK 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 和 `uni-link-x` / `uts-openSchema` 示例依赖；业务工程接入 SDK 时以 SDK 包内 `package.json` 声明的版本范围为准。
 
 打开 demo：
 
@@ -106,11 +113,11 @@ npm run sdk:check
 npm run sdk:release
 ```
 
-推送 `v<version>` 格式的 tag 到 `origin` 后，GitHub Actions 会自动生成 SDK 发布包并上传到对应的 GitHub Release。tag 版本必须和 SDK `package.json` 版本一致，例如当前 `0.1.0` 对应：
+推送 `v<version>` 格式的 tag 到 `origin` 后，GitHub Actions 会自动生成 SDK 发布包并上传到对应的 GitHub Release。事件中的 `sdkVersion` 会在初始化时直接读取 SDK `package.json` 的 `version`；`sdk:check` 会校验这条版本注入链路没有被破坏。tag 版本必须和 SDK `package.json` 版本一致，例如当前 `1.0.0` 对应：
 
 ```bash
-git tag v0.1.0
-git push origin v0.1.0
+git tag v1.0.0
+git push origin v1.0.0
 ```
 
 ## 开源说明

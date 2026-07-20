@@ -46,6 +46,10 @@ export function track(eventName : string, properties : UTSJSONObject | null = nu
   return tracker.track(eventName, properties)
 }
 
+export function dispatchAutoTrackEvent(snapshot : UTSJSONObject) : boolean {
+  return tracker.dispatchAutoTrackEvent(snapshot)
+}
+
 export function setUserId(userId : string, userKey : string | null = null) : boolean {
   return tracker.setUserId(userId, userKey)
 }
@@ -74,6 +78,18 @@ export function clearUserId () : boolean {
   return tracker.clearUserId()
 }
 
+function shouldForwardPlugin(pluginName : string) : boolean {
+  if (pluginName == 'gioShareTracking') {
+    // #ifdef MP-WEIXIN
+    return true
+    // #endif
+    // #ifndef MP-WEIXIN
+    return false
+    // #endif
+  }
+  return true
+}
+
 export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
   // 这里必须显式声明为 `Array<UTSJSONObject>`，不能放宽成 `Array<any>`。
   // uni-app x 的 JS↔UTS 桥只会在声明类型明确时把数组元素编组成真正的 UTSJSONObject；
@@ -86,6 +102,9 @@ export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
     if (nameValue == null || nameValue.length == 0) {
       continue
     }
+    if (!shouldForwardPlugin(nameValue)) {
+      continue
+    }
     // 嵌套对象必须通过 getJSON 读取，不能写 `raw['options'] as UTSJSONObject`。
     // 下标访问拿到的是桥接层原始值，直接强转在运行时会崩；getJSON 才会返回真正的
     // `UTSJSONObject | null`。
@@ -94,6 +113,9 @@ export function registerPlugins (plugins : Array<UTSJSONObject>) : boolean {
       name: nameValue,
       options: optionsValue
     } as GioPluginItem)
+  }
+  if (items.length == 0) {
+    return false
   }
   return tracker.registerPlugins(items)
 }

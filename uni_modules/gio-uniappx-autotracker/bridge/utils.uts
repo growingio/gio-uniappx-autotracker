@@ -1,0 +1,60 @@
+export function copyJSONObject(source : any | null, keys : Array<string> | null = null) : UTSJSONObject | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  // #ifndef APP-ANDROID
+  const text = (keys != null && keys.length > 0) ? JSON.stringify(source, keys) : JSON.stringify(source)
+  // #endif
+  // #ifdef APP-ANDROID
+  const text = (keys != null && keys.length > 0) ? JSON.stringify(source, new UTSArray(keys)) : JSON.stringify(source)
+  // #endif
+  if (text == null || text.length == 0) {
+    return null
+  }
+  const copied = JSON.parseObject(text)
+  if (copied == null || UTSJSONObject.keys(copied).length == 0) {
+    return null
+  }
+  return copied
+}
+
+export function readDynamicField(source : any | null, key : string) : any | null {
+  if (source == null || typeof source != 'object' || Array.isArray(source)) {
+    return null
+  }
+  // #ifdef APP-ANDROID
+  return readCopiedDynamicField(source, key)
+  // #endif
+  // #ifndef APP-ANDROID
+  const value = source[key]
+  return value != null ? value : null
+  // #endif
+}
+
+function readCopiedDynamicField(source : any | null, key : string) : any | null {
+  const copied = copyJSONObject(source)
+  if (copied == null) {
+    return null
+  }
+  const arrayValue = copied.getArray(key)
+  if (arrayValue != null) {
+    return arrayValue
+  }
+  const objectValue = copied.getJSON(key)
+  if (objectValue != null) {
+    return objectValue
+  }
+  const stringValue = copied.getString(key)
+  if (stringValue != null) {
+    return stringValue
+  }
+  const numberValue = copied.getNumber(key)
+  if (numberValue != null) {
+    return numberValue
+  }
+  const booleanValue = copied.getBoolean(key)
+  if (booleanValue != null) {
+    return booleanValue
+  }
+  return null
+}

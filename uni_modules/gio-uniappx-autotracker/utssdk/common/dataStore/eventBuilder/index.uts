@@ -5,7 +5,6 @@ import {
   GioPageContext,
   GioTrackEvent
 } from '../../../interface.uts'
-import { SDK_VERSION } from '../../config.uts'
 import { now, readTimezoneOffsetMinutes } from '../../utils/base.uts'
 import {
   resolvePageContext as resolveRuntimePageContext,
@@ -29,12 +28,14 @@ export class GioEventBuilder {
     originalSource : GioOriginalSource | null
   ) : GioPageContext | null {
     if (eventType == 'VISIT' && originalSource != null) {
+      const currentPageContext = resolveRuntimePageContext(pageContext)
       return {
         path: originalSource.path,
         query: originalSource.query,
-        title: originalSource.title,
+        title: currentPageContext != null ? currentPageContext.title : null,
         referralPage: originalSource.referralPage,
-        duration: pageContext != null ? pageContext.duration : null
+        duration: currentPageContext != null ? currentPageContext.duration : null,
+        timestamp: currentPageContext != null ? currentPageContext.timestamp : null
       } as GioPageContext
     }
     if (eventType != 'VISIT' && eventType != 'PAGE') {
@@ -87,7 +88,21 @@ export class GioEventBuilder {
     // 否则 iOS 侧很容易在大对象字面量 + 内联三元 / 强转 / 原生 Date 缺失方法的组合下，
     // 报 “unable to type-check in reasonable time”。
     const appVersionText : string = options.appVersion as string
-    const timestamp : number = now()
+    let timestamp : number = now()
+    // VISIT/PAGE 可能要等待系统上下文 ready；沿用路由解析或 session 重放时
+    // 冻结的页面时间，避免被异步等待推迟，并保证 VISIT 始终比 PAGE 早 1ms。
+    if (
+      (eventType == 'VISIT' || eventType == 'PAGE') &&
+      resolvedPageContext != null &&
+      resolvedPageContext.timestamp != null
+    ) {
+      const pageTimestamp : number = resolvedPageContext.timestamp as number
+      if (eventType == 'VISIT') {
+        timestamp = pageTimestamp - 1
+      } else {
+        timestamp = pageTimestamp
+      }
+    }
     const timezoneOffset : string = `${readTimezoneOffsetMinutes()}`
     const userKey : string | null = options.idMapping ? context.userKey : null
     const domainText : string = systemContext.bundleId.length > 0
@@ -135,14 +150,15 @@ export class GioEventBuilder {
       referralPage: referralPageText,
       screenHeight: systemContext.screenHeight,
       screenWidth: systemContext.screenWidth,
-      sdkVersion: SDK_VERSION,
+      sdkVersion: options.sdkVersion,
       sessionId: context.sessionId,
       timestamp: timestamp,
       timezoneOffset: timezoneOffset,
       title: titleText,
       userId: context.userId,
       userKey: userKey,
-      attributes: properties
+      attributes: properties,
+      element: null
     } as GioTrackEvent)
   }
 }

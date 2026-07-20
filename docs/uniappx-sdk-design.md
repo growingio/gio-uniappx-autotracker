@@ -146,7 +146,7 @@ web 端额外支持两个初始化项：
 
 跨端配置项补充：
 
-- `originalSource`：默认 `true`
+- `originalSource`：默认 `true`，仅 Web 和微信小程序生效；只在 SDK 初始化访问链且当前 session 尚未成功发送 `VISIT` 时捕获一次 `path` / `query` / `referralPage`，不保存 `sessionId` / `title`，session 更新与同 session 刷新不重捕获
 - `dataCollect`：默认 `true`，也可通过 `setOptions({ dataCollect })` 动态切换
 
 UTS 约束说明：
@@ -205,7 +205,8 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 持久化 `sessionId`
 - 持久化 `sessionExpiresAt`
 - 判断当前是否需要创建新 session
-- 每次构建事件时都从存储重新读取 `sessionId` / `userId` / `userKey`
+- Web 每次构建事件时从存储读取 `userId` / `userKey`，App 和小程序首次取用时从存储恢复、运行期用内存缓存服务事件构建
+- `setUserId()` / `clearUserId()` 等公开身份入口必须同步更新存储和内存缓存
 - `identify(assignmentId)` 生效后持久化新的 `deviceId`
 
 存储键约定：
@@ -387,7 +388,9 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - `userKey`
 - `attributes`
 
-其中 `sessionId`、`userId`、`userKey` 不是从运行时内存缓存里拿，而是在构建事件时即时从存储读取。这样即使页面刷新、运行时局部重建、或者别的流程先一步改写了存储，最终进入请求体的仍然是当前存储里的真实值。
+其中 `sessionId` 按平台 session 策略从存储或内存态读取。Web 的 `userId`、`userKey` 每次构建事件时都从存储读取，以感知同域、相同 `projectId` 且存储配置兼容的其他标签页或 SDK 实例的身份更新，不依赖 `storage` 事件或额外广播；App 和小程序在 `GioUserStore` 首次取用时从存储恢复，随后通过内存缓存参与事件构建，避免高频事件反复读取存储。所有会改登录身份的公开入口都必须走 `GioUserStore.persistUser()` 这一集中路径，同步写存储和缓存。App 和小程序不会监听绕过 SDK 的底层身份存储修改，外部直改通常要重新初始化后才会被读取。
+
+`sdkVersion` 不在原生公共层硬编码。JS 编译层从插件根目录 `package.json` 读取 `version`，在 `gdp('init')` 时作为纯字符串注入初始化参数；事件构建统一使用归一化后的 `options.sdkVersion`，因此发布时只维护插件清单版本。
 
 `eventSequenceId` 当前按独立 SDK 的全局事件序号思路实现：普通事件从 `1` 开始递增并持久化到 `${projectId}_gdp_sequence_ids`；`LOGIN_USER_ATTRIBUTES` 和 `APP_CLOSED` 不带这个字段。
 
@@ -454,6 +457,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 路由解析统一走 `route.uts`
 - `onLoad`、`onShow`、`onHide`、`onUnload` 进入 `utssdk/` 时统一使用 JS 层快照对象，不直接传页面实例
 - `referralPage` 的切换判断不只看 `path`，而是看 `path + query` 组成的路由签名
+- `referralPage` 只记录真实上一页、入口来源应用或有效场景；无来源时归一化为 `null`，不能回填当前应用的 `appId`
 - 同一路径但 query 变化时，会被当成新的路由状态处理
 - 新页面如果暂时还没有标题，不会继续沿用上一个页面的标题
 
@@ -461,7 +465,9 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 触发时机：
 
-- 应用 `onHide`
+- App 或微信小程序的应用 `onHide`；Web 不产生该事件。
+
+该事件用于记录进入后台这一生命周期边界，而不是可靠的进程退出确认。进程被系统直接终止、崩溃或网络请求未完成时，事件可能无法送达；Android 的真实 Activity 回调链仍需要在目标端真机或模拟器验证。
 
 上下文来源：
 
@@ -481,7 +487,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 当 `setUserId()` 把登录用户从 A 切到 B 时，也会切新 session，并在后续事件前补发新的 `VISIT`
 - 页面 `onShow` 是首屏和后续前台页面采集的主要触发点
 - 自定义 `track` 也会重新检查 session，避免漏掉新的访问边界
-- `sessionId`、`userId`、`userKey` 的最终取值始终以存储中的值为准，不依赖内存态缓存
+- Web 的 `userId`、`userKey` 每次构建事件时以存储为准；App 和小程序首次取用时以存储为准、运行期以 `GioUserStore` 内存缓存为事件构建来源；身份变更入口必须同步更新缓存和存储
 
 `sessionExpires` 不作为对外初始化配置暴露，session 过期策略由 SDK 内部按平台默认规则处理。
 
@@ -514,7 +520,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
     "referralPage": "pages/index/index",
     "screenHeight": 844,
     "screenWidth": 390,
-    "sdkVersion": "0.1.0",
+    "sdkVersion": "1.0.0",
     "sessionId": "...",
     "timestamp": 1710000000000,
     "timezoneOffset": "-480",
@@ -541,7 +547,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
     "platformVersion": "18.0",
     "screenHeight": 844,
     "screenWidth": 390,
-    "sdkVersion": "0.1.0",
+    "sdkVersion": "1.0.0",
     "sessionId": "...",
     "timestamp": 1710000000200,
     "timezoneOffset": "-480",
@@ -619,7 +625,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 - 应用通过 `gdp('init', { app, ...options })` 初始化 SDK
 - 新 session 创建时能发出 `VISIT`
 - 页面显示时能发出 `PAGE`
-- 应用退后台时能发出 `APP_CLOSED`
+- App 或微信小程序进入后台时尽力发出 `APP_CLOSED`；Web 不产生该事件。
 - 业务事件可通过 `gdp('track', eventName, properties)` 上报
 - `userId` 和 `userKey` 可在运行时更新
 - `dataCollect` 可通过 `setOptions({ dataCollect })` 动态切换

@@ -14,6 +14,7 @@ export * from './plugins/gio-share-tracking.uts'
 export {
   clearLocation,
   clearUserId,
+  dispatchAutoTrackEvent,
   getABTest,
   identify,
   onHide,

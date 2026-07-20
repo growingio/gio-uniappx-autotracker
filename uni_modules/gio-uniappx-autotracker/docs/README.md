@@ -4,7 +4,13 @@
 
 ## 简介
 
-`gio-uniappx-autotracker` 以 `uni_modules` 插件形式交付，不需要业务工程额外构建 SDK。集成后，SDK 会通过 Vue 生命周期桥接自动采集访问、页面和应用退后台等基础事件，并提供 `gdp(...)` 命令式 API 用于自定义事件、用户身份、运行时开关和插件能力。
+`gio-uniappx-autotracker` 以 `uni_modules` 插件形式交付，不需要业务工程额外构建 SDK。集成后，SDK 会自动采集访问和页面等基础事件；App 和微信小程序进入后台时会尽力采集 `APP_CLOSED`。SDK 同时提供 `gdp(...)` API 用于自定义事件、用户身份、配置和插件能力。
+
+## 接入前确认
+
+- 业务工程需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译；SDK 包内 `package.json` 是版本范围的事实来源。
+- 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 和 `uni-link-x` / `uts-openSchema` 示例依赖。业务工程不要依赖这些 demo 专用模块。
+- 若手工复制 SDK 并启用无埋点，需安装 SDK 的 Vite 插件依赖；详细步骤见[集成与初始化配置](./integration.md)。仅查看根目录 demo 的运行结果不能替代业务工程目标端的真实编译与上报验证。
 
 覆盖平台：
 
@@ -21,7 +27,9 @@
 | --- | --- |
 | [集成与初始化配置](./integration.md) | 安装目录、入口初始化、初始化配置项、基础验证 |
 | [数据采集 API](./apis.md) | `track`、用户身份、用户属性、动态开关、地理位置 |
-| [功能插件](./plugins.md) | `gioABTest`、`gioShareTracking` 的注册和调用 |
+| [无埋点](./event-autotracking.md) | `gioEventAutoTracking` 的接入、标记和采集边界 |
+| [ABTest](./abtest.md) | `gioABTest` 的注册、变量读取和缓存行为 |
+| [功能插件总览](./plugins.md) | 全部插件及微信小程序分享采集 |
 
 ## 最小接入示例
 
@@ -66,6 +74,12 @@ gdp('clearLocation')
 gdp('registerPlugins', plugins)
 gdp('getABTest', layerId, callback)
 ```
+
+## 身份一致性
+
+- Web 每次构建事件时都会重新读取存储中的 `userId` 和 `userKey`，以感知同域其他标签页或 SDK 实例的身份更新。
+- App 和微信小程序首次读取后使用内存缓存；调用 `setUserId`、`clearUserId` 等 SDK API 时，持久化存储和缓存会同步更新。
+- 不要直接修改 SDK 的身份存储 key。平台边界和跨标签页生效条件见[身份存储与跨端一致性](./integration.md#身份存储与跨端一致性)。
 
 ## 数据发送前提
 

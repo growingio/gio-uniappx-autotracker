@@ -1,5 +1,5 @@
-// original-source.uts 负责入口来源的存储、回填和消费。
-// 它只依赖公共类型和存储抽象，由需要 originalSource 的平台入口显式注册。
+// original-source.uts 负责 Web 和微信小程序入口来源的存储、回填和消费。
+// 它只依赖公共类型和存储抽象，由对应平台入口显式注册；App 三端不启用。
 import {
   GioInitOptions,
   GioOriginalSource,
@@ -7,7 +7,7 @@ import {
   GioPageContext,
   GioStorage,
   GioTrackEvent
-} from '../interface.uts'
+} from '../../interface.uts'
 
 const ORIGINAL_SOURCE_SUFFIX = '_gdp_original_source'
 
@@ -28,10 +28,8 @@ function readStoredOriginalSource(
   }
   const raw = storedValue as UTSJSONObject
   return {
-    sessionId: raw.getString('sessionId', ''),
     path: raw.getString('path', ''),
     query: raw.getString('query', ''),
-    title: raw.getString('title', ''),
     referralPage: raw.getString('referralPage', '')
   } as GioOriginalSource
 }
@@ -42,10 +40,8 @@ function writeStoredOriginalSource(
   originalSource : GioOriginalSource
 ) {
   storage.setItem(getOriginalSourceKey(options), {
-    sessionId: originalSource.sessionId,
     path: originalSource.path,
     query: originalSource.query,
-    title: originalSource.title,
     referralPage: originalSource.referralPage
   } as UTSJSONObject, null)
 }
@@ -66,28 +62,20 @@ function shouldClearOriginalSource(
   }
   const eventPath = event.path != null ? event.path as string : ''
   const eventQuery = event.query != null ? event.query as string : ''
-  const eventTitle = event.title
   const eventReferralPage = event.referralPage != null
     ? event.referralPage as string
     : ''
   return originalSource.path == eventPath &&
     originalSource.query == eventQuery &&
-    originalSource.title == eventTitle &&
     originalSource.referralPage == eventReferralPage
 }
 
 class OriginalSourceStore implements GioOriginalSourceStore {
-  reset(options : GioInitOptions, storage : GioStorage) {
-    removeStoredOriginalSource(options, storage)
-  }
-
   store(
     options : GioInitOptions,
     storage : GioStorage,
     pageContext : GioPageContext | null,
-    preferredPageContext : GioPageContext | null,
-    forceOverwrite : boolean,
-    sessionId : string
+    preferredPageContext : GioPageContext | null
   ) {
     if (
       options.originalSource != true ||
@@ -96,37 +84,15 @@ class OriginalSourceStore implements GioOriginalSourceStore {
       return
     }
     const storedOriginalSource = readStoredOriginalSource(options, storage)
-    if (
-      storedOriginalSource != null &&
-      !forceOverwrite
-    ) {
-      const titleContext = preferredPageContext != null
-        ? preferredPageContext
-        : pageContext
-      if (
-        storedOriginalSource.path == titleContext.path &&
-        storedOriginalSource.title.length == 0 &&
-        titleContext.title != null &&
-        titleContext.title.length > 0
-      ) {
-        writeStoredOriginalSource(options, storage, {
-          sessionId: storedOriginalSource.sessionId,
-          path: storedOriginalSource.path,
-          query: storedOriginalSource.query,
-          title: titleContext.title,
-          referralPage: storedOriginalSource.referralPage
-        } as GioOriginalSource)
-      }
+    if (storedOriginalSource != null) {
       return
     }
     const sourceContext = preferredPageContext != null
       ? preferredPageContext
       : pageContext
     writeStoredOriginalSource(options, storage, {
-      sessionId: sessionId,
       path: sourceContext.path,
       query: sourceContext.query != null ? sourceContext.query : '',
-      title: sourceContext.title != null ? sourceContext.title : '',
       referralPage: sourceContext.referralPage != null
         ? sourceContext.referralPage
         : ''

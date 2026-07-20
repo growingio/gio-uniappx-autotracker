@@ -34,7 +34,7 @@ import { gdp } from '@/uni_modules/gio-uniappx-autotracker/gdp.uts'
 
 ## init
 
-初始化 SDK，并安装生命周期桥接。
+初始化 SDK，并启用基础自动采集。
 
 ```uts
 gdp('init', {
@@ -57,7 +57,7 @@ gdp('init', {
 
 生效行为：
 
-- 返回 `true`：初始化成功，生命周期桥接已安装。
+- 返回 `true`：初始化成功，基础自动采集已启用。
 - 返回 `false`：初始化失败，SDK 不采集事件。
 - `init` 只允许成功调用一次；重复调用返回 `false`。
 - `app` 会在 JS 层用于安装生命周期，传入 native 层前会被置为 `null`。
@@ -68,7 +68,7 @@ gdp('init', {
 | --- | --- | --- |
 | `options` 不是对象 | `false` | 打印初始化参数错误。 |
 | `options.app` 为空 | `false` | 不安装生命周期。 |
-| `projectId` / `dataSourceId` / `appId` / `serverUrl` 归一化后为空 | `false` | 初始化失败。 |
+| `projectId` / `dataSourceId` / `appId` 归一化后为空 | `false` | 初始化失败。 |
 | SDK 已初始化 | `false` | 不刷新配置，不重装生命周期。 |
 
 ## track
@@ -138,6 +138,8 @@ gdp('setUserId', 'user-1001', 'union-key-1001')
 - `idMapping: false` 时，SDK 忽略非空 `userKey` 并打印告警。
 - 新 `userId` 与当前登录身份不同时，SDK 更新用户身份，并在需要时续期 session。
 
+身份可见性：Web 在每次构建事件时重新读取存储中的 `userId` 和 `userKey`，可感知同域、相同项目及兼容存储配置下其他标签页或 SDK 实例的身份更新；App 和微信小程序使用运行期内存缓存，通过本 API 修改时会同步更新存储和缓存。不要绕过 SDK 直接修改身份存储 key。完整规则见[身份存储与跨端一致性](./integration.md#身份存储与跨端一致性)。
+
 失败条件：
 
 | 条件 | 返回值 |
@@ -190,6 +192,7 @@ gdp('identify', 'openid-or-unionid')
 
 - 返回 `true`：SDK 将 `assignmentId` 写为设备 ID，设置 `forceLogin` 为 `false`，释放暂停的上报队列，并触发 flush。
 - 返回 `false`：不修改设备 ID，不释放队列。
+- 等待队列不设置长度上限，也不会因队列长度静默淘汰事件；业务应及时调用 `identify`，避免长时间积压占用内存。
 
 失败条件：
 
@@ -409,7 +412,7 @@ gdp('getABTest', 'layer-1001', (result : any) => {
 | `gioABTest` 未注册 | `false` |
 | `layerId` 为空或数字值小于等于 `0` | `true`，回调空对象 |
 
-结果字段和插件配置见 [功能插件](./plugins.md)。
+结果字段和插件配置见 [ABTest](./abtest.md)。
 
 ## 返回值与排查
 
