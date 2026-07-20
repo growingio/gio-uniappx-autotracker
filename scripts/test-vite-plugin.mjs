@@ -174,7 +174,7 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
     assert.match(template, /id="component_picker_view_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
     assert.match(output, /_gioHandleAutoChange\(event, 'recordComponentAction', 'picker-view', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload, pickerRange\)/)
     assert.match(template, /id="component_picker_view_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event, \[\(pickerItems\)\],/)
-    assert.match(template, /id="component_swiper_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event,/)
+    assert.match(template, /id="component_swiper_change"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event, null, 'component_swiper_change', null, 'swiper change', null, null, null\)/)
     assert.doesNotMatch(template, /\$event\.detail|as UTSJSONObject/)
     assertSetupDispatcher(output)
   }

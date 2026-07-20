@@ -309,7 +309,7 @@ export class GioEventAutoTrackingPlugin {
     if (eventName.length == 0) {
       return null
     }
-    const element = {} as UTSJSONObject
+    const element = new UTSJSONObject()
     element['xpath'] = this.buildXpath(target, eventName)
     const index = this.readIndex(dataset)
     if (index != null) {
@@ -335,12 +335,18 @@ export class GioEventAutoTrackingPlugin {
     if (eventName.length == 0) {
       return null
     }
-    const element = {} as UTSJSONObject
+    const element = new UTSJSONObject()
     element['xpath'] = this.buildXpath(target, eventName)
     if (this.hasGrowingTrack(dataset) && !this.isPasswordChange(snapshot)) {
       const value = this.readChangeValue(snapshot)
       if (value != null) {
         element['textValue'] = stringifyScalar(value)
+      }
+    }
+    if (element.getString('textValue') == null && dataset != null) {
+      const title = dataset.getString('title')
+      if (title != null) {
+        element['textValue'] = title
       }
     }
     return element

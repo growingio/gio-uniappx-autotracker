@@ -110,7 +110,7 @@ function _gioAutoTrackDispatch(
 
 - input、textarea、switch、slider、radio-group 等标量值；
 - checkbox-group、picker-view 等数组值，序列化为 JSON 字符串；
-- swiper 等没有 `detail.value` 的 change，仍可产生 `VIEW_CHANGE`，但不会写入 `textValue`；autoplay 继续遵守既有忽略规则。
+- swiper 等没有 `detail.value` 的 change，仍可产生 `VIEW_CHANGE`；如果标记了 `data-title`，会把标记值写入 `textValue`；autoplay 继续遵守既有忽略规则。
 
 值读取按“是否缺失”而不是 JavaScript truthy 语义判断，因此 picker/slider 的 `0` 与 switch 的 `false` 都会作为有效 `textValue` 保留。
 
