@@ -14,12 +14,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Verify tag matches SDK version
         run: |
@@ -37,7 +37,8 @@ jobs:
         run: npm run sdk:release
 
       - name: Publish GitHub Release
-        uses: softprops/action-gh-release@v2
+        # Fixed Node 24-compatible revision; do not use the floating master ref.
+        uses: softprops/action-gh-release@1c214ab373197cfdedb8c44482a8faf4608192d7
         with:
           name: Release ${{ github.ref_name }}
           generate_release_notes: true
