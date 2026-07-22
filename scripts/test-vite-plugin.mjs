@@ -182,6 +182,16 @@ function assertSetupDispatcherAfterSource(output, sourceMarker) {
 }
 
 {
+  const code = fs.readFileSync('pages/autotrack/autotrack.uvue', 'utf8')
+  const output = transformForPlatform(code, 'app-harmony', '/src/pages/autotrack/autotrack.uvue')
+  const template = output.slice(0, output.indexOf('</template>'))
+  assert.match(template, /<!-- #ifdef APP-HARMONY -->[\s\S]*id="auto_blur_input"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event, null, 'auto_blur_input', '42', 'blur 输入框', '[^']+', 'true', null\); onInputChange\(\$event\)"/)
+  assert.match(template, /<!-- #ifdef APP-HARMONY -->[\s\S]*id="auto_password_input"[\s\S]*@change="_gioAutoTrackDispatch\(\$event, \d+, \$event, null, 'auto_password_input', null, 'password 输入框', null, 'true', null\); onPasswordChange\(\$event\)"/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onInputChange', null, templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload, pickerRange\)/)
+  assert.match(output, /_gioHandleAutoChange\(event, 'onPasswordChange', 'password', templateId, templateIndex, templateTitle, templateSrc, templateGrowingTrack, templateGrowingIgnore, changePayload, pickerRange\)/)
+}
+
+{
   const code = '<template><input @blur="onBlur($event)" /></template><script setup lang="uts"></script>'
   const output = transformForPlatform(code, 'app-android')
   assert.match(output, /@blur="_gioAutoTrackDispatch\(\$event, 0, \$event, null, null, null, null, null, null, null\); onBlur\(\$event\)"/)
