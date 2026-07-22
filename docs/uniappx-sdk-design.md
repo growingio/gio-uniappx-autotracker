@@ -110,6 +110,9 @@ gio-uniappx-autotracker/
     app-ios/
       config.json
       index.uts
+    app-harmony/
+      config.json
+      index.uts
     mp-weixin/
       index.uts
       miniprogram.uts
@@ -618,7 +621,7 @@ web 端会从初始化配置里读取 `storageType` / `cookieDomain`，用于选
 
 - 曝光、性能、自动视图采集等插件化能力
 - 多实例支持
-- `web`、`app-android`、`app-ios`、`mp-weixin` 的测试矩阵
+- `web`、`app-android`、`app-ios`、`app-harmony`、`mp-weixin` 的测试矩阵
 
 ## 13. 当前基线的验收标准
 

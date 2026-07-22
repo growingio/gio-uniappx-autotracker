@@ -2,7 +2,7 @@
 
 `gioABTest` 获取指定实验层的变量结果。SDK 会缓存结果并在实验策略发生变化时自动上报 `$exp_hit`，业务只需要在初始化完成后注册插件并通过 `getABTest` 读取变量。
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 ## 注册插件
 

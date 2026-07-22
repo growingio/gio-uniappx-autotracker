@@ -12,7 +12,7 @@ SDK 本体不放在仓库根目录，而是以 `uni_modules` 集成包形态内�
 uni_modules/gio-uniappx-autotracker
 ```
 
-这样的目录结构是为了方便开发、调试和验证 SDK：你可以直接运行根目录 demo，观察 SDK 在 Web、App 和微信小程序等端上的初始化、生命周期采集、事件上报、用户身份、ABTest 和分享采集效果。业务工程正式接入时，只需要使用 `uni_modules/gio-uniappx-autotracker` 这个 SDK 包。
+这样的目录结构是为了方便开发、调试和验证 SDK：你可以直接运行根目录 demo，观察 SDK 在 Web、Android App、iOS App、HarmonyOS App 和微信小程序上的初始化、生命周期采集、事件上报、用户身份、ABTest 和分享采集效果。业务工程正式接入时，只需要使用 `uni_modules/gio-uniappx-autotracker` 这个 SDK 包。
 
 ## SDK 文档
 
@@ -37,7 +37,7 @@ SDK 包入口 README：
 
 运行要求：
 
-- SDK（包括无埋点）以及包含 `uni-link-x` 与 Android/iOS `picker` 示例的根目录 demo，均需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译。
+- SDK（包括无埋点）以及包含 `uni-link-x` 与 App `picker` 示例的根目录 demo，均需使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译。
 - SDK 发布包只包含 `uni_modules/gio-uniappx-autotracker`，不包含根目录 demo 和 `uni-link-x` / `uts-openSchema` 示例依赖；业务工程接入 SDK 时以 SDK 包内 `package.json` 声明的版本范围为准。
 
 打开 demo：
@@ -58,6 +58,7 @@ open -a HBuilderX .
 - `mp-weixin`
 - `app-android`
 - `app-ios`
+- `app-harmony`
 
 demo 的初始化入口在 [main.uts](./main.uts)，页面示例在 [pages](./pages)。如果你只是想了解 SDK 如何集成到业务工程，请优先阅读上面的 SDK 文档，而不是从 demo 页面反推完整用法。
 
@@ -71,6 +72,7 @@ demo 的初始化入口在 [main.uts](./main.uts)，页面示例在 [pages](./pa
 ├── uni_modules/
 │   └── gio-uniappx-autotracker/     # SDK 集成包
 ├── scripts/
+│   ├── check-demo.mjs               # demo 源码与平台目录检查
 │   └── release-sdk.mjs              # SDK 发布包检查与打包脚本
 └── docs/                            # SDK 设计和内部实现文档
 ```
@@ -92,11 +94,12 @@ uni_modules/gio-uniappx-autotracker
 维护 SDK 或准备发布前，可以在仓库根目录执行：
 
 ```bash
+npm run demo:check
 npm run sdk:check
 npm run sdk:release
 ```
 
-`sdk:check` 会检查 SDK 包结构和关键入口是否齐全。`sdk:release` 会生成发布包：
+`demo:check` 会检查 demo 与 SDK 的关键平台目录；`sdk:check` 会检查 SDK 包结构和关键入口是否齐全。`sdk:release` 会生成发布包：
 
 ```text
 dist/release/gio-uniappx-autotracker-<version>.tgz

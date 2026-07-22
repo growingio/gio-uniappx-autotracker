@@ -53,7 +53,7 @@ gdp('init', {
 | --- | --- | --- | --- |
 | `options` | `UTSJSONObject` | 是 | 初始化配置对象，详见 [集成与初始化配置](./integration.md)。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效行为：
 
@@ -90,7 +90,7 @@ gdp('track', 'buy_click', {
 | `eventName` | `string` | 是 | 事件名。只能包含数字、字母和下划线，不能以数字开头，长度不超过 100 个字符。 |
 | `properties` | `UTSJSONObject \| null` | 否 | 事件属性。按通用属性归一规则处理。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效行为：
 
@@ -129,7 +129,7 @@ gdp('setUserId', 'user-1001', 'union-key-1001')
 | `userId` | `string` | 是 | 登录用户 ID。不能为空，不能是 `-`、`null`、`undefined`。最长保留 1000 个字符。 |
 | `userKey` | `string \| null` | 否 | 用户映射 Key。最长保留 1000 个字符。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效行为：
 
@@ -138,7 +138,7 @@ gdp('setUserId', 'user-1001', 'union-key-1001')
 - `idMapping: false` 时，SDK 忽略非空 `userKey` 并打印告警。
 - 新 `userId` 与当前登录身份不同时，SDK 更新用户身份，并在需要时续期 session。
 
-身份可见性：Web 在每次构建事件时重新读取存储中的 `userId` 和 `userKey`，可感知同域、相同项目及兼容存储配置下其他标签页或 SDK 实例的身份更新；App 和微信小程序使用运行期内存缓存，通过本 API 修改时会同步更新存储和缓存。不要绕过 SDK 直接修改身份存储 key。完整规则见[身份存储与跨端一致性](./integration.md#身份存储与跨端一致性)。
+身份可见性：Web 在每次构建事件时重新读取存储中的 `userId` 和 `userKey`，可感知同域、相同项目及兼容存储配置下其他标签页或 SDK 实例的身份更新；App（Android、iOS、HarmonyOS）和微信小程序使用运行期内存缓存，通过本 API 修改时会同步更新存储和缓存。不要绕过 SDK 直接修改身份存储 key。完整规则见[身份存储与跨端一致性](./integration.md#身份存储与跨端一致性)。
 
 失败条件：
 
@@ -157,7 +157,7 @@ gdp('setUserId', 'user-1001', 'union-key-1001')
 gdp('clearUserId')
 ```
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效行为：
 
@@ -184,7 +184,7 @@ gdp('identify', 'openid-or-unionid')
 | --- | --- | --- | --- |
 | `assignmentId` | `string \| number` | 是 | 标识值。不能为空，不能是 `0`、`-`、`null`、`undefined`。最长保留 1000 个字符。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效条件：初始化配置为 `forceLogin: true`。
 
@@ -221,7 +221,7 @@ gdp('setUserAttributes', {
 | --- | --- | --- | --- |
 | `attributes` | `UTSJSONObject` | 是 | 用户属性。按通用属性归一规则处理。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效行为：
 
@@ -256,7 +256,7 @@ gdp('setOptions', {
 
 不可配置项：`setOptions` 不支持修改 `projectId`、`dataSourceId`、`serverUrl`、`debug`、`forceLogin`、`useUnified`、`idMapping` 等初始化配置。
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效行为：
 
@@ -293,6 +293,7 @@ gdp('setLocation', 31.2304, 121.4737)
 | --- | --- | --- |
 | Android App | 可用 | 记录业务传入的经纬度。 |
 | iOS App | 可用 | 记录业务传入的经纬度。 |
+| HarmonyOS App | 可用 | 记录业务传入的经纬度。 |
 | 微信小程序 | 可用 | 记录业务传入的经纬度。 |
 | Web | 不可用 | 返回 `false` 并打印告警。 |
 
@@ -325,6 +326,7 @@ gdp('clearLocation')
 | --- | --- | --- |
 | Android App | 可用 | 清除已设置的经纬度。 |
 | iOS App | 可用 | 清除已设置的经纬度。 |
+| HarmonyOS App | 可用 | 清除已设置的经纬度。 |
 | 微信小程序 | 可用 | 清除已设置的经纬度。 |
 | Web | 不可用 | 返回 `false` 并打印告警。 |
 
@@ -358,7 +360,7 @@ gdp('registerPlugins', [
 | `plugins[].name` | `string` | 是 | 插件名。当前可用插件见 [功能插件](./plugins.md)。 |
 | `plugins[].options` | `UTSJSONObject \| null` | 否 | 插件配置。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效行为：
 
@@ -393,7 +395,7 @@ gdp('getABTest', 'layer-1001', (result : any) => {
 | `layerId` | `string \| number` | 是 | 实验层 ID。 |
 | `callback` | `(result : any) => void` | 否 | 结果回调。 |
 
-适用平台：Web、Android App、iOS App、微信小程序。
+适用平台：Web、Android App、iOS App、HarmonyOS App、微信小程序。
 
 生效条件：已通过 `gdp('registerPlugins', [{ name: 'gioABTest' }])` 注册 `gioABTest`。
 
