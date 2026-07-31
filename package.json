@@ -1,6 +1,6 @@
 {
   "name": "gio-uniappx-showcase",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "private": true,
   "description": "Minimal feature showcase for gio-uniappx-autotracker SDK",
   "engines": {
