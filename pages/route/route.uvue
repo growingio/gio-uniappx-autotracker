@@ -41,6 +41,7 @@
 			<text class="expect">验证编码解码、特殊字符、空值、多参数拼接</text>
 		</view>
 
+		<!-- #ifdef WEB -->
 		<view class="section">
 			<text class="section-title">hash 路由场景</text>
 			<view class="btn-row">
@@ -49,6 +50,7 @@
 			</view>
 			<text class="expect">验证 hash 模式下 path 和 query 的解析</text>
 		</view>
+		<!-- #endif -->
 
 		<view class="section">
 			<text class="section-title">连续导航 / referralPage 验证</text>
@@ -89,11 +91,10 @@ const referralPage = ref('(loading)')
 const onLoadParams = ref('(loading)')
 
 function readQueryValue(query: UTSJSONObject, key: string): string {
-	const value = query[key]
-	if (value == null) {
-		return '(null)'
-	}
-	return `${value}`
+	// 页面 query 在 uni-app x 中按字符串传递；使用 typed getter 避免鸿蒙生成
+	// ArkTS 时因 UTSJSONObject 的动态下标访问产生隐式 any。
+	const value = query.getString(key)
+	return value != null ? value : '(null)'
 }
 
 onLoad((query: UTSJSONObject | null) => {
@@ -173,8 +174,9 @@ function goLongQuery() {
 	})
 }
 
-// --- hash 路由 ---
+// --- hash 路由（仅 Web）---
 
+// #ifdef WEB
 function goHashPath() {
 	uni.navigateTo({
 		url: '/pages/route/route#/hash-page?from=hash',
@@ -186,6 +188,7 @@ function goHashWithQuery() {
 		url: '/pages/route/route?webParam=1#/hash-page?hashParam=yes',
 	})
 }
+// #endif
 
 // --- 连续导航 ---
 

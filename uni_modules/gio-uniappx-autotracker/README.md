@@ -1,6 +1,6 @@
 # gio-uniappx-autotracker
 
-GrowingIO uni-app x Autotracker Lite 是一个以 `uni_modules` 形态交付的轻量 SDK，面向 uni-app x 工程提供自动访问采集、页面采集、自定义事件、用户身份、ABTest 和微信小程序分享采集能力。
+GrowingIO uni-app x Autotracker Lite 是一个以 `uni_modules` 形态交付的轻量 SDK，面向 uni-app x 工程提供自动访问采集、页面采集、自定义事件、用户身份、ABTest 和微信小程序分享采集能力。HarmonyOS App 为正式支持平台。
 
 运行要求：使用 HBuilderX / uni-app x `5.08` 或更高版本打开和编译业务工程。发布包只包含本目录 `uni_modules/gio-uniappx-autotracker`，不包含仓库根目录 demo 及其 `uni-link-x` / `uts-openSchema` 示例依赖；手工复制并启用无埋点时，还需按[集成与初始化配置](./docs/integration.md)安装 SDK 的 Vite 插件依赖。
 
@@ -9,7 +9,10 @@ SDK 覆盖以下平台：
 - `web`
 - `app-android`
 - `app-ios`
+- `app-harmony`
 - `mp-weixin`
+
+HarmonyOS App 使用 SDK 内置的 `utssdk/app-harmony` 原生入口；请完整复制插件目录，并在目标工程中使用 HBuilderX 重新编译后完成真实上报验证。无埋点的通用能力可用，tabBar 点击采集仅在 Harmony VDOM 下可用，Harmony Vapor 没有等价的框架 hook。详见[无埋点](./docs/event-autotracking.md)。
 
 ## 文档目录
 

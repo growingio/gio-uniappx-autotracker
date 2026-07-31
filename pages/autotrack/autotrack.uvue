@@ -393,6 +393,20 @@
 				<text class="codeLine">发送：否；&#64;input 不在独立 SDK change listeners 里</text>
 			</view>
 			<view class="caseRow">
+				<!-- #ifdef APP-HARMONY -->
+				<input
+					id="auto_blur_input"
+					class="changeInput"
+					v-model="blurValue"
+					:data-index="42"
+					:data-growing-track="true"
+					data-title="blur 输入框"
+					data-src="/pages/autotrack/autotrack?case=blur"
+					@change="onInputChange($event)"
+				/>
+				<text class="codeLine">发送：是；鸿蒙使用 &#64;change；带 xpath / textValue，不带 index</text>
+				<!-- #endif -->
+				<!-- #ifndef APP-HARMONY -->
 				<input
 					id="auto_blur_input"
 					class="changeInput"
@@ -404,6 +418,7 @@
 					@blur="onInputBlur($event)"
 				/>
 				<text class="codeLine">发送：是；&#64;blur="onInputBlur($event)"；带 xpath / textValue，不带 index</text>
+				<!-- #endif -->
 			</view>
 			<view class="caseRow">
 				<input
@@ -420,6 +435,19 @@
 				<text class="codeLine">发送：是；&#64;confirm="onInputConfirm('confirm_arg')"；带 xpath / textValue，不带 index</text>
 			</view>
 			<view class="caseRow">
+				<!-- #ifdef APP-HARMONY -->
+				<input
+					id="auto_password_input"
+					class="changeInput"
+					v-model="passwordValue"
+					type="password"
+					:data-growing-track="true"
+					data-title="password 输入框"
+					@change="onPasswordChange($event)"
+				/>
+				<text class="codeLine">发送：是；鸿蒙使用 &#64;change；type="password" + data-growing-track 强制不带 textValue</text>
+				<!-- #endif -->
+				<!-- #ifndef APP-HARMONY -->
 				<input
 					id="auto_password_input"
 					class="changeInput"
@@ -430,6 +458,7 @@
 					@blur="onPasswordBlur($event)"
 				/>
 				<text class="codeLine">发送：是；change 发送逻辑同普通 input；type="password" + data-growing-track 强制不带 textValue</text>
+				<!-- #endif -->
 			</view>
 			<view class="caseRow">
 				<input
@@ -927,12 +956,20 @@ function onInputBlur(_event : any | null) {
 	note('input blur: ' + blurValue.value)
 }
 
+function onInputChange(_event : any | null) {
+	note('input change: ' + blurValue.value)
+}
+
 function onInputConfirm(value : string) {
 	note('input confirm: ' + confirmValue.value + ' / ' + value)
 }
 
 function onPasswordBlur(_event : any | null) {
 	note('password blur')
+}
+
+function onPasswordChange(_event : any | null) {
+	note('password change')
 }
 
 function onSwitchChange() {

@@ -1,6 +1,6 @@
 # GrowingIO Measurement Protocol（全端）
 
-> 覆盖 **Web / 小程序(MinP) / App(iOS · Android)** 三端的事件上报协议。
+> 覆盖 **Web / 小程序(MinP) / App(iOS · Android · HarmonyOS)** 的事件上报协议。本文中的 App 列同时覆盖 Android、iOS 和 HarmonyOS；平台专属字段以实际端能力为准。
 > 上报方式：`POST` 到 collect 接口，Body 为事件对象数组。每个事件 = 公共字段（context）+ 事件专有字段。
 
 ## 1. 事件类型与适用端
@@ -29,10 +29,10 @@
 | `sessionId` | string | ● | ● | ● | 访问会话 ID |
 | `dataSourceId` | string | ● | ● | ● | 数据源 ID |
 | `eventType` | string | ● | ● | ● | 事件类型（见上表枚举） |
-| `platform` | string | ● | ● | ● | Web：`web`；小程序：`MinP`；App：`iOS`/`Android` |
+| `platform` | string | ● | ● | ● | Web：`web`；小程序：`MinP`；App：`iOS` / `Android` / `HarmonyOS` |
 | `platformVersion` | string | — | ● | ● | 小程序：宿主（微信等）版本；App：操作系统版本 |
 | `timestamp` | long | ● | ● | ● | 事件时间戳 |
-| `domain` | string | ● | ● | ● | Web：网页域名；小程序：appId；App：包标识（iOS BundleID / Android 包名）；Hybrid 为 H5 域名 |
+| `domain` | string | ● | ● | ● | Web：网页域名；小程序：appId；App：包标识（iOS BundleID / Android 包名 / HarmonyOS Bundle Name）；Hybrid 为 H5 域名 |
 | `urlScheme` | string | — | — | ○ | App 链接协议（如 `growing.xxx`）。仅在 init 配置中显式传入时才随事件携带；未配置则不上报，SDK 不会自动生成 |
 | `appState` | string | — | — | ● | 应用前后台：`FOREGROUND` / `BACKGROUND` |
 | `appName` | string | — | — | ● | 应用名称 |
@@ -46,7 +46,7 @@
 | `screenHeight` | int | ● | ● | ● | 屏幕高度（小程序 / App 为物理像素） |
 | `deviceBrand` | string | — | ● | ● | 设备品牌 |
 | `deviceModel` | string | — | ● | ● | 设备型号 |
-| `deviceType` | string | — | ● | ● | 设备类型。小程序：`Weixin-Android`/…；App：如 `iPhone`/`iPad` |
+| `deviceType` | string | — | ● | ● | 设备类型。小程序：`Weixin-Android`/…；App：由目标系统提供，如 `iPhone`/`iPad` 或 HarmonyOS 设备类型 |
 | `operatingSystem` | string | — | ● | — | 同 `deviceType`（仅小程序保留，冗余字段） |
 | `appVersion` | string | ○ | ● | ● | 应用版本，用户配置 |
 | `language` | string | ● | ● | ● | 语言，ISO 639。示例：Web `zh-CN`、小程序 `zh_CN`、App 完整 locale（如 `zh-Hans`） |
@@ -130,8 +130,8 @@
 
 | 维度 | Web | 小程序 | App |
 |---|---|---|---|
-| `platform` | `web` | `MinP` | `iOS` / `Android` |
-| `domain` | 网页域名 | 小程序 appId | 包标识（BundleID / 包名） |
+| `platform` | `web` | `MinP` | `iOS` / `Android` / `HarmonyOS` |
+| `domain` | 网页域名 | 小程序 appId | 包标识（iOS BundleID / Android 包名 / HarmonyOS Bundle Name） |
 | `screenWidth/Height` | 逻辑像素 | 物理像素 | 物理像素 |
 | `path`/`title`/`referralPage` | 公共字段 | 公共字段 | 仅关联页面的事件 |
 | `referralPage` | 所有事件 | 仅 PAGE | 仅 PAGE |
@@ -140,7 +140,7 @@
 | `networkState`/设备型号品牌 | 无 | 有 | 有 |
 | `APP_CLOSED` | 无此事件 | 有（进入后台时尽力发送） | 有（进入后台时尽力发送） |
 | App 专属字段 | — | — | `urlScheme` / `appState` / `appName` |
-| App 专属标识 | — | — | `idfa`/`idfv`（iOS）、`oaid`/`androidId`/`imei`（Android） |
+| App 专属标识 | — | — | `idfa`/`idfv`（iOS）、`oaid`/`androidId`/`imei`（Android）；HarmonyOS 不承诺这些 iOS/Android 专属标识 |
 
 ---
 

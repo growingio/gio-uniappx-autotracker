@@ -19,7 +19,10 @@
 | Web | 可用 |
 | Android App | 可用 |
 | iOS App | 可用 |
+| HarmonyOS App | 正式支持 |
 | 微信小程序 | 可用 |
+
+HarmonyOS App 使用 SDK 包内的 `utssdk/app-harmony` 原生入口。基础生命周期、公开 API、`gioEventAutoTracking` 和 `gioABTest` 均在正式支持范围内；微信小程序专属分享插件不适用。Harmony VDOM 支持 tabBar 点击采集，Harmony Vapor 因框架未提供等价 hook 不支持该项，其他无埋点能力不受此限制。每次升级 SDK、Vite 配置或模板后，都应重新编译实际 Harmony 目标并完成一次真实上报验证。
 
 ## 文档导航
 
@@ -78,7 +81,7 @@ gdp('getABTest', layerId, callback)
 ## 身份一致性
 
 - Web 每次构建事件时都会重新读取存储中的 `userId` 和 `userKey`，以感知同域其他标签页或 SDK 实例的身份更新。
-- App 和微信小程序首次读取后使用内存缓存；调用 `setUserId`、`clearUserId` 等 SDK API 时，持久化存储和缓存会同步更新。
+- App（Android、iOS、HarmonyOS）和微信小程序首次读取后使用内存缓存；调用 `setUserId`、`clearUserId` 等 SDK API 时，持久化存储和缓存会同步更新。
 - 不要直接修改 SDK 的身份存储 key。平台边界和跨标签页生效条件见[身份存储与跨端一致性](./integration.md#身份存储与跨端一致性)。
 
 ## 数据发送前提
